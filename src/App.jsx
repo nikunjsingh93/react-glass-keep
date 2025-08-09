@@ -81,6 +81,12 @@ const ImageIcon = () => (
     <circle cx="8" cy="8" r="1.5" />
   </svg>
 );
+const CloseIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none"
+       xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
+  </svg>
+);
 
 /** ---- Markdown → plain text (for grid preview) ---- */
 const mdToPlain = (md) => {
@@ -586,7 +592,7 @@ export default function App() {
     const mainImg = imgs[0];
 
     // --- Truncate tags with an ellipsis chip if too many for the card ---
-    const MAX_TAG_CHIPS = 4; // adjust if you want more/less
+    const MAX_TAG_CHIPS = 4;
     const allTags = Array.isArray(n.tags) ? n.tags : [];
     const showEllipsisChip = allTags.length > MAX_TAG_CHIPS;
     const displayTags = allTags.slice(0, MAX_TAG_CHIPS);
@@ -891,17 +897,27 @@ export default function App() {
           >
             {/* Content (single scroll area) */}
             <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-              <button
-                className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                title="Pin/unpin"
-                onClick={() => activeId != null && togglePin(activeId)}
-              >
-                {(notes.find((n) => n.id === activeId)?.pinned) ? (
-                  <PinFilled />
-                ) : (
-                  <PinOutline />
-                )}
-              </button>
+              {/* Pin + Close group (Close to the RIGHT of Pin) */}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                <button
+                  className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  title="Pin/unpin"
+                  onClick={() => activeId != null && togglePin(activeId)}
+                >
+                  {(notes.find((n) => n.id === activeId)?.pinned) ? (
+                    <PinFilled />
+                  ) : (
+                    <PinOutline />
+                  )}
+                </button>
+                <button
+                  className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  title="Close"
+                  onClick={closeModal}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
 
               <input
                 className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
@@ -910,12 +926,16 @@ export default function App() {
                 placeholder="Title"
               />
 
-              {/* Image strip in modal */}
+              {/* Image strip in modal (bigger images) */}
               {mImages.length > 0 && (
-                <div className="mb-4 flex gap-2 overflow-x-auto">
+                <div className="mb-5 flex gap-3 overflow-x-auto">
                   {mImages.map((im) => (
-                    <div key={im.id} className="relative">
-                      <img src={im.src} alt={im.name} className="h-24 w-36 object-cover rounded-md border border-[var(--border-light)]" />
+                    <div key={im.id} className="relative inline-block">
+                      <img
+                        src={im.src}
+                        alt={im.name}
+                        className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)]"
+                      />
                       <button
                         title="Remove image"
                         className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
