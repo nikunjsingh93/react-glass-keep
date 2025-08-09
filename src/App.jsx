@@ -980,10 +980,10 @@ export default function App() {
               )}
             </div>
 
-            {/* Footer (wraps naturally) */}
+            {/* Footer: chips can wrap; right controls stay horizontal & centered */}
             <div className="border-t border-[var(--border-light)] p-4 flex items-center justify-between gap-3">
-              {/* Tag chips editor */}
-              <div className="flex items-center gap-2 flex-1 flex-wrap min-w-[40%]">
+              {/* Tag chips editor (allow wrapping; can grow; allow shrinking) */}
+              <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
                 {mTagList.map((tag) => (
                   <span
                     key={tag}
@@ -1010,8 +1010,8 @@ export default function App() {
                 />
               </div>
 
-              {/* Right: palette + add image + actions */}
-              <div className="flex items-center gap-3 flex-wrap justify-end">
+              {/* Right: palette + add image + Delete + Save (no wrap, centered) */}
+              <div className="flex items-center gap-3 flex-nowrap justify-end self-center">
                 <div className="flex space-x-1">
                   {Object.keys(LIGHT_COLORS).map((name) => (
                     <ColorDot
@@ -1045,14 +1045,14 @@ export default function App() {
 
                 <button
                   onClick={deleteModal}
-                  className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2"
+                  className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
                   title="Delete"
                 >
                   <Trash /> Delete
                 </button>
                 <button
                   onClick={saveModal}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
                 >
                   Save
                 </button>
