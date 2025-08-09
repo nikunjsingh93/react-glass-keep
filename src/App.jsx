@@ -74,6 +74,13 @@ const Moon = () => (
       d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
   </svg>
 );
+const ImageIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+    <path d="M8 11l2.5 3 3.5-4 4 5" />
+    <circle cx="8" cy="8" r="1.5" />
+  </svg>
+);
 
 /** ---- Markdown → plain text (for grid preview) ---- */
 const mdToPlain = (md) => {
@@ -135,7 +142,7 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.5); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(128,128,128,0.7); }
 
-/* clamp */
+/* clamp for text preview */
 .line-clamp-6 {
   display: -webkit-box;
   -webkit-line-clamp: 6;
@@ -150,28 +157,114 @@ body {
 }
 `;
 
+/** ---- Small utils ---- */
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** Image compression to keep localStorage happy */
+async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
+  const dataUrl = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+
+  // Create image element
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = dataUrl;
+  });
+
+  // Downscale if needed
+  const { width, height } = img;
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  const targetW = Math.round(width * scale);
+  const targetH = Math.round(height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, targetW, targetH);
+
+  // Use jpeg for better compression
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+/** ---- Checklist item row (shared) ---- */
+function ChecklistRow({ item, onToggle, onChange, onRemove, readOnly }) {
+  return (
+    <div className="flex items-start gap-2 group">
+      <input
+        type="checkbox"
+        className="mt-1 h-4 w-4 cursor-pointer"
+        checked={!!item.done}
+        onChange={(e) => onToggle?.(e.target.checked)}
+        disabled={!!readOnly}
+      />
+      {readOnly ? (
+        <span className={`text-sm ${item.done ? "line-through text-gray-500 dark:text-gray-400" : ""}`}>
+          {item.text}
+        </span>
+      ) : (
+        <input
+          className={`flex-1 bg-transparent text-sm focus:outline-none border-b border-transparent focus:border-[var(--border-light)] pb-0.5 ${item.done ? "line-through text-gray-500 dark:text-gray-400" : ""}`}
+          value={item.text}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder="List item"
+        />
+      )}
+      {!readOnly && (
+        <button
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-600"
+          title="Remove item"
+          onClick={onRemove}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState("");
   const [dark, setDark] = useState(false);
 
-  // Composer
+  // Composer (new note)
+  const [composerType, setComposerType] = useState("text"); // 'text' | 'checklist'
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [tags, setTags] = useState("");
   const [composerColor, setComposerColor] = useState("default");
+  const [composerImages, setComposerImages] = useState([]); // [{id, src, name}]
   const contentRef = useRef(null);
+  const composerFileRef = useRef(null);
 
-  // Modal
+  // Checklist composer state
+  const [clItems, setClItems] = useState([]); // [{id,text,done}]
+  const [clInput, setClInput] = useState("");
+
+  // Modal (existing note)
   const [open, setOpen] = useState(false);
   const [activeId, setActiveId] = useState(null);
+  const [mType, setMType] = useState("text"); // 'text' | 'checklist'
   const [mTitle, setMTitle] = useState("");
   const [mBody, setMBody] = useState("");
-  const [mTagList, setMTagList] = useState([]);   // <-- tags as chips (array)
-  const [tagInput, setTagInput] = useState("");   // <-- input field for adding chips
+  const [mTagList, setMTagList] = useState([]); // chips array
+  const [tagInput, setTagInput] = useState("");
   const [mColor, setMColor] = useState("default");
-  const [viewMode, setViewMode] = useState(true);
+  const [viewMode, setViewMode] = useState(true); // only for text notes
+  const [mImages, setMImages] = useState([]); // [{id, src, name}]
   const mBodyRef = useRef(null);
+  const modalFileRef = useRef(null);
+
+  // Checklist modal
+  const [mItems, setMItems] = useState([]); // [{id,text,done}]
+  const [mInput, setMInput] = useState("");
 
   // Drag
   const dragId = useRef(null);
@@ -209,7 +302,7 @@ export default function App() {
     if (!contentRef.current) return;
     contentRef.current.style.height = "auto";
     contentRef.current.style.height = contentRef.current.scrollHeight + "px";
-  }, [content]);
+  }, [content, composerType]);
 
   // Auto-resize modal textarea (no inner scrollbar)
   const resizeModalTextarea = () => {
@@ -220,9 +313,9 @@ export default function App() {
     el.style.height = Math.max(el.scrollHeight, MIN) + "px";
   };
   useEffect(() => {
-    if (!open) return;
+    if (!open || mType !== "text") return;
     if (!viewMode) requestAnimationFrame(resizeModalTextarea);
-  }, [open, viewMode, mBody]);
+  }, [open, viewMode, mBody, mType]);
 
   /** ---- Helpers ---- */
   const saveNotes = (arr) => {
@@ -267,7 +360,6 @@ export default function App() {
         setTagInput("");
       }
     } else if (e.key === "Backspace" && !tagInput) {
-      // remove last chip
       setMTagList((prev) => prev.slice(0, -1));
     }
   };
@@ -288,30 +380,88 @@ export default function App() {
     setMTagList((prev) => prev.filter((t) => t !== tag));
   };
 
+  /** ---- Image helpers ---- */
+  const addImagesToState = async (fileList, setter) => {
+    const files = Array.from(fileList || []);
+    const results = [];
+    for (const f of files) {
+      try {
+        const src = await fileToCompressedDataURL(f);
+        results.push({ id: uid(), src, name: f.name });
+      } catch (e) {
+        console.error("Image load failed", e);
+      }
+    }
+    if (results.length) setter((prev) => [...prev, ...results]);
+  };
+
+  /** ---- Checklist helpers ---- */
+  const addComposerItem = () => {
+    const t = clInput.trim();
+    if (!t) return;
+    setClItems((prev) => [...prev, { id: uid(), text: t, done: false }]);
+    setClInput("");
+  };
+  const addModalItem = () => {
+    const t = mInput.trim();
+    if (!t) return;
+    setMItems((prev) => [...prev, { id: uid(), text: t, done: false }]);
+    setMInput("");
+  };
+
   /** ---- CRUD ---- */
   const addNote = () => {
-    if (!title.trim() && !content.trim()) return;
-    const n = {
-      id: Date.now(),
-      title: title.trim(),
-      content,
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      color: composerColor,
-      pinned: false,
-      timestamp: new Date().toISOString(),
-    };
-    const next = [n, ...notes];
-    saveNotes(next);
-    setTitle(""); setContent(""); setTags(""); setComposerColor("default");
+    if (composerType === "text") {
+      if (!title.trim() && !content.trim() && composerImages.length === 0) return;
+      const n = {
+        id: Date.now(),
+        type: "text",
+        title: title.trim(),
+        content,
+        items: [],
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        images: composerImages,
+        color: composerColor,
+        pinned: false,
+        timestamp: new Date().toISOString(),
+      };
+      const next = [n, ...notes];
+      saveNotes(next);
+      setTitle(""); setContent(""); setTags(""); setComposerColor("default");
+      setComposerImages([]);
+    } else {
+      // checklist
+      if (!title.trim() && clItems.length === 0 && composerImages.length === 0) return;
+      const n = {
+        id: Date.now(),
+        type: "checklist",
+        title: title.trim(),
+        content: "",
+        items: clItems,
+        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        images: composerImages,
+        color: composerColor,
+        pinned: false,
+        timestamp: new Date().toISOString(),
+      };
+      const next = [n, ...notes];
+      saveNotes(next);
+      setTitle(""); setTags(""); setComposerColor("default");
+      setClItems([]); setClInput("");
+      setComposerImages([]);
+    }
   };
 
   const openModal = (id) => {
     const n = notes.find((x) => x.id === id);
     if (!n) return;
     setActiveId(id);
+    setMType(n.type || "text");
     setMTitle(n.title || "");
     setMBody(n.content || "");
-    setMTagList(Array.isArray(n.tags) ? n.tags : []); // load existing tags
+    setMItems(Array.isArray(n.items) ? n.items : []);
+    setMTagList(Array.isArray(n.tags) ? n.tags : []);
+    setMImages(Array.isArray(n.images) ? n.images : []);
     setTagInput("");
     setMColor(n.color || "default");
     setViewMode(true);
@@ -330,9 +480,12 @@ export default function App() {
       n.id === activeId
         ? {
             ...n,
+            type: mType,
             title: mTitle.trim(),
-            content: mBody,
-            tags: mTagList,     // <-- save chips array
+            content: mType === "text" ? mBody : "",
+            items: mType === "checklist" ? mItems : [],
+            tags: mTagList,
+            images: mImages,
             color: mColor,
           }
         : n
@@ -353,7 +506,7 @@ export default function App() {
     saveNotes(next);
   };
 
-  /** ---- Drag within section ---- */
+  /** ---- Drag within section (note cards) ---- */
   const onDragStart = (id, ev) => {
     dragId.current = id;
     ev.currentTarget.classList.add("dragging");
@@ -392,7 +545,9 @@ export default function App() {
       const t = (n.title || "").toLowerCase();
       const c = (n.content || "").toLowerCase();
       const tags = (n.tags || []).join(" ").toLowerCase();
-      return t.includes(q) || c.includes(q) || tags.includes(q);
+      const items = (n.items || []).map((i) => i.text).join(" ").toLowerCase();
+      const images = (n.images || []).map((im) => im.name).join(" ").toLowerCase();
+      return t.includes(q) || c.includes(q) || tags.includes(q) || items.includes(q) || images.includes(q);
     });
   }, [notes, search]);
 
@@ -420,10 +575,19 @@ export default function App() {
   );
 
   const NoteCard = ({ n }) => {
+    const isChecklist = n.type === "checklist";
     const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
     const MAX_CHARS = 600;
     const isLong = previewText.length > MAX_CHARS;
     const displayText = isLong ? previewText.slice(0, MAX_CHARS).trimEnd() + "…" : previewText;
+
+    const total = (n.items || []).length;
+    const done = (n.items || []).filter((i) => i.done).length;
+    const visibleItems = (n.items || []).slice(0, 8);
+    const extraCount = total > visibleItems.length ? total - visibleItems.length : 0;
+
+    const imgs = n.images || [];
+    const mainImg = imgs[0];
 
     return (
       <div
@@ -437,6 +601,7 @@ export default function App() {
         className="glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
         style={{ backgroundColor: bgFor(n.color, dark) }}
       >
+        {/* Pin */}
         <button
           aria-label={n.pinned ? "Unpin note" : "Pin note"}
           onClick={(e) => {
@@ -453,9 +618,33 @@ export default function App() {
           <h3 className="font-bold text-lg mb-2 pr-10 break-words">{n.title}</h3>
         )}
 
-        <div className="text-sm break-words whitespace-pre-wrap line-clamp-6">
-          {displayText}
-        </div>
+        {/* Image preview */}
+        {mainImg && (
+          <div className="mb-3 relative overflow-hidden rounded-lg border border-[var(--border-light)]">
+            <img src={mainImg.src} alt={mainImg.name || "note image"} className="w-full h-40 object-cover" />
+            {imgs.length > 1 && (
+              <span className="absolute bottom-2 right-2 text-xs bg-black/60 text-white px-2 py-0.5 rounded-full">
+                +{imgs.length - 1} more
+              </span>
+            )}
+          </div>
+        )}
+
+        {!isChecklist ? (
+          <div className="text-sm break-words whitespace-pre-wrap line-clamp-6">
+            {displayText}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {visibleItems.map((it) => (
+              <ChecklistRow key={it.id} item={it} readOnly />
+            ))}
+            {extraCount > 0 && (
+              <div className="text-xs text-gray-600 dark:text-gray-300">+{extraCount} more…</div>
+            )}
+            <div className="text-xs text-gray-600 dark:text-gray-300">{done}/{total} completed</div>
+          </div>
+        )}
 
         {!!(n.tags && n.tags.length) && (
           <div className="mt-4 text-xs">
@@ -503,21 +692,90 @@ export default function App() {
       {/* Composer */}
       <div className="px-4 sm:px-6 md:px-8 lg:px-12 max-w-2xl mx-auto">
         <div className="glass-card rounded-xl shadow-lg p-4 mb-8">
+          {/* Type toggle */}
+          <div className="mb-3 inline-flex rounded-lg border border-[var(--border-light)] overflow-hidden">
+            <button
+              className={`px-3 py-1.5 text-sm ${composerType === "text" ? "bg-indigo-600 text-white" : "hover:bg-black/5 dark:hover:bg-white/5"}`}
+              onClick={() => setComposerType("text")}
+            >
+              Note
+            </button>
+            <button
+              className={`px-3 py-1.5 text-sm ${composerType === "checklist" ? "bg-indigo-600 text-white" : "hover:bg-black/5 dark:hover:bg-white/5"}`}
+              onClick={() => setComposerType("checklist")}
+            >
+              Checklist
+            </button>
+          </div>
+
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
             className="w-full bg-transparent text-lg font-semibold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-2 p-2"
           />
-          <textarea
-            ref={contentRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Take a note..."
-            className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2"
-            rows={1}
-          />
-          <div className="flex items-center justify-between mt-2">
+
+          {composerType === "text" ? (
+            <textarea
+              ref={contentRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Take a note..."
+              className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2"
+              rows={1}
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={clInput}
+                  onChange={(e) => setClInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addComposerItem(); } }}
+                  placeholder="List item… (press Enter to add)"
+                  className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
+                />
+                <button
+                  onClick={addComposerItem}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Add
+                </button>
+              </div>
+              {clItems.length > 0 && (
+                <div className="space-y-2">
+                  {clItems.map((it) => (
+                    <ChecklistRow
+                      key={it.id}
+                      item={it}
+                      onToggle={(checked) => setClItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
+                      onChange={(txt) => setClItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
+                      onRemove={() => setClItems((prev) => prev.filter(p => p.id !== it.id))}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Composer image thumbnails */}
+          {composerImages.length > 0 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto">
+              {composerImages.map((im) => (
+                <div key={im.id} className="relative">
+                  <img src={im.src} alt={im.name} className="h-16 w-24 object-cover rounded-md border border-[var(--border-light)]" />
+                  <button
+                    title="Remove image"
+                    className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                    onClick={() => setComposerImages((prev) => prev.filter((x) => x.id !== im.id))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-3">
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -537,11 +795,33 @@ export default function App() {
                   />
                 ))}
               </div>
+
+              {/* Add Image (composer) */}
+              <input
+                ref={composerFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  addImagesToState(e.target.files, setComposerImages);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => composerFileRef.current?.click()}
+                className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+                title="Add images"
+              >
+                <ImageIcon />
+              </button>
+
+              {/* Add Note */}
               <button
                 onClick={addNote}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors"
               >
-                Add
+                Add Note
               </button>
             </div>
           </div>
@@ -602,8 +882,9 @@ export default function App() {
             className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col"
             style={{ backgroundColor: modalBgFor(mColor, dark) }}
           >
-            {/* Single scroll area for content */}
+            {/* Content (single scroll area) */}
             <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
+              {/* Pin */}
               <button
                 className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 title="Pin/unpin"
@@ -616,6 +897,7 @@ export default function App() {
                 )}
               </button>
 
+              {/* Title */}
               <input
                 className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
                 value={mTitle}
@@ -623,30 +905,93 @@ export default function App() {
                 placeholder="Title"
               />
 
-              {viewMode ? (
-                <div
-                  className="note-content whitespace-pre-wrap"
-                  onClick={() => setViewMode(false)}
-                  dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
-                />
+              {/* Image strip in modal */}
+              {mImages.length > 0 && (
+                <div className="mb-4 flex gap-2 overflow-x-auto">
+                  {mImages.map((im) => (
+                    <div key={im.id} className="relative">
+                      <img src={im.src} alt={im.name} className="h-24 w-36 object-cover rounded-md border border-[var(--border-light)]" />
+                      <button
+                        title="Remove image"
+                        className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                        onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Body (text OR checklist) */}
+              {mType === "text" ? (
+                viewMode ? (
+                  <div
+                    className="note-content whitespace-pre-wrap"
+                    onClick={() => setViewMode(false)}
+                    dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
+                  />
+                ) : (
+                  <textarea
+                    ref={mBodyRef}
+                    className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
+                    value={mBody}
+                    onChange={(e) => {
+                      setMBody(e.target.value);
+                      requestAnimationFrame(resizeModalTextarea);
+                    }}
+                    placeholder="Write your note…"
+                  />
+                )
               ) : (
-                <textarea
-                  ref={mBodyRef}
-                  className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
-                  value={mBody}
-                  onChange={(e) => {
-                    setMBody(e.target.value);
-                    requestAnimationFrame(resizeModalTextarea);
-                  }}
-                  placeholder="Write your note…"
-                />
+                <div className="space-y-3">
+                  {/* add row */}
+                  <div className="flex gap-2">
+                    <input
+                      value={mInput}
+                      onChange={(e) => setMInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModalItem(); } }}
+                      placeholder="List item… (press Enter to add)"
+                      className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
+                    />
+                    <button
+                      onClick={addModalItem}
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* items */}
+                  {mItems.length > 0 ? (
+                    <div className="space-y-2">
+                      {mItems.map((it) => (
+                        <ChecklistRow
+                          key={it.id}
+                          item={it}
+                          onToggle={(checked) =>
+                            setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))
+                          }
+                          onChange={(txt) =>
+                            setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))
+                          }
+                          onRemove={() =>
+                            setMItems((prev) => prev.filter(p => p.id !== it.id))
+                          }
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No items yet.</p>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Footer: TAG CHIPS (replacing text input) + palette + actions (same line) */}
-            <div className="border-t border-[var(--border-light)] p-4 flex items-center justify-between gap-3">
-              {/* Left: chip editor (no separate comma input) */}
-              <div className="flex items-center gap-2 flex-1 flex-wrap min-w-[40%]">
+            {/* Footer: single-line (no wrap) + horizontal scroll for tags */}
+            <div className="border-t border-[var(--border-light)] p-4 flex items-center justify-between gap-3 flex-nowrap">
+              {/* Tag chips editor (single line, scroll if overflow) */}
+              <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
                 {mTagList.map((tag) => (
                   <span
                     key={tag}
@@ -669,12 +1014,12 @@ export default function App() {
                   onBlur={handleTagBlur}
                   onPaste={handleTagPaste}
                   placeholder={mTagList.length ? "Add tag" : "Add tags"}
-                  className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
+                  className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch]"
                 />
               </div>
 
-              {/* Right: palette + actions */}
-              <div className="flex items-center gap-3 flex-wrap justify-end">
+              {/* Right: palette + add image + actions (no wrap) */}
+              <div className="flex items-center gap-3 shrink-0">
                 <div className="flex space-x-1">
                   {Object.keys(LIGHT_COLORS).map((name) => (
                     <ColorDot
@@ -686,6 +1031,26 @@ export default function App() {
                     />
                   ))}
                 </div>
+
+                {/* Add Image (modal) */}
+                <input
+                  ref={modalFileRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    await addImagesToState(e.target.files, setMImages);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  onClick={() => modalFileRef.current?.click()}
+                  className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+                  title="Add images"
+                >
+                  <ImageIcon />
+                </button>
 
                 <button
                   onClick={deleteModal}
