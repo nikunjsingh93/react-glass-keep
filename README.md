@@ -1,12 +1,46 @@
-# React + Vite
+# Glass Keep — Keep-style notes (Vite + React)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A lightweight, offline-first notes app with Markdown preview, pinning, tags (chip editor), color themes, dark mode, drag-and-drop reordering, and a glassy UI.
 
-Currently, two official plugins are available:
+https://user-images.example/demo.gif
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Features
+- Markdown viewing (click note body to edit)
+- Pin/unpin notes, separate “Pinned / Others” sections
+- Tag chips with quick add/remove
+- Color palettes per note
+- Dark mode with persistence
+- Drag to reorder within each section
+- Search across title, content, and tags
+- LocalStorage persistence (no backend)
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## 🧰 Prerequisites
+- **Node.js 18+** (LTS recommended)
+- **npm** (bundled with Node)
+
+> Check your versions:
+>
+> ```bash
+> node -v
+> npm -v
+> ```
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1) Install dependencies
+npm install
+
+# 2) Start the dev server
+npm run dev
+# Vite will print a URL like http://localhost:5173 – open it in your browser
+
+# 3) (optional) Production build
+npm run build
+
+# 4) (optional) Preview the production build locally
+npm run preview
