@@ -585,6 +585,12 @@ export default function App() {
     const imgs = n.images || [];
     const mainImg = imgs[0];
 
+    // --- Truncate tags with an ellipsis chip if too many for the card ---
+    const MAX_TAG_CHIPS = 4; // adjust if you want more/less
+    const allTags = Array.isArray(n.tags) ? n.tags : [];
+    const showEllipsisChip = allTags.length > MAX_TAG_CHIPS;
+    const displayTags = allTags.slice(0, MAX_TAG_CHIPS);
+
     return (
       <div
         draggable
@@ -642,16 +648,21 @@ export default function App() {
           </div>
         )}
 
-        {!!(n.tags && n.tags.length) && (
-          <div className="mt-4 text-xs">
-            {n.tags.map((tag) => (
+        {!!displayTags.length && (
+          <div className="mt-4 text-xs flex flex-wrap gap-2">
+            {displayTags.map((tag) => (
               <span
                 key={tag}
-                className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full"
+                className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full"
               >
                 {tag}
               </span>
             ))}
+            {showEllipsisChip && (
+              <span className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                …
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -980,9 +991,9 @@ export default function App() {
               )}
             </div>
 
-            {/* Footer: chips can wrap; right controls stay horizontal & centered */}
-            <div className="border-t border-[var(--border-light)] p-4 flex items-center justify-between gap-3">
-              {/* Tag chips editor (allow wrapping; can grow; allow shrinking) */}
+            {/* Footer: responsive (wraps on small screens) */}
+            <div className="border-t border-[var(--border-light)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {/* Tag chips editor */}
               <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
                 {mTagList.map((tag) => (
                   <span
@@ -1010,8 +1021,8 @@ export default function App() {
                 />
               </div>
 
-              {/* Right: palette + add image + Delete + Save (no wrap, centered) */}
-              <div className="flex items-center gap-3 flex-nowrap justify-end self-center">
+              {/* Right controls — stack under chips on small screens */}
+              <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
                 <div className="flex space-x-1">
                   {Object.keys(LIGHT_COLORS).map((name) => (
                     <ColorDot
