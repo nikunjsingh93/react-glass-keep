@@ -2,8 +2,6 @@
 
 A lightweight, offline-first notes app with Markdown preview, pinning, tags (chip editor), color themes, dark mode, drag-and-drop reordering, and a glassy UI.
 
-https://user-images.example/demo.gif
-
 ## ✨ Features
 - Markdown viewing (click note body to edit)
 - Pin/unpin notes, separate “Pinned / Others” sections
