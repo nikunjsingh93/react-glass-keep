@@ -169,7 +169,6 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
     fr.readAsDataURL(file);
   });
 
-  // Create image element
   const img = await new Promise((res, rej) => {
     const i = new Image();
     i.onload = () => res(i);
@@ -177,7 +176,6 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
     i.src = dataUrl;
   });
 
-  // Downscale if needed
   const { width, height } = img;
   const scale = Math.min(1, maxDim / Math.max(width, height));
   const targetW = Math.round(width * scale);
@@ -189,7 +187,6 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, targetW, targetH);
 
-  // Use jpeg for better compression
   return canvas.toDataURL("image/jpeg", quality);
 }
 
@@ -430,7 +427,6 @@ export default function App() {
       setTitle(""); setContent(""); setTags(""); setComposerColor("default");
       setComposerImages([]);
     } else {
-      // checklist
       if (!title.trim() && clItems.length === 0 && composerImages.length === 0) return;
       const n = {
         id: Date.now(),
@@ -816,10 +812,10 @@ export default function App() {
                 <ImageIcon />
               </button>
 
-              {/* Add Note */}
+              {/* Add Note (kept to one line) */}
               <button
                 onClick={addNote}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap"
               >
                 Add Note
               </button>
@@ -884,7 +880,6 @@ export default function App() {
           >
             {/* Content (single scroll area) */}
             <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-              {/* Pin */}
               <button
                 className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 title="Pin/unpin"
@@ -897,7 +892,6 @@ export default function App() {
                 )}
               </button>
 
-              {/* Title */}
               <input
                 className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
                 value={mTitle}
@@ -945,7 +939,6 @@ export default function App() {
                 )
               ) : (
                 <div className="space-y-3">
-                  {/* add row */}
                   <div className="flex gap-2">
                     <input
                       value={mInput}
@@ -962,7 +955,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* items */}
                   {mItems.length > 0 ? (
                     <div className="space-y-2">
                       {mItems.map((it) => (
@@ -988,10 +980,10 @@ export default function App() {
               )}
             </div>
 
-            {/* Footer: single-line (no wrap) + horizontal scroll for tags */}
-            <div className="border-t border-[var(--border-light)] p-4 flex items-center justify-between gap-3 flex-nowrap">
-              {/* Tag chips editor (single line, scroll if overflow) */}
-              <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+            {/* Footer (wraps naturally) */}
+            <div className="border-t border-[var(--border-light)] p-4 flex items-center justify-between gap-3">
+              {/* Tag chips editor */}
+              <div className="flex items-center gap-2 flex-1 flex-wrap min-w-[40%]">
                 {mTagList.map((tag) => (
                   <span
                     key={tag}
@@ -1014,12 +1006,12 @@ export default function App() {
                   onBlur={handleTagBlur}
                   onPaste={handleTagPaste}
                   placeholder={mTagList.length ? "Add tag" : "Add tags"}
-                  className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch]"
+                  className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
                 />
               </div>
 
-              {/* Right: palette + add image + actions (no wrap) */}
-              <div className="flex items-center gap-3 shrink-0">
+              {/* Right: palette + add image + actions */}
+              <div className="flex items-center gap-3 flex-wrap justify-end">
                 <div className="flex space-x-1">
                   {Object.keys(LIGHT_COLORS).map((name) => (
                     <ColorDot
@@ -1032,7 +1024,6 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* Add Image (modal) */}
                 <input
                   ref={modalFileRef}
                   type="file"
