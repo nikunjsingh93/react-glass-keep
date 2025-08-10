@@ -57,9 +57,19 @@ const PinFilled = () => (
   </svg>
 );
 const Trash = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none"
-       xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="1.5">
-    <path d="M3 6h18M8 6V4h8v2m-1 0v13a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V6h8Z"/>
+  <svg
+    className="w-5 h-5"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118 1.02-.17m12.456 0L18.16 19.24A2.25 2.25 0 0 1 15.916 21.5H8.084A2.25 2.25 0 0 1 5.84 19.24L4.772 5.79m12.456 0a48.108 48.108 0 0 0-12.456 0M10 5V4a2 2 0 1 1 4 0v1"
+    />
   </svg>
 );
 const Sun = () => (
