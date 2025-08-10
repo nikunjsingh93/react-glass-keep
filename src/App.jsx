@@ -97,6 +97,13 @@ const CloseIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
   </svg>
 );
+const Kebab = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <circle cx="12" cy="5" r="1.5" />
+    <circle cx="12" cy="12" r="1.5" />
+    <circle cx="12" cy="19" r="1.5" />
+  </svg>
+);
 
 /** ---- Markdown → plain text (for grid preview) ---- */
 const mdToPlain = (md) => {
@@ -214,6 +221,19 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+/** ---- Markdown -> plain ---- */
+const mdToPlainForDownload = (n) => {
+  if (n.type === "text") return mdToPlain(n.content || "");
+  const items = (n.items || []).map((it) => `${it.done ? "[x]" : "[ ]"} ${it.text || ""}`);
+  return items.join("\n");
+};
+const sanitizeFilename = (name, fallback = "note") =>
+  (name || fallback)
+    .toString()
+    .trim()
+    .replace(/[\/\\?%*:|"<>]/g, "-")
+    .slice(0, 64);
+
 /** ---- Shared UI bits ---- */
 function ChecklistRow({ item, onToggle, onChange, onRemove, readOnly }) {
   return (
@@ -267,12 +287,14 @@ const ColorDot = ({ name, selected, onClick, darkMode }) => (
   </button>
 );
 
-/** Note card (pure, top-level component) */
+/** Note card */
 function NoteCard({
   n, dark,
-  openModal, togglePin,
+  openModal, togglePin, onDownload,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const isChecklist = n.type === "checklist";
   const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
   const MAX_CHARS = 600;
@@ -308,6 +330,30 @@ function NoteCard({
       data-id={n.id}
       data-group={group}
     >
+      {/* Kebab menu (left of pin) */}
+      <button
+        onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+        className="absolute top-3 right-[4.5rem] rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        title="More options"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+      >
+        <Kebab />
+      </button>
+      {menuOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-10 right-[4.5rem] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
+        >
+          <button
+            className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={() => { onDownload?.(n); setMenuOpen(false); }}
+          >
+            Download .txt
+          </button>
+        </div>
+      )}
+
       {/* Pin */}
       <button
         aria-label={n.pinned ? "Unpin note" : "Pin note"}
@@ -518,6 +564,7 @@ function NotesUI(props) {
     onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
     togglePin,
     addImagesToState,
+    onDownload,
   } = props;
 
   const signOutBtnClass = dark
@@ -713,6 +760,7 @@ function NotesUI(props) {
                   dark={dark}
                   openModal={props.openModal}
                   togglePin={props.togglePin}
+                  onDownload={onDownload}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -739,6 +787,7 @@ function NotesUI(props) {
                   dark={dark}
                   openModal={props.openModal}
                   togglePin={props.togglePin}
+                  onDownload={onDownload}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -807,6 +856,7 @@ export default function App() {
   const [mImages, setMImages] = useState([]);
   const mBodyRef = useRef(null);
   const modalFileRef = useRef(null);
+  const [modalMenuOpen, setModalMenuOpen] = useState(false);
 
   // Checklist modal
   const [mItems, setMItems] = useState([]);
@@ -975,6 +1025,33 @@ export default function App() {
     setMItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setMInput("");
   };
 
+  // Download helpers
+  const triggerDownload = (filename, text) => {
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+  const handleDownloadNote = (note) => {
+    const title = note.title || "";
+    const tags = (note.tags || []).join(", ");
+    const body = mdToPlainForDownload(note);
+    const imagesLine =
+      (note.images && note.images.length)
+        ? `\n\nImages attached: ${note.images.length}${note.images.some(i=>i.name) ? " (" + note.images.map(i=>i.name).join(", ") + ")" : ""}`
+        : "";
+    const header = title ? `${title}\n\n` : "";
+    const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
+    const content = `${header}${tagsLine}${body}${imagesLine}\n`;
+    const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
+    triggerDownload(fname, content);
+  };
+
   // CRUD
   const addNote = () => {
     if (!currentUser?.email) return;
@@ -1013,9 +1090,10 @@ export default function App() {
     setTagInput("");
     setMColor(n.color || "default");
     setViewMode(true);
+    setModalMenuOpen(false);
     setOpen(true);
   };
-  const closeModal = () => { setOpen(false); setActiveId(null); setViewMode(true); };
+  const closeModal = () => { setOpen(false); setActiveId(null); setViewMode(true); setModalMenuOpen(false); };
   const saveModal = () => {
     if (activeId == null) return;
     const next = notes.map((n) =>
@@ -1099,6 +1177,7 @@ export default function App() {
   const others = filtered.filter((n) => !n.pinned);
 
   // Modal content
+  const activeNote = activeId != null ? notes.find((n) => n.id === activeId) : null;
   const modal = open && (
     <div
       className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
@@ -1110,8 +1189,28 @@ export default function App() {
       >
         {/* Body */}
         <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-          {/* Pin + Close */}
+          {/* Kebab + Pin + Close */}
           <div className="absolute top-3 right-3 flex items-center gap-2">
+            <button
+              className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="More options"
+              onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
+            >
+              <Kebab />
+            </button>
+            {modalMenuOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-10 right-[4.5rem] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
+              >
+                <button
+                  className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                  onClick={() => { if (activeNote) handleDownloadNote(activeNote); setModalMenuOpen(false); }}
+                >
+                  Download .txt
+                </button>
+              </div>
+            )}
             <button
               className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               title="Pin/unpin"
@@ -1357,6 +1456,7 @@ export default function App() {
       filteredEmptyWithSearch={filteredEmptyWithSearch}
       allEmpty={allEmpty}
       modal={modal}
+      onDownload={handleDownloadNote}
     />
   );
 }
