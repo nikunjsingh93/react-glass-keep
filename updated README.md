@@ -25,16 +25,6 @@ A sleek, Google Keep–style notes app with Markdown, checklists, images, tag ch
 * Node.js **18+** and npm
 * (Optional) Docker & Docker Compose
 
-## ⚙️ Environment
-
-Create a `.env` in the project root:
-
-```env
-API_PORT=8080
-JWT_SECRET=replace-with-a-long-random-string
-DB_FILE=./data/notes.db
-# FRONTEND_DIR=./dist   # used in production
-```
 
 ## 🛠 Setup (development)
 
@@ -47,90 +37,69 @@ npm install -D concurrently nodemon
 npm install express better-sqlite3 cors jsonwebtoken bcryptjs
 ```
 
-Vite proxy (add to `vite.config.js`):
-
-```js
-export default {
-  server: {
-    port: 5173,
-    proxy: {
-      "/api": { target: "http://localhost:8080", changeOrigin: true },
-    },
-  },
-};
-```
-
-Scripts (in `package.json`):
-
-```json
-{
-  "scripts": {
-    "dev": "concurrently -k -n WEB,API -c auto \"vite\" \"npm:api\"",
-    "api": "nodemon server/index.js",
-    "build": "vite build",
-    "preview": "vite preview",
-    "start": "node server/index.js"
-  }
-}
-```
 
 Run dev:
-
 ```bash
 npm run dev
-# Web: http://localhost:5173
-# API: http://localhost:8080 (proxied at /api)
 ```
 
-## 🏗 Production
-
-```bash
-npm run build
-NODE_ENV=production npm start
-# Visit: http://localhost:8080
-```
 
 ## 🐳 Docker (single image: API + built frontend)
 
 **Dockerfile**
 
 ```dockerfile
+# --- Build stage
 FROM node:18-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-COPY vite.config.js ./
-COPY src ./src
-COPY public ./public
-COPY server ./server
-RUN npm ci
-RUN npm run build
+RUN apk add --no-cache python3 make g++
 
+COPY ["package.json", "package-lock.json", "./"]
+RUN npm ci
+
+COPY ["index.html", "vite.config.js", "./"]
+COPY ["src", "src"]
+COPY ["public", "public"]
+COPY ["server", "server"]
+
+# Safety: ensure no nested node_modules from host
+RUN rm -rf server/node_modules
+
+RUN npm run build
+RUN npm prune --omit=dev
+
+# --- Runtime
 FROM node:18-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package*.json ./
-COPY server ./server
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY ["server", "server"]
 COPY --from=builder /app/dist ./dist
-RUN npm ci --omit=dev
+COPY ["package.json", "package-lock.json", "./"]
+
 RUN mkdir -p /app/data
+
 ENV API_PORT=8080
 ENV DB_FILE=/app/data/notes.db
-ENV JWT_SECRET=change-me
 EXPOSE 8080
 CMD ["node", "server/index.js"]
+
 ```
 
 Build & run:
 
 ```bash
-docker build -t glass-keep .
+docker build --no-cache -t glass-keep .
+docker rm -f glass-keep 2>/dev/null || true
 docker run --name glass-keep \
   -p 8080:8080 \
-  -e JWT_SECRET="change-me" \
-  -v $(pwd)/data:/app/data \
-  glass-keep
-# Visit: http://localhost:8080
+  -e API_PORT=8080 \
+  -e JWT_SECRET="replace-with-a-long-random-string" \
+  -v "$(pwd)/data:/app/data" \
+  -d glass-keep
 ```
+# Visit: http://localhost:8080
 
 ## 👤 Accounts
 
