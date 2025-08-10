@@ -110,7 +110,7 @@ const Trash = () => (
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 0 018 0z"/>
+      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
   </svg>
 );
 const Moon = () => (
@@ -278,11 +278,18 @@ body {
 .note-content h1 { font-size: 1.5rem; line-height: 1.3; }
 .note-content h2 { font-size: 1.25rem; line-height: 1.35; }
 .note-content h3 { font-size: 1.125rem; line-height: 1.4; }
-/* Lists */
-.note-content ul, .note-content ol { margin-left: 1.25rem; padding-left: 1rem; }
+
+/* Default lists (subtle spacing for inline previews) */
+.note-content ul, .note-content ol { margin: 0.25rem 0 0.25rem 1.25rem; padding-left: 0.75rem; }
 .note-content ul { list-style: disc; }
 .note-content ol { list-style: decimal; }
-.note-content li { margin: .25rem 0; }
+.note-content li { margin: 0.15rem 0; line-height: 1.35; }
+
+/* View-mode dense lists in modal: NO extra space between items */
+.note-content--dense ul, .note-content--dense ol { margin: 0; padding-left: 1.1rem; }
+.note-content--dense li { margin: 0; padding: 0; line-height: 1.15; }
+.note-content--dense li > p { margin: 0; }
+.note-content--dense li ul, .note-content--dense li ol { margin: 0.1rem 0 0 1.1rem; padding-left: 1.1rem; }
 
 .dragging { opacity: 0.5; transform: scale(1.05); }
 .drag-over { outline: 2px dashed rgba(99,102,241,.6); outline-offset: 6px; }
@@ -308,6 +315,12 @@ body {
 .modal-scrim {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* modal header blur */
+.modal-header-blur {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* formatting popover base */
@@ -1044,7 +1057,7 @@ function NotesUI({
           <input
             type="text"
             placeholder="Search..."
-            className="w/full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+            className="w-full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -1519,7 +1532,7 @@ export default function App() {
     if (!open) setImgViewOpen(false);
   }, [open]);
 
-  // Keyboard nav for image viewer (with filename fix)
+  // Keyboard nav for image viewer
   useEffect(() => {
     if (!imgViewOpen) return;
     const onKey = (e) => {
@@ -1898,8 +1911,11 @@ export default function App() {
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
   const allEmpty = notes.length === 0;
 
-  /** -------- Modal link handler: open links in new tab -------- */
+  /** -------- Modal link handler: open links in new tab + click-anywhere to edit -------- */
   const onModalBodyClick = (e) => {
+    // Only respond in TEXT + VIEW mode
+    if (!(viewMode && mType === "text")) return;
+
     const a = e.target.closest("a");
     if (a) {
       const href = a.getAttribute("href") || "";
@@ -1910,7 +1926,8 @@ export default function App() {
         return;
       }
     }
-    setViewMode(false); // clicking body switches to edit mode
+    // Enter edit mode on any click in the modal body area
+    setViewMode(false);
   };
 
   /** -------- Image viewer helpers -------- */
@@ -1989,90 +2006,105 @@ export default function App() {
         >
           {/* Scroll container */}
           <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-            {/* Sticky header inside modal (title + actions) with NO border, same bg */}
+            {/* Sticky, WRAPPING header inside modal (title keeps priority; controls wrap after title ends) */}
             <div
-              className="sticky top-0 z-20 px-6 pt-4 pb-3 flex items-center gap-2"
+              className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
-              <input
-                className="flex-1 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
-                value={mTitle}
-                onChange={(e) => setMTitle(e.target.value)}
-                placeholder="Title"
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Title keeps space; controls will wrap below if needed */}
+                <input
+                  className="flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
+                  value={mTitle}
+                  onChange={(e) => setMTitle(e.target.value)}
+                  placeholder="Title"
+                />
 
-              {/* Formatting button (modal) — only in EDIT mode */}
-              {mType === "text" && !viewMode && (
-                <>
+                {/* Controls grouped so they wrap together below the title */}
+                <div className="flex items-center gap-2 flex-none">
+                  {/* Mode toggle */}
                   <button
-                    ref={modalFmtBtnRef}
-                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    title="Formatting"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowModalFmt((v) => !v);
-                    }}
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                    onClick={() => { setViewMode((v) => !v); setShowModalFmt(false); }}
+                    title={viewMode ? "Switch to Edit mode" : "Switch to View mode"}
                   >
-                    <FormatIcon />
+                    {viewMode ? "Edit mode" : "View mode"}
+                  </button>
+
+                  {/* Formatting button (modal) — only in EDIT mode */}
+                  {mType === "text" && !viewMode && (
+                    <>
+                      <button
+                        ref={modalFmtBtnRef}
+                        className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        title="Formatting"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowModalFmt((v) => !v);
+                        }}
+                      >
+                        <FormatIcon />
+                      </button>
+                      <Popover
+                        anchorRef={modalFmtBtnRef}
+                        open={showModalFmt}
+                        onClose={() => setShowModalFmt(false)}
+                      >
+                        <FormatToolbar dark={dark} onAction={(t) => { setShowModalFmt(false); formatModal(t); }} />
+                      </Popover>
+                    </>
+                  )}
+
+                  {/* Kebab menu (download .md) */}
+                  <button
+                    ref={modalMenuBtnRef}
+                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    title="More options"
+                    onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
+                  >
+                    <Kebab />
                   </button>
                   <Popover
-                    anchorRef={modalFmtBtnRef}
-                    open={showModalFmt}
-                    onClose={() => setShowModalFmt(false)}
+                    anchorRef={modalMenuBtnRef}
+                    open={modalMenuOpen}
+                    onClose={() => setModalMenuOpen(false)}
                   >
-                    <FormatToolbar dark={dark} onAction={(t) => { setShowModalFmt(false); formatModal(t); }} />
+                    <div
+                      className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                        onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
+                      >
+                        Download .md
+                      </button>
+                    </div>
                   </Popover>
-                </>
-              )}
 
-              {/* Kebab menu (download .md) */}
-              <button
-                ref={modalMenuBtnRef}
-                className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                title="More options"
-                onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
-              >
-                <Kebab />
-              </button>
-              <Popover
-                anchorRef={modalMenuBtnRef}
-                open={modalMenuOpen}
-                onClose={() => setModalMenuOpen(false)}
-              >
-                <div
-                  className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
-                  onClick={(e) => e.stopPropagation()}
-                >
+                  {/* Pin */}
                   <button
-                    className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                    onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
+                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    title="Pin/unpin"
+                    onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
                   >
-                    Download .md
+                    {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
+                  </button>
+
+                  {/* Close */}
+                  <button
+                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    title="Close"
+                    onClick={closeModal}
+                  >
+                    <CloseIcon />
                   </button>
                 </div>
-              </Popover>
-
-              {/* Pin */}
-              <button
-                className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                title="Pin/unpin"
-                onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
-              >
-                {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
-              </button>
-
-              {/* Close */}
-              <button
-                className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                title="Close"
-                onClick={closeModal}
-              >
-                <CloseIcon />
-              </button>
+              </div>
             </div>
 
-            {/* Content area */}
-            <div className="p-6">
+            {/* Content area (click anywhere to enter edit in text view mode) */}
+            <div className="p-6" onClick={onModalBodyClick}>
               {/* Images */}
               {mImages.length > 0 && (
                 <div className="mb-5 flex gap-3 overflow-x-auto">
@@ -2100,8 +2132,7 @@ export default function App() {
               {mType === "text" ? (
                 viewMode ? (
                   <div
-                    className="note-content whitespace-pre-wrap"
-                    onClick={onModalBodyClick}
+                    className="note-content note-content--dense whitespace-pre-wrap"
                     dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
                   />
                 ) : (
