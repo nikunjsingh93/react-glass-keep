@@ -9,7 +9,7 @@ const Database = require("better-sqlite3");
 const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-please-change";
 const NODE_ENV = process.env.NODE_ENV || "development";
 
