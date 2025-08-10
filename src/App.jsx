@@ -447,13 +447,14 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret }) {
   return (
     <AuthShell title="Sign in to your account" dark={dark} onToggleDark={onToggleDark}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="email"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
+       <input
+         type="text"                         // was "email"
+         autoComplete="username"
+         className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+         placeholder="Username"              // was "Email"
+         value={email}
+         onChange={(e) => setEmail(e.target.value)}
+         required
         />
         <input
           type="password"
@@ -511,9 +512,10 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
           onChange={(e) => setName(e.target.value)}
         />
         <input
-          type="email"
+          type="text"                         // was "email"
+          autoComplete="username"
           className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-          placeholder="Email"
+          placeholder="Username"              // was "Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
