@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { marked as markedParser } from "marked";
 
 // Ensure we can call marked.parse(...)
-const marked = typeof markedParser === "function" ? ({ parse: markedParser }) : markedParser;
+const marked =
+  typeof markedParser === "function" ? { parse: markedParser } : markedParser;
 
 /** ---------- API Helpers ---------- */
 const API_BASE = "/api";
@@ -126,6 +127,22 @@ const CloseIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
   </svg>
 );
+const DownloadIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 10l5 5m0 0l5-5m-5 5V3" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 21h14" />
+  </svg>
+);
+const ArrowLeft = () => (
+  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+  </svg>
+);
+const ArrowRight = () => (
+  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+  </svg>
+);
 const Kebab = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <circle cx="12" cy="5" r="1.5" />
@@ -160,6 +177,33 @@ const downloadText = (filename, content) => {
   const a = document.createElement("a");
   a.href = url; a.download = filename; document.body.appendChild(a);
   a.click(); a.remove(); URL.revokeObjectURL(url);
+};
+const downloadDataUrl = async (filename, dataUrl) => {
+  // Works for data: URLs (and normal URLs that allow CORS)
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+};
+
+// --- Image filename helpers (fix double extensions) ---
+const imageExtFromDataURL = (dataUrl) => {
+  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/.exec(dataUrl || "");
+  const mime = (m?.[1] || "image/jpeg").toLowerCase();
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg";
+  if (mime.includes("png")) return "png";
+  if (mime.includes("webp")) return "webp";
+  if (mime.includes("gif")) return "gif";
+  return "jpg";
+};
+const normalizeImageFilename = (name, dataUrl, index = 1) => {
+  const base = sanitizeFilename(name && name.trim() ? name : `image-${index}`);
+  const withoutExt = base.replace(/\.[^.]+$/, ""); // strip any existing extension
+  const ext = imageExtFromDataURL(dataUrl);
+  return `${withoutExt}.${ext}`;
 };
 
 /** ---------- Global CSS injection ---------- */
@@ -958,6 +1002,10 @@ export default function App() {
   const [mItems, setMItems] = useState([]);
   const [mInput, setMInput] = useState("");
 
+  // Image Viewer state (fullscreen)
+  const [imgViewOpen, setImgViewOpen] = useState(false);
+  const [imgViewIndex, setImgViewIndex] = useState(0);
+
   // Drag
   const dragId = useRef(null);
   const dragGroup = useRef(null);
@@ -1028,11 +1076,39 @@ export default function App() {
 
   // Lock body scroll on modal
   useEffect(() => {
-    if (!open) return;
+    if (!open && !imgViewOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
+  }, [open, imgViewOpen]);
+
+  // Close image viewer if modal closes
+  useEffect(() => {
+    if (!open) setImgViewOpen(false);
   }, [open]);
+
+  // Keyboard nav for image viewer (with filename fix)
+  useEffect(() => {
+    if (!imgViewOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setImgViewOpen(false);
+      if (e.key.toLowerCase() === "d") {
+        const im = mImages[imgViewIndex];
+        if (im) {
+          const fname = normalizeImageFilename(im.name, im.src, imgViewIndex + 1);
+          downloadDataUrl(fname, im.src);
+        }
+      }
+      if (e.key === "ArrowRight" && mImages.length > 1) {
+        setImgViewIndex((i) => (i + 1) % mImages.length);
+      }
+      if (e.key === "ArrowLeft" && mImages.length > 1) {
+        setImgViewIndex((i) => (i - 1 + mImages.length) % mImages.length);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [imgViewOpen, mImages, imgViewIndex]);
 
   // Auto-resize composer textarea
   useEffect(() => {
@@ -1402,249 +1478,327 @@ export default function App() {
     setViewMode(false);
   };
 
+  /** -------- Image viewer helpers -------- */
+  const openImageViewer = (index) => {
+    setImgViewIndex(index);
+    setImgViewOpen(true);
+  };
+  const closeImageViewer = () => setImgViewOpen(false);
+  const nextImage = () => setImgViewIndex((i) => (i + 1) % mImages.length);
+  const prevImage = () => setImgViewIndex((i) => (i - 1 + mImages.length) % mImages.length);
+
   /** -------- Modal JSX -------- */
   const modal = open && (
-    <div
-      className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
-      onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
-    >
+    <>
       <div
-        className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative"
-        style={{ backgroundColor: modalBgFor(mColor, dark) }}
+        className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
+        onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
       >
-        {/* Body */}
-        <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-          {/* Kebab + Pin + Close */}
-          <div className="absolute top-3 right-3 flex items-center gap-2">
-            <button
-              ref={modalMenuBtnRef}
-              className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              title="More options"
-              onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
-            >
-              <Kebab />
-            </button>
-            {modalMenuOpen && (
-              <div
-                ref={modalMenuRef}
-                onClick={(e) => e.stopPropagation()}
-                className={`absolute top-10 right-[4.5rem] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+        <div
+          className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative"
+          style={{ backgroundColor: modalBgFor(mColor, dark) }}
+        >
+          {/* Body */}
+          <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
+            {/* Kebab + Pin + Close */}
+            <div className="absolute top-3 right-3 flex items-center gap-2">
+              <button
+                ref={modalMenuBtnRef}
+                className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="More options"
+                onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
               >
-                <button
-                  className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                  onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
+                <Kebab />
+              </button>
+              {modalMenuOpen && (
+                <div
+                  ref={modalMenuRef}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`absolute top-10 right-[4.5rem] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
                 >
-                  Download .txt
-                </button>
+                  <button
+                    className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                    onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
+                  >
+                    Download .txt
+                  </button>
+                </div>
+              )}
+              <button
+                className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="Pin/unpin"
+                onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
+              >
+                {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
+              </button>
+              <button
+                className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="Close"
+                onClick={closeModal}
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <input
+              className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
+              value={mTitle}
+              onChange={(e) => setMTitle(e.target.value)}
+              placeholder="Title"
+            />
+
+            {/* Images */}
+            {mImages.length > 0 && (
+              <div className="mb-5 flex gap-3 overflow-x-auto">
+                {mImages.map((im, idx) => (
+                  <div key={im.id} className="relative inline-block">
+                    <img
+                      src={im.src}
+                      alt={im.name}
+                      className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)] cursor-zoom-in"
+                      onClick={(e) => { e.stopPropagation(); openImageViewer(idx); }}
+                    />
+                    <button
+                      title="Remove image"
+                      className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                      onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
+
+            {/* Text or Checklist */}
+            {mType === "text" ? (
+              viewMode ? (
+                <div
+                  className="note-content whitespace-pre-wrap"
+                  onClick={onModalBodyClick}
+                  dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
+                />
+              ) : (
+                <textarea
+                  ref={mBodyRef}
+                  className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
+                  value={mBody}
+                  onChange={(e) => { setMBody(e.target.value); requestAnimationFrame(resizeModalTextarea); }}
+                  placeholder="Write your note…"
+                />
+              )
+            ) : (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    value={mInput}
+                    onChange={(e) => setMInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } } }}
+                    placeholder="List item… (press Enter to add)"
+                    className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
+                  />
+                  <button
+                    onClick={() => { const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } }}
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    Add
+                  </button>
+                </div>
+                {mItems.length > 0 ? (
+                  <div className="space-y-2">
+                    {mItems.map((it) => (
+                      <ChecklistRow
+                        key={it.id}
+                        item={it}
+                        onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
+                        onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
+                        onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
+                      />
+                    ))}
+                  </div>
+                ) : <p className="text-sm text-gray-500">No items yet.</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-[var(--border-light)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {/* Tags chips editor */}
+            <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
+              {mTagList.map((tag) => (
+                <span
+                  key={tag}
+                  className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full inline-flex items-center gap-1"
+                >
+                  {tag}
+                  <button
+                    className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
+                    title="Remove tag"
+                    onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onBlur={handleTagBlur}
+                onPaste={handleTagPaste}
+                placeholder={mTagList.length ? "Add tag" : "Add tags"}
+                className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
+              />
+            </div>
+
+            {/* Right controls */}
+            <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
+              <div className="flex space-x-1">
+                {Object.keys(LIGHT_COLORS).map((name) => (
+                  <ColorDot
+                    key={name}
+                    name={name}
+                    darkMode={dark}
+                    selected={mColor === name}
+                    onClick={() => setMColor(name)}
+                  />
+                ))}
+              </div>
+
+              <input
+                ref={modalFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={async (e) => { const f = e.target.files; if (f && f.length) { await addImagesToState(f, setMImages); } e.target.value = ""; }}
+              />
+              <button
+                onClick={() => modalFileRef.current?.click()}
+                className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+                title="Add images"
+              >
+                <ImageIcon />
+              </button>
+
+              <button
+                onClick={() => setConfirmDeleteOpen(true)}
+                className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
+                title="Delete"
+              >
+                <Trash /> Delete
+              </button>
+              <button
+                onClick={saveModal}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+
+          {/* Confirm Delete Dialog */}
+          {confirmDeleteOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setConfirmDeleteOpen(false)}
+              />
+              <div
+                className="glass-card rounded-xl shadow-2xl w-[90%] max-w-sm p-6 relative"
+                style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold mb-2">Delete this note?</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  This action cannot be undone.
+                </p>
+                <div className="mt-5 flex justify-end gap-3">
+                  <button
+                    className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                    onClick={() => setConfirmDeleteOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    onClick={async () => { setConfirmDeleteOpen(false); await deleteModal();}}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fullscreen Image Viewer */}
+      {imgViewOpen && mImages.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) closeImageViewer(); }}
+        >
+          {/* Controls */}
+          <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
-              className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              title="Pin/unpin"
-              onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
+              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+              title="Download (D)"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const im = mImages[imgViewIndex];
+                if (im) {
+                  const fname = normalizeImageFilename(im.name, im.src, imgViewIndex + 1);
+                  await downloadDataUrl(fname, im.src);
+                }
+              }}
             >
-              {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
+              <DownloadIcon />
             </button>
             <button
-              className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              title="Close"
-              onClick={closeModal}
+              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+              title="Close (Esc)"
+              onClick={(e) => { e.stopPropagation(); closeImageViewer(); }}
             >
               <CloseIcon />
             </button>
           </div>
 
-          <input
-            className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
-            value={mTitle}
-            onChange={(e) => setMTitle(e.target.value)}
-            placeholder="Title"
-          />
-
-          {/* Images */}
-          {mImages.length > 0 && (
-            <div className="mb-5 flex gap-3 overflow-x-auto">
-              {mImages.map((im) => (
-                <div key={im.id} className="relative inline-block">
-                  <img
-                    src={im.src}
-                    alt={im.name}
-                    className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)]"
-                  />
-                  <button
-                    title="Remove image"
-                    className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
-                    onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Text or Checklist */}
-          {mType === "text" ? (
-            viewMode ? (
-              <div
-                className="note-content whitespace-pre-wrap"
-                onClick={onModalBodyClick}
-                dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
-              />
-            ) : (
-              <textarea
-                ref={mBodyRef}
-                className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
-                value={mBody}
-                onChange={(e) => { setMBody(e.target.value); requestAnimationFrame(resizeModalTextarea); }}
-                placeholder="Write your note…"
-              />
-            )
-          ) : (
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <input
-                  value={mInput}
-                  onChange={(e) => setMInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } } }}
-                  placeholder="List item… (press Enter to add)"
-                  className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
-                />
-                <button
-                  onClick={() => { const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } }}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                >
-                  Add
-                </button>
-              </div>
-              {mItems.length > 0 ? (
-                <div className="space-y-2">
-                  {mItems.map((it) => (
-                    <ChecklistRow
-                      key={it.id}
-                      item={it}
-                      onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
-                      onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
-                      onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
-                    />
-                  ))}
-                </div>
-              ) : <p className="text-sm text-gray-500">No items yet.</p>}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-[var(--border-light)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          {/* Tags chips editor */}
-          <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
-            {mTagList.map((tag) => (
-              <span
-                key={tag}
-                className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full inline-flex items-center gap-1"
+          {/* Prev / Next */}
+          {mImages.length > 1 && (
+            <>
+              <button
+                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text-white rounded-full hover:bg-white/20"
+                title="Previous (←)"
+                onClick={(e) => { e.stopPropagation(); prevImage(); }}
               >
-                {tag}
-                <button
-                  className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
-                  title="Remove tag"
-                  onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <input
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyDown={handleTagKeyDown}
-              onBlur={handleTagBlur}
-              onPaste={handleTagPaste}
-              placeholder={mTagList.length ? "Add tag" : "Add tags"}
-              className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
-            />
-          </div>
+                <ArrowLeft />
+              </button>
+              <button
+                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text-white rounded-full hover:bg-white/20"
+                title="Next (→)"
+                onClick={(e) => { e.stopPropagation(); nextImage(); }}
+              >
+                <ArrowRight />
+              </button>
+            </>
+          )}
 
-          {/* Right controls */}
-          <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
-            <div className="flex space-x-1">
-              {Object.keys(LIGHT_COLORS).map((name) => (
-                <ColorDot
-                  key={name}
-                  name={name}
-                  darkMode={dark}
-                  selected={mColor === name}
-                  onClick={() => setMColor(name)}
-                />
-              ))}
-            </div>
-
-            <input
-              ref={modalFileRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={async (e) => { const f = e.target.files; if (f && f.length) { await addImagesToState(f, setMImages); } e.target.value = ""; }}
-            />
-            <button
-              onClick={() => modalFileRef.current?.click()}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-              title="Add images"
-            >
-              <ImageIcon />
-            </button>
-
-            <button
-              onClick={() => setConfirmDeleteOpen(true)}
-              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
-              title="Delete"
-            >
-              <Trash /> Delete
-            </button>
-            <button
-              onClick={saveModal}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
-            >
-              Save
-            </button>
+          {/* Image */}
+          <img
+            src={mImages[imgViewIndex].src}
+            alt={mImages[imgViewIndex].name || `image-${imgViewIndex+1}`}
+            className="max-w-[92vw] max-h-[92vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {/* Caption */}
+          <div className="absolute bottom-6 px-3 py-1 rounded bg-black/50 text-white text-xs">
+            {mImages[imgViewIndex].name || `image-${imgViewIndex+1}`}
+            {mImages.length > 1 ? `  (${imgViewIndex+1}/${mImages.length})` : ""}
           </div>
         </div>
-
-        {/* Confirm Delete Dialog */}
-        {confirmDeleteOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="absolute inset-0 bg-black/40"
-              onClick={() => setConfirmDeleteOpen(false)}
-            />
-            <div
-              className="glass-card rounded-xl shadow-2xl w-[90%] max-w-sm p-6 relative"
-              style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-lg font-semibold mb-2">Delete this note?</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                This action cannot be undone.
-              </p>
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
-                  onClick={() => setConfirmDeleteOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  onClick={async () => { setConfirmDeleteOpen(false); await deleteModal();}}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 
   // Redirect if already logged in
