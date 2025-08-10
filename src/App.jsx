@@ -447,14 +447,14 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret }) {
   return (
     <AuthShell title="Sign in to your account" dark={dark} onToggleDark={onToggleDark}>
       <form onSubmit={handleSubmit} className="space-y-4">
-       <input
-         type="text"                         // was "email"
-         autoComplete="username"
-         className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-         placeholder="Username"              // was "Email"
-         value={email}
-         onChange={(e) => setEmail(e.target.value)}
-         required
+        <input
+          type="text"
+          autoComplete="username"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+          placeholder="Username"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
         />
         <input
           type="password"
@@ -512,10 +512,10 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
           onChange={(e) => setName(e.target.value)}
         />
         <input
-          type="text"                         // was "email"
+          type="text"
           autoComplete="username"
           className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-          placeholder="Username"              // was "Email"
+          placeholder="Username"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -1202,7 +1202,7 @@ export default function App() {
     }
   };
 
-  /** -------- Modal helpers -------- */
+  /** -------- Modal tag helpers -------- */
   const addTags = (raw) => {
     const parts = String(raw).split(",").map((t) => t.trim()).filter(Boolean);
     if (!parts.length) return;
@@ -1386,6 +1386,22 @@ export default function App() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [modalMenuOpen]);
 
+  /** -------- Modal link handler: open links in new tab -------- */
+  const onModalBodyClick = (e) => {
+    const a = e.target.closest("a");
+    if (a) {
+      const href = a.getAttribute("href") || "";
+      if (/^(https?:|mailto:|tel:)/i.test(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(href, "_blank", "noopener,noreferrer");
+        return;
+      }
+    }
+    // otherwise switch to edit mode
+    setViewMode(false);
+  };
+
   /** -------- Modal JSX -------- */
   const modal = open && (
     <div
@@ -1472,7 +1488,7 @@ export default function App() {
             viewMode ? (
               <div
                 className="note-content whitespace-pre-wrap"
-                onClick={() => setViewMode(false)}
+                onClick={onModalBodyClick}
                 dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
               />
             ) : (
