@@ -99,7 +99,7 @@ docker run --name glass-keep \
   -v "$(pwd)/data:/app/data" \
   -d glass-keep
 ```
-# Visit: http://localhost:8080
+Visit: http://localhost:8080
 
 docker-compose.yml
 ```bash
