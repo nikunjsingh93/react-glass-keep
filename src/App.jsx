@@ -165,8 +165,20 @@ body {
 
 /** ---- Small utils ---- */
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const base64Encode = (str) => {
+  try { return btoa(unescape(encodeURIComponent(str))); } catch { return str; }
+};
 
-/** Image compression to keep localStorage happy */
+/** ---- LocalStorage helpers ---- */
+const USERS_KEY = "glass-keep-users";
+const CURRENT_USER_KEY = "glass-keep-current-user";
+const notesKeyFor = (email) => `glass-keep-notes::${(email || "").toLowerCase()}`;
+const loadUsers = () => { try { return JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); } catch { return []; } };
+const saveUsers = (arr) => localStorage.setItem(USERS_KEY, JSON.stringify(arr));
+const loadCurrentUser = () => { try { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || "null"); } catch { return null; } };
+const saveCurrentUser = (user) => { if (user) localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user)); else localStorage.removeItem(CURRENT_USER_KEY); };
+
+/** Image compression */
 async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
   const dataUrl = await new Promise((res, rej) => {
     const fr = new FileReader();
@@ -174,29 +186,25 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
     fr.onerror = rej;
     fr.readAsDataURL(file);
   });
-
   const img = await new Promise((res, rej) => {
     const i = new Image();
     i.onload = () => res(i);
     i.onerror = rej;
     i.src = dataUrl;
   });
-
   const { width, height } = img;
   const scale = Math.min(1, maxDim / Math.max(width, height));
   const targetW = Math.round(width * scale);
   const targetH = Math.round(height * scale);
-
   const canvas = document.createElement("canvas");
   canvas.width = targetW;
   canvas.height = targetH;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, targetW, targetH);
-
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-/** ---- Checklist item row (shared) ---- */
+/** ---- Shared UI bits ---- */
 function ChecklistRow({ item, onToggle, onChange, onRemove, readOnly }) {
   return (
     <div className="flex items-start gap-2 group">
@@ -232,490 +240,274 @@ function ChecklistRow({ item, onToggle, onChange, onRemove, readOnly }) {
   );
 }
 
-export default function App() {
-  const [notes, setNotes] = useState([]);
-  const [search, setSearch] = useState("");
-  const [dark, setDark] = useState(false);
+const ColorDot = ({ name, selected, onClick, darkMode }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={name}
+    className={`w-6 h-6 rounded-full border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${name === "default" ? "flex items-center justify-center" : ""} ${selected ? "ring-2 ring-indigo-500" : ""}`}
+    style={{
+      backgroundColor: name === "default" ? "transparent" : solid(bgFor(name, darkMode)),
+      borderColor: name === "default" ? "#d1d5db" : "transparent",
+    }}
+  >
+    {name === "default" && (
+      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: darkMode ? "#1f2937" : "#fff" }} />
+    )}
+  </button>
+);
 
-  // Composer (new note)
-  const [composerType, setComposerType] = useState("text"); // 'text' | 'checklist'
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [tags, setTags] = useState("");
-  const [composerColor, setComposerColor] = useState("default");
-  const [composerImages, setComposerImages] = useState([]); // [{id, src, name}]
-  const contentRef = useRef(null);
-  const composerFileRef = useRef(null);
+/** Note card (pure, top-level component) */
+function NoteCard({
+  n, dark,
+  openModal, togglePin,
+  onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+}) {
+  const isChecklist = n.type === "checklist";
+  const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
+  const MAX_CHARS = 600;
+  const isLong = previewText.length > MAX_CHARS;
+  const displayText = isLong ? previewText.slice(0, MAX_CHARS).trimEnd() + "…" : previewText;
 
-  // Checklist composer state
-  const [clItems, setClItems] = useState([]); // [{id,text,done}]
-  const [clInput, setClInput] = useState("");
+  const total = (n.items || []).length;
+  const done = (n.items || []).filter((i) => i.done).length;
+  const visibleItems = (n.items || []).slice(0, 8);
+  const extraCount = total > visibleItems.length ? total - visibleItems.length : 0;
 
-  // Modal (existing note)
-  const [open, setOpen] = useState(false);
-  const [activeId, setActiveId] = useState(null);
-  const [mType, setMType] = useState("text"); // 'text' | 'checklist'
-  const [mTitle, setMTitle] = useState("");
-  const [mBody, setMBody] = useState("");
-  const [mTagList, setMTagList] = useState([]); // chips array
-  const [tagInput, setTagInput] = useState("");
-  const [mColor, setMColor] = useState("default");
-  const [viewMode, setViewMode] = useState(true); // only for text notes
-  const [mImages, setMImages] = useState([]); // [{id, src, name}]
-  const mBodyRef = useRef(null);
-  const modalFileRef = useRef(null);
+  const imgs = n.images || [];
+  const mainImg = imgs[0];
 
-  // Checklist modal
-  const [mItems, setMItems] = useState([]); // [{id,text,done}]
-  const [mInput, setMInput] = useState("");
+  const MAX_TAG_CHIPS = 4;
+  const allTags = Array.isArray(n.tags) ? n.tags : [];
+  const showEllipsisChip = allTags.length > MAX_TAG_CHIPS;
+  const displayTags = allTags.slice(0, MAX_TAG_CHIPS);
 
-  // Drag
-  const dragId = useRef(null);
-  const dragGroup = useRef(null); // 'pinned' | 'others'
+  const group = n.pinned ? "pinned" : "others";
 
-  /** ---- Effects ---- */
-  useEffect(() => {
-    const style = document.createElement("style");
-    style.innerHTML = globalCSS;
-    document.head.appendChild(style);
-    return () => style.remove();
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("glass-keep-notes");
-    if (saved) setNotes(JSON.parse(saved));
-    const savedDark =
-      localStorage.getItem("glass-keep-dark-mode") === "true" ||
-      (!("glass-keep-dark-mode" in localStorage) &&
-        window.matchMedia?.("(prefers-color-scheme: dark)").matches);
-    setDark(savedDark);
-    document.documentElement.classList.toggle("dark", savedDark);
-  }, []);
-
-  // Lock body scroll while modal open
-  useEffect(() => {
-    if (open) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = prev; };
-    }
-  }, [open]);
-
-  // Auto-resize composer textarea
-  useEffect(() => {
-    if (!contentRef.current) return;
-    contentRef.current.style.height = "auto";
-    contentRef.current.style.height = contentRef.current.scrollHeight + "px";
-  }, [content, composerType]);
-
-  // Auto-resize modal textarea (no inner scrollbar)
-  const resizeModalTextarea = () => {
-    const el = mBodyRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const MIN = 160;
-    el.style.height = Math.max(el.scrollHeight, MIN) + "px";
-  };
-  useEffect(() => {
-    if (!open || mType !== "text") return;
-    if (!viewMode) requestAnimationFrame(resizeModalTextarea);
-  }, [open, viewMode, mBody, mType]);
-
-  /** ---- Helpers ---- */
-  const saveNotes = (arr) => {
-    setNotes(arr);
-    try {
-      localStorage.setItem("glass-keep-notes", JSON.stringify(arr));
-    } catch (e) {
-      console.error("localStorage save failed (too much data?)", e);
-    }
-  };
-  const toggleDark = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("glass-keep-dark-mode", String(next));
-  };
-
-  // Tag helpers (modal)
-  const addTags = (raw) => {
-    const parts = String(raw)
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    if (parts.length === 0) return;
-    setMTagList((prev) => {
-      const set = new Set(prev.map((x) => x.toLowerCase()));
-      const merged = [...prev];
-      for (const p of parts) {
-        if (!set.has(p.toLowerCase())) {
-          merged.push(p);
-          set.add(p.toLowerCase());
-        }
-      }
-      return merged;
-    });
-  };
-  const handleTagKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
-      e.preventDefault();
-      if (tagInput.trim()) {
-        addTags(tagInput);
-        setTagInput("");
-      }
-    } else if (e.key === "Backspace" && !tagInput) {
-      setMTagList((prev) => prev.slice(0, -1));
-    }
-  };
-  const handleTagBlur = () => {
-    if (tagInput.trim()) {
-      addTags(tagInput);
-      setTagInput("");
-    }
-  };
-  const handleTagPaste = (e) => {
-    const text = e.clipboardData?.getData("text");
-    if (text && text.includes(",")) {
-      e.preventDefault();
-      addTags(text);
-    }
-  };
-  const removeTag = (tag) => {
-    setMTagList((prev) => prev.filter((t) => t !== tag));
-  };
-
-  /** ---- Image helpers ---- */
-  const addImagesToState = async (fileList, setter) => {
-    const files = Array.from(fileList || []);
-    const results = [];
-    for (const f of files) {
-      try {
-        const src = await fileToCompressedDataURL(f);
-        results.push({ id: uid(), src, name: f.name });
-      } catch (e) {
-        console.error("Image load failed", e);
-      }
-    }
-    if (results.length) setter((prev) => [...prev, ...results]);
-  };
-
-  /** ---- Checklist helpers ---- */
-  const addComposerItem = () => {
-    const t = clInput.trim();
-    if (!t) return;
-    setClItems((prev) => [...prev, { id: uid(), text: t, done: false }]);
-    setClInput("");
-  };
-  const addModalItem = () => {
-    const t = mInput.trim();
-    if (!t) return;
-    setMItems((prev) => [...prev, { id: uid(), text: t, done: false }]);
-    setMInput("");
-  };
-
-  /** ---- CRUD ---- */
-  const addNote = () => {
-    if (composerType === "text") {
-      if (!title.trim() && !content.trim() && composerImages.length === 0) return;
-      const n = {
-        id: Date.now(),
-        type: "text",
-        title: title.trim(),
-        content,
-        items: [],
-        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-        images: composerImages,
-        color: composerColor,
-        pinned: false,
-        timestamp: new Date().toISOString(),
-      };
-      const next = [n, ...notes];
-      saveNotes(next);
-      setTitle(""); setContent(""); setTags(""); setComposerColor("default");
-      setComposerImages([]);
-    } else {
-      if (!title.trim() && clItems.length === 0 && composerImages.length === 0) return;
-      const n = {
-        id: Date.now(),
-        type: "checklist",
-        title: title.trim(),
-        content: "",
-        items: clItems,
-        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-        images: composerImages,
-        color: composerColor,
-        pinned: false,
-        timestamp: new Date().toISOString(),
-      };
-      const next = [n, ...notes];
-      saveNotes(next);
-      setTitle(""); setTags(""); setComposerColor("default");
-      setClItems([]); setClInput("");
-      setComposerImages([]);
-    }
-  };
-
-  const openModal = (id) => {
-    const n = notes.find((x) => x.id === id);
-    if (!n) return;
-    setActiveId(id);
-    setMType(n.type || "text");
-    setMTitle(n.title || "");
-    setMBody(n.content || "");
-    setMItems(Array.isArray(n.items) ? n.items : []);
-    setMTagList(Array.isArray(n.tags) ? n.tags : []);
-    setMImages(Array.isArray(n.images) ? n.images : []);
-    setTagInput("");
-    setMColor(n.color || "default");
-    setViewMode(true);
-    setOpen(true);
-  };
-
-  const closeModal = () => {
-    setOpen(false);
-    setActiveId(null);
-    setViewMode(true);
-  };
-
-  const saveModal = () => {
-    if (activeId == null) return;
-    const next = notes.map((n) =>
-      n.id === activeId
-        ? {
-            ...n,
-            type: mType,
-            title: mTitle.trim(),
-            content: mType === "text" ? mBody : "",
-            items: mType === "checklist" ? mItems : [],
-            tags: mTagList,
-            images: mImages,
-            color: mColor,
-          }
-        : n
-    );
-    saveNotes(next);
-    closeModal();
-  };
-
-  const deleteModal = () => {
-    if (activeId == null) return;
-    const next = notes.filter((n) => n.id !== activeId);
-    saveNotes(next);
-    closeModal();
-  };
-
-  const togglePin = (id) => {
-    const next = notes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n));
-    saveNotes(next);
-  };
-
-  /** ---- Drag helpers (stable reordering within pinned/others) ---- */
-  const moveWithin = (arr, itemId, targetId, placeAfter) => {
-    const a = arr.slice();
-    const from = a.indexOf(itemId);
-    let to = a.indexOf(targetId);
-    if (from === -1 || to === -1) return arr;
-    a.splice(from, 1);
-    // recompute target index after removal
-    to = a.indexOf(targetId);
-    if (placeAfter) to += 1;
-    a.splice(to, 0, itemId);
-    return a;
-  };
-
-  const onDragStart = (id, ev) => {
-    dragId.current = id;
-    const isPinned = !!notes.find((n) => n.id === id)?.pinned;
-    dragGroup.current = isPinned ? "pinned" : "others";
-    ev.currentTarget.classList.add("dragging");
-  };
-
-  const onDragOver = (overId, group, ev) => {
-    ev.preventDefault();
-    if (!dragId.current) return;
-    if (dragGroup.current !== group) return; // block cross-group
-    ev.currentTarget.classList.add("drag-over");
-  };
-
-  const onDragLeave = (ev) => {
-    ev.currentTarget.classList.remove("drag-over");
-  };
-
-  const onDrop = (overId, group, ev) => {
-    ev.preventDefault();
-    ev.currentTarget.classList.remove("drag-over");
-    const dragged = dragId.current;
-    dragId.current = null;
-
-    if (!dragged || dragged === overId) return;
-    if (dragGroup.current !== group) return;
-
-    const rect = ev.currentTarget.getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-    const placeAfter = ev.clientY > midpoint;
-
-    const pinnedIds = notes.filter((n) => n.pinned).map((n) => n.id);
-    const otherIds = notes.filter((n) => !n.pinned).map((n) => n.id);
-
-    let newPinned = pinnedIds;
-    let newOthers = otherIds;
-
-    if (group === "pinned") {
-      newPinned = moveWithin(pinnedIds, dragged, overId, placeAfter);
-    } else {
-      newOthers = moveWithin(otherIds, dragged, overId, placeAfter);
-    }
-
-    const byId = new Map(notes.map((n) => [n.id, n]));
-    const reordered = [
-      ...newPinned.map((id) => byId.get(id)),
-      ...newOthers.map((id) => byId.get(id)),
-    ];
-    saveNotes(reordered);
-  };
-
-  const onDragEnd = (ev) => {
-    ev.currentTarget.classList.remove("dragging");
-  };
-
-  /** ---- Derived ---- */
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    if (!q) return notes;
-    return notes.filter((n) => {
-      const t = (n.title || "").toLowerCase();
-      const c = (n.content || "").toLowerCase();
-      const tags = (n.tags || []).join(" ").toLowerCase();
-      const items = (n.items || []).map((i) => i.text).join(" ").toLowerCase();
-      const images = (n.images || []).map((im) => im.name).join(" ").toLowerCase();
-      return t.includes(q) || c.includes(q) || tags.includes(q) || items.includes(q) || images.includes(q);
-    });
-  }, [notes, search]);
-
-  const pinned = filtered.filter((n) => n.pinned);
-  const others = filtered.filter((n) => !n.pinned);
-
-  /** ---- UI bits ---- */
-  const ColorDot = ({ name, selected, onClick, darkMode }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      title={name}
-      className={`w-6 h-6 rounded-full border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 ${name === "default" ? "flex items-center justify-center" : ""} ${selected ? "ring-2 ring-indigo-500" : ""}`}
-      style={{
-        backgroundColor:
-          name === "default" ? "transparent" : solid(bgFor(name, darkMode)),
-        borderColor: name === "default" ? "#d1d5db" : "transparent",
-      }}
+  return (
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(n.id, e)}
+      onDragOver={(e) => onDragOver(n.id, group, e)}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => onDrop(n.id, group, e)}
+      onDragEnd={onDragEnd}
+      onClick={() => openModal(n.id)}
+      className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
+      style={{ backgroundColor: bgFor(n.color, dark) }}
+      data-id={n.id}
+      data-group={group}
     >
-      {name === "default" && (
-        <div className="w-4 h-4 rounded-full"
-             style={{ backgroundColor: dark ? "#1f2937" : "#fff" }} />
-      )}
-    </button>
-  );
-
-  const NoteCard = ({ n }) => {
-    const isChecklist = n.type === "checklist";
-    const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
-    const MAX_CHARS = 600;
-    const isLong = previewText.length > MAX_CHARS;
-    const displayText = isLong ? previewText.slice(0, MAX_CHARS).trimEnd() + "…" : previewText;
-
-    const total = (n.items || []).length;
-    const done = (n.items || []).filter((i) => i.done).length;
-    const visibleItems = (n.items || []).slice(0, 8);
-    const extraCount = total > visibleItems.length ? total - visibleItems.length : 0;
-
-    const imgs = n.images || [];
-    const mainImg = imgs[0];
-
-    const MAX_TAG_CHIPS = 4;
-    const allTags = Array.isArray(n.tags) ? n.tags : [];
-    const showEllipsisChip = allTags.length > MAX_TAG_CHIPS;
-    const displayTags = allTags.slice(0, MAX_TAG_CHIPS);
-
-    const group = n.pinned ? "pinned" : "others";
-
-    return (
-      <div
-        draggable
-        onDragStart={(e) => onDragStart(n.id, e)}
-        onDragOver={(e) => onDragOver(n.id, group, e)}
-        onDragLeave={onDragLeave}
-        onDrop={(e) => onDrop(n.id, group, e)}
-        onDragEnd={onDragEnd}
-        onClick={() => openModal(n.id)}
-        className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
-        style={{ backgroundColor: bgFor(n.color, dark) }}
-        data-id={n.id}
-        data-group={group}
+      {/* Pin */}
+      <button
+        aria-label={n.pinned ? "Unpin note" : "Pin note"}
+        onClick={(e) => { e.stopPropagation(); togglePin(n.id); }}
+        className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        title={n.pinned ? "Unpin" : "Pin"}
       >
-        {/* Pin */}
-        <button
-          aria-label={n.pinned ? "Unpin note" : "Pin note"}
-          onClick={(e) => {
-            e.stopPropagation();
-            togglePin(n.id);
-          }}
-          className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          title={n.pinned ? "Unpin" : "Pin"}
-        >
-          {n.pinned ? <PinFilled /> : <PinOutline />}
-        </button>
+        {n.pinned ? <PinFilled /> : <PinOutline />}
+      </button>
 
-        {n.title && (
-          <h3 className="font-bold text-lg mb-2 pr-10 break-words">{n.title}</h3>
-        )}
+      {n.title && <h3 className="font-bold text-lg mb-2 pr-10 break-words">{n.title}</h3>}
 
-        {/* Image preview */}
-        {mainImg && (
-          <div className="mb-3 relative overflow-hidden rounded-lg border border-[var(--border-light)]">
-            <img src={mainImg.src} alt={mainImg.name || "note image"} className="w-full h-40 object-cover" />
-            {imgs.length > 1 && (
-              <span className="absolute bottom-2 right-2 text-xs bg-black/60 text-white px-2 py-0.5 rounded-full">
-                +{imgs.length - 1} more
-              </span>
-            )}
-          </div>
-        )}
+      {/* Image preview */}
+      {mainImg && (
+        <div className="mb-3 relative overflow-hidden rounded-lg border border-[var(--border-light)]">
+          <img src={mainImg.src} alt={mainImg.name || "note image"} className="w-full h-40 object-cover" />
+          {imgs.length > 1 && (
+            <span className="absolute bottom-2 right-2 text-xs bg-black/60 text-white px-2 py-0.5 rounded-full">
+              +{imgs.length - 1} more
+            </span>
+          )}
+        </div>
+      )}
 
-        {!isChecklist ? (
-          <div className="text-sm break-words whitespace-pre-wrap line-clamp-6">
-            {displayText}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visibleItems.map((it) => (
-              <ChecklistRow key={it.id} item={it} readOnly />
-            ))}
-            {extraCount > 0 && (
-              <div className="text-xs text-gray-600 dark:text-gray-300">+{extraCount} more…</div>
-            )}
-            <div className="text-xs text-gray-600 dark:text-gray-300">{done}/{total} completed</div>
-          </div>
-        )}
+      {!isChecklist ? (
+        <div className="text-sm break-words whitespace-pre-wrap line-clamp-6">
+          {displayText}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {visibleItems.map((it) => <ChecklistRow key={it.id} item={it} readOnly />)}
+          {extraCount > 0 && (
+            <div className="text-xs text-gray-600 dark:text-gray-300">+{extraCount} more…</div>
+          )}
+          <div className="text-xs text-gray-600 dark:text-gray-300">{done}/{total} completed</div>
+        </div>
+      )}
 
-        {!!displayTags.length && (
-          <div className="mt-4 text-xs flex flex-wrap gap-2">
-            {displayTags.map((tag) => (
-              <span
-                key={tag}
-                className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full"
-              >
-                {tag}
-              </span>
-            ))}
-            {showEllipsisChip && (
-              <span className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                …
-              </span>
-            )}
-          </div>
-        )}
+      {!!displayTags.length && (
+        <div className="mt-4 text-xs flex flex-wrap gap-2">
+          {displayTags.map((tag) => (
+            <span
+              key={tag}
+              className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full"
+            >
+              {tag}
+            </span>
+          ))}
+          {showEllipsisChip && (
+            <span className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full">
+              …
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Auth wrapper */
+function AuthShell({ title, dark, onToggleDark, children }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold">Glass Keep</h1>
+          <p className="text-gray-500 dark:text-gray-400">{title}</p>
+        </div>
+        <div className="glass-card rounded-xl p-6 shadow-lg">{children}</div>
+        <div className="mt-6 text-center">
+          <button
+            onClick={onToggleDark}
+            className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:underline"
+            title="Toggle dark mode"
+          >
+            {dark ? <Moon /> : <Sun />} Toggle theme
+          </button>
+        </div>
       </div>
-    );
+    </div>
+  );
+}
+
+function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const res = onLogin(email.trim(), pw);
+    if (!res.ok) setErr(res.error || "Login failed");
   };
+
+  return (
+    <AuthShell title="Sign in to your account" dark={dark} onToggleDark={onToggleDark}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          type="email"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Password"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          required
+        />
+        {err && <p className="text-red-600 text-sm">{err}</p>}
+        <button type="submit" className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+          Sign In
+        </button>
+      </form>
+      <div className="mt-4 text-sm text-center">
+        Don’t have an account?{" "}
+        <button className="text-indigo-600 hover:underline" onClick={goRegister}>
+          Create one
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [err, setErr] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (pw.length < 6) return setErr("Password must be at least 6 characters.");
+    if (pw !== pw2) return setErr("Passwords do not match.");
+    const res = onRegister(name.trim() || "User", email.trim(), pw);
+    if (!res.ok) setErr(res.error || "Registration failed");
+  };
+
+  return (
+    <AuthShell title="Create a new account" dark={dark} onToggleDark={onToggleDark}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          type="text"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          type="email"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Password (min 6 chars)"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          placeholder="Confirm password"
+          value={pw2}
+          onChange={(e) => setPw2(e.target.value)}
+          required
+        />
+        {err && <p className="text-red-600 text-sm">{err}</p>}
+        <button type="submit" className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+          Create Account
+        </button>
+      </form>
+      <div className="mt-4 text-sm text-center">
+        Already have an account?{" "}
+        <button className="text-indigo-600 hover:underline" onClick={goLogin}>
+          Sign in
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+/** Notes UI (no hooks; all state passed via props) */
+function NotesUI(props) {
+  const {
+    currentUser, dark, toggleDark, signOut,
+    search, setSearch,
+    composerType, setComposerType,
+    title, setTitle,
+    content, setContent, contentRef,
+    clInput, setClInput, addComposerItem, clItems, setClItems,
+    composerImages, setComposerImages, composerFileRef,
+    tags, setTags,
+    composerColor, setComposerColor,
+    addNote,
+    pinned, others,
+    openModal,
+    onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+    togglePin,
+  } = props;
 
   return (
     <div className="min-h-screen">
@@ -733,13 +525,24 @@ export default function App() {
           />
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600 dark:text-gray-300 hidden sm:inline">
+            {currentUser?.name ? `Hi, ${currentUser.name}` : currentUser?.email}
+          </span>
           <button
             onClick={toggleDark}
             className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
             title="Toggle dark mode"
           >
             {dark ? <Moon /> : <Sun />}
+          </button>
+          <button
+            onClick={signOut}
+            className="px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm hover:bg-gray-50
+                       dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 dark:hover:bg-gray-600"
+            title="Sign out"
+          >
+            Sign out
           </button>
         </div>
       </header>
@@ -830,7 +633,7 @@ export default function App() {
             </div>
           )}
 
-          {/* Responsive composer footer: wraps on small, single line on sm+ */}
+          {/* Responsive composer footer */}
           <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-3">
             <input
               value={tags}
@@ -839,7 +642,6 @@ export default function App() {
               placeholder="Add tags (comma-separated)"
               className="w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
             />
-
             <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none">
               <div className="flex space-x-1 flex-shrink-0">
                 {Object.keys(LIGHT_COLORS).map((name) => (
@@ -860,10 +662,7 @@ export default function App() {
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => {
-                  addImagesToState(e.target.files, setComposerImages);
-                  e.target.value = "";
-                }}
+                onChange={(e) => { props.addImagesToState(e.target.files, setComposerImages); e.target.value = ""; }}
               />
               <button
                 onClick={() => composerFileRef.current?.click()}
@@ -873,7 +672,7 @@ export default function App() {
                 <ImageIcon />
               </button>
 
-              {/* Add Note (kept to one line) */}
+              {/* Add Note */}
               <button
                 onClick={addNote}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap flex-shrink-0"
@@ -885,7 +684,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Notes */}
+      {/* Notes lists */}
       <main className="px-4 sm:px-6 md:px-8 lg:px-12 pb-12">
         {pinned.length > 0 && (
           <section className="mb-10">
@@ -894,7 +693,18 @@ export default function App() {
             </h2>
             <div className="masonry-grid">
               {pinned.map((n) => (
-                <NoteCard key={n.id} n={n} />
+                <NoteCard
+                  key={n.id}
+                  n={n}
+                  dark={dark}
+                  openModal={props.openModal}
+                  togglePin={props.togglePin}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  onDragEnd={onDragEnd}
+                />
               ))}
             </div>
           </section>
@@ -909,18 +719,29 @@ export default function App() {
             )}
             <div className="masonry-grid">
               {others.map((n) => (
-                <NoteCard key={n.id} n={n} />
+                <NoteCard
+                  key={n.id}
+                  n={n}
+                  dark={dark}
+                  openModal={props.openModal}
+                  togglePin={props.togglePin}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  onDragEnd={onDragEnd}
+                />
               ))}
             </div>
           </section>
         )}
 
-        {filtered.length === 0 && notes.length > 0 && search && (
+        {props.filteredEmptyWithSearch && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No matching notes found.
           </p>
         )}
-        {notes.length === 0 && (
+        {props.allEmpty && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No notes yet. Add one to get started!
           </p>
@@ -928,214 +749,600 @@ export default function App() {
       </main>
 
       {/* Modal */}
-      {open && (
-        <div
-          className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeModal();
-          }}
-        >
-          <div
-            className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col"
-            style={{ backgroundColor: modalBgFor(mColor, dark) }}
-          >
-            {/* Content (single scroll area) */}
-            <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-              {/* Pin + Close group */}
-              <div className="absolute top-3 right-3 flex items-center gap-2">
-                <button
-                  className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  title="Pin/unpin"
-                  onClick={() => activeId != null && togglePin(activeId)}
-                >
-                  {(notes.find((n) => n.id === activeId)?.pinned) ? (
-                    <PinFilled />
-                  ) : (
-                    <PinOutline />
-                  )}
-                </button>
-                <button
-                  className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  title="Close"
-                  onClick={closeModal}
-                >
-                  <CloseIcon />
-                </button>
-              </div>
+      {props.modal}
+    </div>
+  );
+}
 
-              <input
-                className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
-                value={mTitle}
-                onChange={(e) => setMTitle(e.target.value)}
-                placeholder="Title"
-              />
+/** --------------------------- App --------------------------- */
+export default function App() {
+  const [route, setRoute] = useState(window.location.hash || "#/login");
+  const [currentUser, setCurrentUser] = useState(loadCurrentUser());
 
-              {/* Image strip in modal (bigger images) */}
-              {mImages.length > 0 && (
-                <div className="mb-5 flex gap-3 overflow-x-auto">
-                  {mImages.map((im) => (
-                    <div key={im.id} className="relative inline-block">
-                      <img
-                        src={im.src}
-                        alt={im.name}
-                        className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)]"
-                      />
-                      <button
-                        title="Remove image"
-                        className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
-                        onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+  // Theme
+  const [dark, setDark] = useState(false);
 
-              {/* Body (text OR checklist) */}
-              {mType === "text" ? (
-                viewMode ? (
-                  <div
-                    className="note-content whitespace-pre-wrap"
-                    onClick={() => setViewMode(false)}
-                    dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
+  // Notes & search
+  const [notes, setNotes] = useState([]);
+  const [search, setSearch] = useState("");
+
+  // Composer
+  const [composerType, setComposerType] = useState("text");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tags, setTags] = useState("");
+  const [composerColor, setComposerColor] = useState("default");
+  const [composerImages, setComposerImages] = useState([]);
+  const contentRef = useRef(null);
+  const composerFileRef = useRef(null);
+
+  // Checklist composer
+  const [clItems, setClItems] = useState([]);
+  const [clInput, setClInput] = useState("");
+
+  // Modal
+  const [open, setOpen] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+  const [mType, setMType] = useState("text");
+  const [mTitle, setMTitle] = useState("");
+  const [mBody, setMBody] = useState("");
+  const [mTagList, setMTagList] = useState([]);
+  const [tagInput, setTagInput] = useState("");
+  const [mColor, setMColor] = useState("default");
+  const [viewMode, setViewMode] = useState(true);
+  const [mImages, setMImages] = useState([]);
+  const mBodyRef = useRef(null);
+  const modalFileRef = useRef(null);
+
+  // Checklist modal
+  const [mItems, setMItems] = useState([]);
+  const [mInput, setMInput] = useState("");
+
+  // Drag
+  const dragId = useRef(null);
+  const dragGroup = useRef(null);
+
+  // CSS inject
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = globalCSS;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
+
+  // Router
+  useEffect(() => {
+    const onHashChange = () => setRoute(window.location.hash || "#/login");
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+  const navigate = (to) => {
+    if (window.location.hash !== to) window.location.hash = to;
+    setRoute(to);
+  };
+
+  // Theme init
+  useEffect(() => {
+    const savedDark =
+      localStorage.getItem("glass-keep-dark-mode") === "true" ||
+      (!("glass-keep-dark-mode" in localStorage) &&
+        window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+    setDark(savedDark);
+    document.documentElement.classList.toggle("dark", savedDark);
+  }, []);
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("glass-keep-dark-mode", String(next));
+  };
+
+  // Load notes when user changes
+  useEffect(() => {
+    if (!currentUser?.email) { setNotes([]); return; }
+    try {
+      const raw = localStorage.getItem(notesKeyFor(currentUser.email));
+      setNotes(raw ? JSON.parse(raw) : []);
+    } catch { setNotes([]); }
+  }, [currentUser]);
+
+  // Lock body scroll on modal
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
+  // Auto-resize composer textarea
+  useEffect(() => {
+    if (!contentRef.current) return;
+    contentRef.current.style.height = "auto";
+    contentRef.current.style.height = contentRef.current.scrollHeight + "px";
+  }, [content, composerType]);
+
+  // Auto-resize modal textarea
+  const resizeModalTextarea = () => {
+    const el = mBodyRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const MIN = 160;
+    el.style.height = Math.max(el.scrollHeight, MIN) + "px";
+  };
+  useEffect(() => {
+    if (!open || mType !== "text") return;
+    if (!viewMode) requestAnimationFrame(resizeModalTextarea);
+  }, [open, viewMode, mBody, mType]);
+
+  // Save notes per user
+  const saveNotes = (arr) => {
+    setNotes(arr);
+    if (!currentUser?.email) return;
+    try { localStorage.setItem(notesKeyFor(currentUser.email), JSON.stringify(arr)); }
+    catch (e) { console.error("localStorage save failed", e); }
+  };
+
+  // Auth
+  const signOut = () => {
+    saveCurrentUser(null);
+    setCurrentUser(null);
+    setNotes([]);
+    navigate("#/login");
+  };
+  const signIn = (email, password) => {
+    const users = loadUsers();
+    const u = users.find((x) => x.email.toLowerCase() === email.toLowerCase());
+    if (!u) return { ok: false, error: "No account found for that email." };
+    if (u.pass !== base64Encode(password)) return { ok: false, error: "Incorrect password." };
+    const sess = { email: u.email, name: u.name };
+    saveCurrentUser(sess);
+    setCurrentUser(sess);
+    navigate("#/notes");
+    return { ok: true };
+  };
+  const register = (name, email, password) => {
+    const users = loadUsers();
+    if (users.some((x) => x.email.toLowerCase() === email.toLowerCase())) {
+      return { ok: false, error: "Email is already registered." };
+    }
+    const newU = { id: uid(), name, email, pass: base64Encode(password) };
+    const next = [...users, newU];
+    saveUsers(next);
+    const sess = { email: newU.email, name: newU.name };
+    saveCurrentUser(sess);
+    setCurrentUser(sess);
+    navigate("#/notes");
+    return { ok: true };
+  };
+
+  // Tags (modal)
+  const addTags = (raw) => {
+    const parts = String(raw).split(",").map((t) => t.trim()).filter(Boolean);
+    if (!parts.length) return;
+    setMTagList((prev) => {
+      const set = new Set(prev.map((x) => x.toLowerCase()));
+      const merged = [...prev];
+      for (const p of parts) if (!set.has(p.toLowerCase())) { merged.push(p); set.add(p.toLowerCase()); }
+      return merged;
+    });
+  };
+  const handleTagKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+      e.preventDefault();
+      if (tagInput.trim()) { addTags(tagInput); setTagInput(""); }
+    } else if (e.key === "Backspace" && !tagInput) {
+      setMTagList((prev) => prev.slice(0, -1));
+    }
+  };
+  const handleTagBlur = () => { if (tagInput.trim()) { addTags(tagInput); setTagInput(""); } };
+  const handleTagPaste = (e) => {
+    const text = e.clipboardData?.getData("text");
+    if (text && text.includes(",")) { e.preventDefault(); addTags(text); }
+  };
+
+  // Image helpers
+  const addImagesToState = async (fileList, setter) => {
+    const files = Array.from(fileList || []);
+    const results = [];
+    for (const f of files) {
+      try { const src = await fileToCompressedDataURL(f); results.push({ id: uid(), src, name: f.name }); }
+      catch (e) { console.error("Image load failed", e); }
+    }
+    if (results.length) setter((prev) => [...prev, ...results]);
+  };
+
+  // Checklist helpers
+  const addComposerItem = () => {
+    const t = clInput.trim(); if (!t) return;
+    setClItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setClInput("");
+  };
+  const addModalItem = () => {
+    const t = mInput.trim(); if (!t) return;
+    setMItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setMInput("");
+  };
+
+  // CRUD
+  const addNote = () => {
+    if (!currentUser?.email) return;
+    if (composerType === "text") {
+      if (!title.trim() && !content.trim() && composerImages.length === 0) return;
+      const n = {
+        id: Date.now(), type: "text", title: title.trim(), content,
+        items: [], tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        images: composerImages, color: composerColor, pinned: false,
+        timestamp: new Date().toISOString(),
+      };
+      const next = [n, ...notes]; saveNotes(next);
+      setTitle(""); setContent(""); setTags(""); setComposerColor("default"); setComposerImages([]);
+    } else {
+      if (!title.trim() && clItems.length === 0 && composerImages.length === 0) return;
+      const n = {
+        id: Date.now(), type: "checklist", title: title.trim(), content: "",
+        items: clItems, tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        images: composerImages, color: composerColor, pinned: false,
+        timestamp: new Date().toISOString(),
+      };
+      const next = [n, ...notes]; saveNotes(next);
+      setTitle(""); setTags(""); setComposerColor("default"); setClItems([]); setClInput(""); setComposerImages([]);
+    }
+  };
+
+  const openModal = (id) => {
+    const n = notes.find((x) => x.id === id); if (!n) return;
+    setActiveId(id);
+    setMType(n.type || "text");
+    setMTitle(n.title || "");
+    setMBody(n.content || "");
+    setMItems(Array.isArray(n.items) ? n.items : []);
+    setMTagList(Array.isArray(n.tags) ? n.tags : []);
+    setMImages(Array.isArray(n.images) ? n.images : []);
+    setTagInput("");
+    setMColor(n.color || "default");
+    setViewMode(true);
+    setOpen(true);
+  };
+  const closeModal = () => { setOpen(false); setActiveId(null); setViewMode(true); };
+  const saveModal = () => {
+    if (activeId == null) return;
+    const next = notes.map((n) =>
+      n.id === activeId
+        ? { ...n, type: mType, title: mTitle.trim(), content: mType === "text" ? mBody : "",
+            items: mType === "checklist" ? mItems : [], tags: mTagList, images: mImages, color: mColor }
+        : n
+    );
+    saveNotes(next); closeModal();
+  };
+  const deleteModal = () => {
+    if (activeId == null) return;
+    const next = notes.filter((n) => n.id !== activeId);
+    saveNotes(next); closeModal();
+  };
+  const togglePin = (id) => {
+    const next = notes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n));
+    saveNotes(next);
+  };
+
+  // Drag reordering
+  const moveWithin = (arr, itemId, targetId, placeAfter) => {
+    const a = arr.slice();
+    const from = a.indexOf(itemId);
+    let to = a.indexOf(targetId);
+    if (from === -1 || to === -1) return arr;
+    a.splice(from, 1);
+    to = a.indexOf(targetId);
+    if (placeAfter) to += 1;
+    a.splice(to, 0, itemId);
+    return a;
+  };
+  const onDragStart = (id, ev) => {
+    dragId.current = id;
+    const isPinned = !!notes.find((n) => n.id === id)?.pinned;
+    dragGroup.current = isPinned ? "pinned" : "others";
+    ev.currentTarget.classList.add("dragging");
+  };
+  const onDragOver = (overId, group, ev) => {
+    ev.preventDefault();
+    if (!dragId.current) return;
+    if (dragGroup.current !== group) return;
+    ev.currentTarget.classList.add("drag-over");
+  };
+  const onDragLeave = (ev) => { ev.currentTarget.classList.remove("drag-over"); };
+  const onDrop = (overId, group, ev) => {
+    ev.preventDefault();
+    ev.currentTarget.classList.remove("drag-over");
+    const dragged = dragId.current; dragId.current = null;
+    if (!dragged || dragged === overId) return;
+    if (dragGroup.current !== group) return;
+    const rect = ev.currentTarget.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const placeAfter = ev.clientY > midpoint;
+    const pinnedIds = notes.filter((n) => n.pinned).map((n) => n.id);
+    const otherIds = notes.filter((n) => !n.pinned).map((n) => n.id);
+    let newPinned = pinnedIds, newOthers = otherIds;
+    if (group === "pinned") newPinned = moveWithin(pinnedIds, dragged, overId, placeAfter);
+    else newOthers = moveWithin(otherIds, dragged, overId, placeAfter);
+    const byId = new Map(notes.map((n) => [n.id, n]));
+    const reordered = [...newPinned.map((id) => byId.get(id)), ...newOthers.map((id) => byId.get(id))];
+    saveNotes(reordered);
+  };
+  const onDragEnd = (ev) => { ev.currentTarget.classList.remove("dragging"); };
+
+  // Derived
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return notes;
+    return notes.filter((n) => {
+      const t = (n.title || "").toLowerCase();
+      const c = (n.content || "").toLowerCase();
+      const tagsStr = (n.tags || []).join(" ").toLowerCase();
+      const items = (n.items || []).map((i) => i.text).join(" ").toLowerCase();
+      const images = (n.images || []).map((im) => im.name).join(" ").toLowerCase();
+      return t.includes(q) || c.includes(q) || tagsStr.includes(q) || items.includes(q) || images.includes(q);
+    });
+  }, [notes, search]);
+
+  const pinned = filtered.filter((n) => n.pinned);
+  const others = filtered.filter((n) => !n.pinned);
+
+  // Modal content
+  const modal = open && (
+    <div
+      className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
+      onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+    >
+      <div
+        className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col"
+        style={{ backgroundColor: modalBgFor(mColor, dark) }}
+      >
+        {/* Body */}
+        <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
+          {/* Pin + Close */}
+          <div className="absolute top-3 right-3 flex items-center gap-2">
+            <button
+              className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="Pin/unpin"
+              onClick={() => activeId != null && togglePin(activeId)}
+            >
+              {(notes.find((n) => n.id === activeId)?.pinned) ? <PinFilled /> : <PinOutline />}
+            </button>
+            <button
+              className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="Close"
+              onClick={closeModal}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          <input
+            className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
+            value={mTitle}
+            onChange={(e) => setMTitle(e.target.value)}
+            placeholder="Title"
+          />
+
+          {/* Images */}
+          {mImages.length > 0 && (
+            <div className="mb-5 flex gap-3 overflow-x-auto">
+              {mImages.map((im) => (
+                <div key={im.id} className="relative inline-block">
+                  <img
+                    src={im.src}
+                    alt={im.name}
+                    className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)]"
                   />
-                ) : (
-                  <textarea
-                    ref={mBodyRef}
-                    className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
-                    value={mBody}
-                    onChange={(e) => {
-                      setMBody(e.target.value);
-                      requestAnimationFrame(resizeModalTextarea);
-                    }}
-                    placeholder="Write your note…"
-                  />
-                )
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <input
-                      value={mInput}
-                      onChange={(e) => setMInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addModalItem(); } }}
-                      placeholder="List item… (press Enter to add)"
-                      className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
-                    />
-                    <button
-                      onClick={addModalItem}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {mItems.length > 0 ? (
-                    <div className="space-y-2">
-                      {mItems.map((it) => (
-                        <ChecklistRow
-                          key={it.id}
-                          item={it}
-                          onToggle={(checked) =>
-                            setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))
-                          }
-                          onChange={(txt) =>
-                            setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))
-                          }
-                          onRemove={() =>
-                            setMItems((prev) => prev.filter(p => p.id !== it.id))
-                          }
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No items yet.</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Footer: responsive (wraps on small screens) */}
-            <div className="border-t border-[var(--border-light)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              {/* Tag chips editor */}
-              <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
-                {mTagList.map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full inline-flex items-center gap-1"
+                  <button
+                    title="Remove image"
+                    className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                    onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
                   >
-                    {tag}
-                    <button
-                      className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
-                      title="Remove tag"
-                      onClick={() => removeTag(tag)}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={handleTagBlur}
-                  onPaste={handleTagPaste}
-                  placeholder={mTagList.length ? "Add tag" : "Add tags"}
-                  className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
-                />
-              </div>
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
 
-              {/* Right controls — stack under chips on small screens */}
-              <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
-                <div className="flex space-x-1">
-                  {Object.keys(LIGHT_COLORS).map((name) => (
-                    <ColorDot
-                      key={name}
-                      name={name}
-                      darkMode={dark}
-                      selected={mColor === name}
-                      onClick={() => setMColor(name)}
+          {/* Text or Checklist */}
+          {mType === "text" ? (
+            viewMode ? (
+              <div
+                className="note-content whitespace-pre-wrap"
+                onClick={() => setViewMode(false)}
+                dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
+              />
+            ) : (
+              <textarea
+                ref={mBodyRef}
+                className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
+                value={mBody}
+                onChange={(e) => { setMBody(e.target.value); requestAnimationFrame(resizeModalTextarea); }}
+                placeholder="Write your note…"
+              />
+            )
+          ) : (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={mInput}
+                  onChange={(e) => setMInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } } }}
+                  placeholder="List item… (press Enter to add)"
+                  className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
+                />
+                <button
+                  onClick={() => { const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } }}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                >
+                  Add
+                </button>
+              </div>
+              {mItems.length > 0 ? (
+                <div className="space-y-2">
+                  {mItems.map((it) => (
+                    <ChecklistRow
+                      key={it.id}
+                      item={it}
+                      onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
+                      onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
+                      onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
                     />
                   ))}
                 </div>
-
-                <input
-                  ref={modalFileRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={async (e) => {
-                    await addImagesToState(e.target.files, setMImages);
-                    e.target.value = "";
-                  }}
-                />
-                <button
-                  onClick={() => modalFileRef.current?.click()}
-                  className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-                  title="Add images"
-                >
-                  <ImageIcon />
-                </button>
-
-                <button
-                  onClick={deleteModal}
-                  className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
-                  title="Delete"
-                >
-                  <Trash /> Delete
-                </button>
-                <button
-                  onClick={saveModal}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
-                >
-                  Save
-                </button>
-              </div>
+              ) : <p className="text-sm text-gray-500">No items yet.</p>}
             </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-[var(--border-light)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          {/* Tags chips editor */}
+          <div className="flex items-center gap-2 flex-1 flex-wrap min-w-0">
+            {mTagList.map((tag) => (
+              <span
+                key={tag}
+                className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full inline-flex items-center gap-1"
+              >
+                {tag}
+                <button
+                  className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
+                  title="Remove tag"
+                  onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              onBlur={handleTagBlur}
+              onPaste={handleTagPaste}
+              placeholder={mTagList.length ? "Add tag" : "Add tags"}
+              className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
+            />
+          </div>
+
+          {/* Right controls */}
+          <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
+            <div className="flex space-x-1">
+              {Object.keys(LIGHT_COLORS).map((name) => (
+                <ColorDot
+                  key={name}
+                  name={name}
+                  darkMode={dark}
+                  selected={mColor === name}
+                  onClick={() => setMColor(name)}
+                />
+              ))}
+            </div>
+
+            <input
+              ref={modalFileRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={async (e) => { await addImagesToState(e.target.files, setMImages); e.target.value = ""; }}
+            />
+            <button
+              onClick={() => modalFileRef.current?.click()}
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg.white/10"
+              title="Add images"
+            >
+              <ImageIcon />
+            </button>
+
+            <button
+              onClick={deleteModal}
+              className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
+              title="Delete"
+            >
+              <Trash /> Delete
+            </button>
+            <button
+              onClick={saveModal}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
+            >
+              Save
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
+  );
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (currentUser?.email && route !== "#/notes") navigate("#/notes");
+  }, [currentUser]); // eslint-disable-line
+
+  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!search;
+  const allEmpty = notes.length === 0;
+
+  if (!currentUser?.email) {
+    if (route === "#/register") {
+      return (
+        <RegisterView
+          dark={dark}
+          onToggleDark={toggleDark}
+          onRegister={register}
+          goLogin={() => navigate("#/login")}
+        />
+      );
+    }
+    return (
+      <LoginView
+        dark={dark}
+        onToggleDark={toggleDark}
+        onLogin={signIn}
+        goRegister={() => navigate("#/register")}
+      />
+    );
+  }
+
+  return (
+    <NotesUI
+      currentUser={currentUser}
+      dark={dark}
+      toggleDark={toggleDark}
+      signOut={signOut}
+      search={search}
+      setSearch={setSearch}
+      composerType={composerType}
+      setComposerType={setComposerType}
+      title={title}
+      setTitle={setTitle}
+      content={content}
+      setContent={setContent}
+      contentRef={contentRef}
+      clInput={clInput}
+      setClInput={setClInput}
+      addComposerItem={addComposerItem}
+      clItems={clItems}
+      setClItems={setClItems}
+      composerImages={composerImages}
+      setComposerImages={setComposerImages}
+      composerFileRef={composerFileRef}
+      tags={tags}
+      setTags={setTags}
+      composerColor={composerColor}
+      setComposerColor={setComposerColor}
+      addNote={addNote}
+      pinned={pinned}
+      others={others}
+      openModal={openModal}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      togglePin={togglePin}
+      addImagesToState={addImagesToState}
+      filteredEmptyWithSearch={filteredEmptyWithSearch}
+      allEmpty={allEmpty}
+      modal={modal}
+    />
   );
 }
