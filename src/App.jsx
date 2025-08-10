@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { marked as markedParser } from "marked";
 
 // Ensure we can call marked.parse(...)
@@ -109,7 +110,7 @@ const Trash = () => (
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 0 018 0z"/>
   </svg>
 );
 const Moon = () => (
@@ -158,6 +159,12 @@ const Hamburger = () => (
     <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
   </svg>
 );
+// Formatting "Aa" icon
+const FormatIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+    <path strokeLinecap="round" d="M3 19h18M10 17V7l-3 8m10 2V7l-3 8" />
+  </svg>
+);
 
 /** ---------- Utils ---------- */
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -172,11 +179,33 @@ const mdToPlain = (md) => {
     return md || "";
   }
 };
-const mdToPlainForDownload = (n) => {
-  if (n.type === "text") return mdToPlain(n.content || "");
-  const items = (n.items || []).map((it) => `${it.done ? "[x]" : "[ ]"} ${it.text || ""}`);
-  return items.join("\n");
+// Build MARKDOWN content for download
+const mdForDownload = (n) => {
+  const lines = [];
+  if (n.title) lines.push(`# ${n.title}`, "");
+  if (Array.isArray(n.tags) && n.tags.length) {
+    lines.push(`**Tags:** ${n.tags.map((t) => `\`${t}\``).join(", ")}`, "");
+  }
+  if (n.type === "text") {
+    lines.push(String(n.content || ""));
+  } else {
+    const items = Array.isArray(n.items) ? n.items : [];
+    for (const it of items) {
+      lines.push(`- [${it.done ? "x" : " "}] ${it.text || ""}`);
+    }
+  }
+  if (n.images?.length) {
+    lines.push(
+      "",
+      `> _${n.images.length} image(s) attached)_ ${n.images
+        .map((im) => im.name || "image")
+        .join(", ")}`
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
 };
+
 const sanitizeFilename = (name, fallback = "note") =>
   (name || fallback).toString().trim().replace(/[\/\\?%*:|"<>]/g, "-").slice(0, 64);
 const downloadText = (filename, content) => {
@@ -208,7 +237,7 @@ const imageExtFromDataURL = (dataUrl) => {
 };
 const normalizeImageFilename = (name, dataUrl, index = 1) => {
   const base = sanitizeFilename(name && name.trim() ? name : `image-${index}`);
-  const withoutExt = base.replace(/\.[^.]+$/, ""); // strip existing extension
+  const withoutExt = base.replace(/\.[^.]+$/, "");
   const ext = imageExtFromDataURL(dataUrl);
   return `${withoutExt}.${ext}`;
 };
@@ -249,6 +278,11 @@ body {
 .note-content h1 { font-size: 1.5rem; line-height: 1.3; }
 .note-content h2 { font-size: 1.25rem; line-height: 1.35; }
 .note-content h3 { font-size: 1.125rem; line-height: 1.4; }
+/* Lists */
+.note-content ul, .note-content ol { margin-left: 1.25rem; padding-left: 1rem; }
+.note-content ul { list-style: disc; }
+.note-content ol { list-style: decimal; }
+.note-content li { margin: .25rem 0; }
 
 .dragging { opacity: 0.5; transform: scale(1.05); }
 .drag-over { outline: 2px dashed rgba(99,102,241,.6); outline-offset: 6px; }
@@ -274,6 +308,19 @@ body {
 .modal-scrim {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* formatting popover base */
+.fmt-pop {
+  border: 1px solid var(--border-light);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  padding: .5rem;
+}
+.fmt-btn {
+  padding: .35rem .5rem;
+  border-radius: .5rem;
+  font-size: .85rem;
 }
 `;
 
@@ -354,6 +401,235 @@ const ColorDot = ({ name, selected, onClick, darkMode }) => (
     )}
   </button>
 );
+
+/** ---------- Formatting helpers ---------- */
+function wrapSelection(value, start, end, before, after, placeholder = "text") {
+  const hasSel = start !== end;
+  const sel = hasSel ? value.slice(start, end) : placeholder;
+  const newText = value.slice(0, start) + before + sel + after + value.slice(end);
+  const s = start + before.length;
+  const e = s + sel.length;
+  return { text: newText, range: [s, e] };
+}
+function fencedBlock(value, start, end) {
+  const hasSel = start !== end;
+  const sel = hasSel ? value.slice(start, end) : "code";
+  const block = "```\n" + sel + "\n```";
+  const newText = value.slice(0, start) + block + value.slice(end);
+  const s = start + 4;
+  const e = s + sel.length;
+  return { text: newText, range: [s, e] };
+}
+function selectionBounds(value, start, end) {
+  const from = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  let to = value.indexOf("\n", end);
+  if (to === -1) to = value.length;
+  return { from, to };
+}
+function toggleList(value, start, end, kind /* 'ul' | 'ol' */) {
+  const { from, to } = selectionBounds(value, start, end);
+  const segment = value.slice(from, to);
+  const lines = segment.split("\n");
+
+  const isUL = (ln) => /^\s*[-*+]\s+/.test(ln);
+  const isOL = (ln) => /^\s*\d+\.\s+/.test(ln);
+  const nonEmpty = (ln) => ln.trim().length > 0;
+
+  const allUL = lines.filter(nonEmpty).every(isUL);
+  const allOL = lines.filter(nonEmpty).every(isOL);
+
+  let newLines;
+  if (kind === "ul") {
+    if (allUL) newLines = lines.map((ln) => ln.replace(/^\s*[-*+]\s+/, ""));
+    else newLines = lines.map((ln) => (nonEmpty(ln) ? `- ${ln.replace(/^\s*[-*+]\s+/, "").replace(/^\s*\d+\.\s+/, "")}` : ln));
+  } else {
+    if (allOL) {
+      newLines = lines.map((ln) => ln.replace(/^\s*\d+\.\s+/, ""));
+    } else {
+      let i = 1;
+      newLines = lines.map((ln) =>
+        nonEmpty(ln)
+          ? `${i++}. ${ln.replace(/^\s*[-*+]\s+/, "").replace(/^\s*\d+\.\s+/, "")}`
+          : ln
+      );
+    }
+  }
+
+  const replaced = newLines.join("\n");
+  const newText = value.slice(0, from) + replaced + value.slice(to);
+  const delta = replaced.length - segment.length;
+  const newStart = start + (kind === "ol" && !allOL ? 3 : kind === "ul" && !allUL ? 2 : 0);
+  const newEnd = end + delta;
+  return { text: newText, range: [newStart, newEnd] };
+}
+function prefixLines(value, start, end, prefix) {
+  const { from, to } = selectionBounds(value, start, end);
+  const segment = value.slice(from, to);
+  const lines = segment.split("\n").map((ln) => `${prefix}${ln}`);
+  const replaced = lines.join("\n");
+  const newText = value.slice(0, from) + replaced + value.slice(to);
+  const delta = replaced.length - segment.length;
+  return { text: newText, range: [start + prefix.length, end + delta] };
+}
+
+/** Smart Enter: continue lists/quotes, or exit on empty */
+function handleSmartEnter(value, start, end) {
+  if (start !== end) return null; // only handle caret
+  const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+  const line = value.slice(lineStart, start);
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+
+  // Ordered list?
+  let m = /^(\s*)(\d+)\.\s(.*)$/.exec(line);
+  if (m) {
+    const indent = m[1] || "";
+    const num = parseInt(m[2], 10) || 1;
+    const text = m[3] || "";
+    if (text.trim() === "") {
+      // exit list
+      const newBefore = value.slice(0, lineStart);
+      const newText = newBefore + "\n" + after;
+      const caret = newBefore.length + 1;
+      return { text: newText, range: [caret, caret] };
+    } else {
+      const prefix = `${indent}${num + 1}. `;
+      const newText = before + "\n" + prefix + after;
+      const caret = start + 1 + prefix.length;
+      return { text: newText, range: [caret, caret] };
+    }
+  }
+
+  // Unordered list?
+  m = /^(\s*)([-*+])\s(.*)$/.exec(line);
+  if (m) {
+    const indent = m[1] || "";
+    const text = m[3] || "";
+    if (text.trim() === "") {
+      const newBefore = value.slice(0, lineStart);
+      const newText = newBefore + "\n" + after;
+      const caret = newBefore.length + 1;
+      return { text: newText, range: [caret, caret] };
+    } else {
+      const prefix = `${indent}- `;
+      const newText = before + "\n" + prefix + after;
+      const caret = start + 1 + prefix.length;
+      return { text: newText, range: [caret, caret] };
+    }
+  }
+
+  // Blockquote?
+  m = /^(\s*)>\s?(.*)$/.exec(line);
+  if (m) {
+    const indent = m[1] || "";
+    const text = m[2] || "";
+    if (text.trim() === "") {
+      const newBefore = value.slice(0, lineStart);
+      const newText = newBefore + "\n" + after;
+      const caret = newBefore.length + 1;
+      return { text: newText, range: [caret, caret] };
+    } else {
+      const prefix = `${indent}> `;
+      const newText = before + "\n" + prefix + after;
+      const caret = start + 1 + prefix.length;
+      return { text: newText, range: [caret, caret] };
+    }
+  }
+
+  return null;
+}
+
+/** Small toolbar UI */
+function FormatToolbar({ dark, onAction }) {
+  const base = `fmt-btn ${dark ? "hover:bg-white/10" : "hover:bg-black/5"}`;
+  return (
+    <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
+      <div className="flex flex-wrap gap-1">
+        <button className={base} onClick={() => onAction("h1")}>H1</button>
+        <button className={base} onClick={() => onAction("h2")}>H2</button>
+        <button className={base} onClick={() => onAction("h3")}>H3</button>
+        <span className="mx-1 opacity-40">|</span>
+        <button className={base} onClick={() => onAction("bold")}><strong>B</strong></button>
+        <button className={base} onClick={() => onAction("italic")}><em>I</em></button>
+        <button className={base} onClick={() => onAction("strike")}><span className="line-through">S</span></button>
+        <button className={base} onClick={() => onAction("code")}>`code`</button>
+        <button className={base} onClick={() => onAction("codeblock")}>&lt;/&gt;</button>
+        <span className="mx-1 opacity-40">|</span>
+        <button className={base} onClick={() => onAction("quote")}>&gt;</button>
+        <button className={base} onClick={() => onAction("ul")}>• list</button>
+        <button className={base} onClick={() => onAction("ol")}>1. list</button>
+        <button className={base} onClick={() => onAction("link")}>🔗</button>
+      </div>
+    </div>
+  );
+}
+
+/** ---------- Portal Popover ---------- */
+function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const boxRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const a = anchorRef?.current;
+      if (!a) return;
+      const r = a.getBoundingClientRect();
+      let top = r.bottom + offset;
+      let left = r.left;
+      setPos({ top, left });
+      // After positioning, clamp within viewport
+      requestAnimationFrame(() => {
+        const el = boxRef.current;
+        if (!el) return;
+        const bw = el.offsetWidth;
+        const bh = el.offsetHeight;
+        let t = top;
+        let l = left;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        if (l + bw + 8 > vw) l = Math.max(8, vw - bw - 8);
+        if (t + bh + 8 > vh) {
+          // try above
+          t = Math.max(8, r.top - bh - offset);
+        }
+        setPos({ top: t, left: l });
+      });
+    };
+    place();
+    const onWin = () => place();
+    window.addEventListener("scroll", onWin, true);
+    window.addEventListener("resize", onWin);
+    return () => {
+      window.removeEventListener("scroll", onWin, true);
+      window.removeEventListener("resize", onWin);
+    };
+  }, [open, anchorRef, offset]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      const el = boxRef.current;
+      const a = anchorRef?.current;
+      if (el && el.contains(e.target)) return;
+      if (a && a.contains(e.target)) return;
+      onClose?.();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open, onClose, anchorRef]);
+
+  if (!open) return null;
+  return createPortal(
+    <div
+      ref={boxRef}
+      style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 10000 }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+}
 
 /** ---------- Note Card ---------- */
 function NoteCard({
@@ -657,7 +933,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
         style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)", borderRight: "1px solid var(--border-light)" }}
         aria-hidden={!open}
       >
-        <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
+        <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
           <button
             className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
@@ -733,6 +1009,11 @@ function NotesUI({
   // new for sidebar
   openSidebar,
   activeTagFilter,
+  // formatting
+  formatComposer,
+  showComposerFmt, setShowComposerFmt,
+  composerFmtBtnRef,
+  onComposerKeyDown,
 }) {
   const tagLabel =
     activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
@@ -763,7 +1044,7 @@ function NotesUI({
           <input
             type="text"
             placeholder="Search..."
-            className="w-full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+            className="w/full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -796,24 +1077,24 @@ function NotesUI({
           {headerMenuOpen && (
             <div
               ref={headerMenuRef}
-              className={`absolute top-12 right-0 min-w-[220px] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+              className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { onExportAll?.(); setHeaderMenuOpen(false); }}
+                onClick={() => { onExportAll?.(); }}
               >
                 Export notes (.json)
               </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { importFileRef.current?.click(); setHeaderMenuOpen(false); }}
+                onClick={() => { importFileRef.current?.click(); }}
               >
                 Import notes (.json)
               </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { onDownloadSecretKey?.(); setHeaderMenuOpen(false); }}
+                onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
               </button>
@@ -844,7 +1125,7 @@ function NotesUI({
 
       {/* Composer */}
       <div className="px-4 sm:px-6 md:px-8 lg:px-12 max-w-2xl mx-auto">
-        <div className="glass-card rounded-xl shadow-lg p-4 mb-8">
+        <div className="glass-card rounded-xl shadow-lg p-4 mb-8 relative">
           {/* Type toggle */}
           <div className="mb-3 inline-flex rounded-lg border border-[var(--border-light)] overflow-hidden">
             <button
@@ -873,6 +1154,7 @@ function NotesUI({
               ref={contentRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onKeyDown={onComposerKeyDown}
               placeholder="Take a note..."
               className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2"
               rows={1}
@@ -889,7 +1171,7 @@ function NotesUI({
                 />
                 <button
                   onClick={addComposerItem}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 whitespace-nowrap"
                 >
                   Add
                 </button>
@@ -923,7 +1205,7 @@ function NotesUI({
           )}
 
           {/* Responsive composer footer */}
-          <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-3">
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-3 relative">
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
@@ -931,7 +1213,30 @@ function NotesUI({
               placeholder="Add tags (comma-separated)"
               className="w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
             />
-            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none">
+
+            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none relative">
+              {/* Formatting button (composer) */}
+              {composerType === "text" && (
+                <>
+                  <button
+                    ref={composerFmtBtnRef}
+                    type="button"
+                    onClick={() => setShowComposerFmt((v) => !v)}
+                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-2 text-sm"
+                    title="Formatting"
+                  >
+                    <FormatIcon /> Formatting
+                  </button>
+                  <Popover
+                    anchorRef={composerFmtBtnRef}
+                    open={showComposerFmt}
+                    onClose={() => setShowComposerFmt(false)}
+                  >
+                    <FormatToolbar dark={dark} onAction={(t) => { setShowComposerFmt(false); formatComposer(t); }} />
+                  </Popover>
+                </>
+              )}
+
               <div className="flex space-x-1 flex-shrink-0">
                 {Object.keys(LIGHT_COLORS).map((name) => (
                   <ColorDot
@@ -1081,6 +1386,10 @@ export default function App() {
   const contentRef = useRef(null);
   const composerFileRef = useRef(null);
 
+  // Formatting (composer)
+  const [showComposerFmt, setShowComposerFmt] = useState(false);
+  const composerFmtBtnRef = useRef(null);
+
   // Checklist composer
   const [clItems, setClItems] = useState([]);
   const [clInput, setClInput] = useState("");
@@ -1103,6 +1412,10 @@ export default function App() {
   const [mItems, setMItems] = useState([]);
   const [mInput, setMInput] = useState("");
 
+  // Modal formatting
+  const [showModalFmt, setShowModalFmt] = useState(false);
+  const modalFmtBtnRef = useRef(null);
+
   // Image Viewer state (fullscreen)
   const [imgViewOpen, setImgViewOpen] = useState(false);
   const [imgViewIndex, setImgViewIndex] = useState(0);
@@ -1117,18 +1430,28 @@ export default function App() {
   const headerBtnRef = useRef(null);
   const importFileRef = useRef(null);
 
+  // Modal kebab anchor & ref for popover
+  const modalMenuBtnRef = useRef(null);
+
   useEffect(() => {
+    // Only close header and modal kebab on outside click
     function onDocClick(e) {
-      if (!headerMenuOpen) return;
-      const m = headerMenuRef.current;
-      const b = headerBtnRef.current;
-      if (m && m.contains(e.target)) return;
-      if (b && b.contains(e.target)) return;
-      setHeaderMenuOpen(false);
+      if (headerMenuOpen) {
+        const m = headerMenuRef.current;
+        const b = headerBtnRef.current;
+        if (m && m.contains(e.target)) return;
+        if (b && b.contains(e.target)) return;
+        setHeaderMenuOpen(false);
+      }
+      if (modalMenuOpen) {
+        const b = modalMenuBtnRef.current;
+        if (b && b.contains(e.target)) return;
+        setModalMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-  }, [headerMenuOpen]);
+  }, [headerMenuOpen, modalMenuOpen]);
 
   // CSS inject
   useEffect(() => {
@@ -1183,7 +1506,7 @@ export default function App() {
     if (token) loadNotes().catch(() => {});
   }, [token]);
 
-  // Lock body scroll on modal
+  // Lock body scroll on modal & image viewer
   useEffect(() => {
     if (!open && !imgViewOpen) return;
     const prev = document.body.style.overflow;
@@ -1238,6 +1561,11 @@ export default function App() {
     if (!open || mType !== "text") return;
     if (!viewMode) requestAnimationFrame(resizeModalTextarea);
   }, [open, viewMode, mBody, mType]);
+
+  // Ensure modal formatting menu hides when switching to view mode or non-text
+  useEffect(() => {
+    if (viewMode || mType !== "text") setShowModalFmt(false);
+  }, [viewMode, mType]);
 
   /** -------- Auth actions -------- */
   const signOut = () => {
@@ -1312,20 +1640,11 @@ export default function App() {
     }
   };
 
-  /** -------- Download single note .txt -------- */
+  /** -------- Download single note .md -------- */
   const handleDownloadNote = (note) => {
-    const title = note.title || "";
-    const tags = (note.tags || []).join(", ");
-    const body = mdToPlainForDownload(note);
-    const imagesLine =
-      (note.images && note.images.length)
-        ? `\n\nImages attached: ${note.images.length}${note.images.some(i=>i.name) ? " (" + note.images.map(i=>i.name).join(", ") + ")" : ""}`
-        : "";
-    const header = title ? `${title}\n\n` : "";
-    const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
-    const content = `${header}${tagsLine}${body}${imagesLine}\n`;
-    const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
-    downloadText(fname, content);
+    const md = mdForDownload(note);
+    const fname = sanitizeFilename(note.title || `note-${note.id}`) + ".md";
+    downloadText(fname, md);
   };
 
   /** -------- Export / Import All -------- */
@@ -1444,6 +1763,7 @@ export default function App() {
     setViewMode(true);
     setModalMenuOpen(false);
     setConfirmDeleteOpen(false);
+    setShowModalFmt(false);
   };
   const saveModal = async () => {
     if (activeId == null) return;
@@ -1559,14 +1879,11 @@ export default function App() {
     const tag = tagFilter === ALL_IMAGES ? null : (tagFilter?.toLowerCase() || null);
 
     return notes.filter((n) => {
-      // Tag filter
       if (tagFilter === ALL_IMAGES) {
         if (!(n.images && n.images.length)) return false;
       } else if (tag && !(n.tags || []).some((t) => String(t).toLowerCase() === tag)) {
         return false;
       }
-
-      // Search filter
       if (!q) return true;
       const t = (n.title || "").toLowerCase();
       const c = (n.content || "").toLowerCase();
@@ -1581,22 +1898,6 @@ export default function App() {
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
   const allEmpty = notes.length === 0;
 
-  /** -------- Modal menus click-outside -------- */
-  const modalMenuBtnRef = useRef(null);
-  const modalMenuRef = useRef(null);
-  useEffect(() => {
-    function onDocClick(e) {
-      if (!modalMenuOpen) return;
-      const m = modalMenuRef.current;
-      const b = modalMenuBtnRef.current;
-      if (m && m.contains(e.target)) return;
-      if (b && b.contains(e.target)) return;
-      setModalMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [modalMenuOpen]);
-
   /** -------- Modal link handler: open links in new tab -------- */
   const onModalBodyClick = (e) => {
     const a = e.target.closest("a");
@@ -1609,8 +1910,7 @@ export default function App() {
         return;
       }
     }
-    // otherwise switch to edit mode
-    setViewMode(false);
+    setViewMode(false); // clicking body switches to edit mode
   };
 
   /** -------- Image viewer helpers -------- */
@@ -1621,6 +1921,60 @@ export default function App() {
   const closeImageViewer = () => setImgViewOpen(false);
   const nextImage = () => setImgViewIndex((i) => (i + 1) % mImages.length);
   const prevImage = () => setImgViewIndex((i) => (i - 1 + mImages.length) % mImages.length);
+
+  /** -------- Formatting actions (composer & modal) -------- */
+  const runFormat = (getter, setter, ref, type) => {
+    const el = ref.current;
+    if (!el) return;
+    const value = getter();
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    let result;
+    switch (type) {
+      case "h1": result = prefixLines(value, start, end, "# "); break;
+      case "h2": result = prefixLines(value, start, end, "## "); break;
+      case "h3": result = prefixLines(value, start, end, "### "); break;
+      case "bold": result = wrapSelection(value, start, end, "**", "**"); break;
+      case "italic": result = wrapSelection(value, start, end, "_", "_"); break;
+      case "strike": result = wrapSelection(value, start, end, "~~", "~~"); break;
+      case "code": result = wrapSelection(value, start, end, "`", "`"); break;
+      case "codeblock": result = fencedBlock(value, start, end); break;
+      case "quote": result = prefixLines(value, start, end, "> "); break;
+      case "ul": result = toggleList(value, start, end, "ul"); break;
+      case "ol": result = toggleList(value, start, end, "ol"); break;
+      case "link": result = wrapSelection(value, start, end, "[", "](https://)"); break;
+      default: return;
+    }
+    setter(result.text);
+    requestAnimationFrame(() => {
+      el.focus();
+      try {
+        el.setSelectionRange(result.range[0], result.range[1]);
+      } catch {}
+    });
+  };
+  const formatComposer = (type) => runFormat(() => content, setContent, contentRef, type);
+  const formatModal = (type) => runFormat(() => mBody, setMBody, mBodyRef, type);
+
+  /** Composer smart-enter handler */
+  const onComposerKeyDown = (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    const el = contentRef.current;
+    if (!el) return;
+    const value = content;
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    const res = handleSmartEnter(value, start, end);
+    if (res) {
+      e.preventDefault();
+      setContent(res.text);
+      requestAnimationFrame(() => {
+        try { el.setSelectionRange(res.range[0], res.range[1]); } catch {}
+        el.style.height = "auto";
+        el.style.height = el.scrollHeight + "px";
+      });
+    }
+  };
 
   /** -------- Modal JSX -------- */
   const modal = open && (
@@ -1633,10 +1987,45 @@ export default function App() {
           className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative"
           style={{ backgroundColor: modalBgFor(mColor, dark) }}
         >
-          {/* Body */}
-          <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-            {/* Kebab + Pin + Close */}
-            <div className="absolute top-3 right-3 flex items-center gap-2">
+          {/* Scroll container */}
+          <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+            {/* Sticky header inside modal (title + actions) with NO border, same bg */}
+            <div
+              className="sticky top-0 z-20 px-6 pt-4 pb-3 flex items-center gap-2"
+              style={{ backgroundColor: modalBgFor(mColor, dark) }}
+            >
+              <input
+                className="flex-1 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
+                value={mTitle}
+                onChange={(e) => setMTitle(e.target.value)}
+                placeholder="Title"
+              />
+
+              {/* Formatting button (modal) — only in EDIT mode */}
+              {mType === "text" && !viewMode && (
+                <>
+                  <button
+                    ref={modalFmtBtnRef}
+                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    title="Formatting"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowModalFmt((v) => !v);
+                    }}
+                  >
+                    <FormatIcon />
+                  </button>
+                  <Popover
+                    anchorRef={modalFmtBtnRef}
+                    open={showModalFmt}
+                    onClose={() => setShowModalFmt(false)}
+                  >
+                    <FormatToolbar dark={dark} onAction={(t) => { setShowModalFmt(false); formatModal(t); }} />
+                  </Popover>
+                </>
+              )}
+
+              {/* Kebab menu (download .md) */}
               <button
                 ref={modalMenuBtnRef}
                 className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1645,20 +2034,25 @@ export default function App() {
               >
                 <Kebab />
               </button>
-              {modalMenuOpen && (
+              <Popover
+                anchorRef={modalMenuBtnRef}
+                open={modalMenuOpen}
+                onClose={() => setModalMenuOpen(false)}
+              >
                 <div
-                  ref={modalMenuRef}
+                  className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
                   onClick={(e) => e.stopPropagation()}
-                  className={`absolute top-10 right-[4.5rem] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
                 >
                   <button
                     className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                     onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
                   >
-                    Download .txt
+                    Download .md
                   </button>
                 </div>
-              )}
+              </Popover>
+
+              {/* Pin */}
               <button
                 className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 title="Pin/unpin"
@@ -1666,6 +2060,8 @@ export default function App() {
               >
                 {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
               </button>
+
+              {/* Close */}
               <button
                 className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 title="Close"
@@ -1675,85 +2071,100 @@ export default function App() {
               </button>
             </div>
 
-            <input
-              className="w-full bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-4 pr-10"
-              value={mTitle}
-              onChange={(e) => setMTitle(e.target.value)}
-              placeholder="Title"
-            />
+            {/* Content area */}
+            <div className="p-6">
+              {/* Images */}
+              {mImages.length > 0 && (
+                <div className="mb-5 flex gap-3 overflow-x-auto">
+                  {mImages.map((im, idx) => (
+                    <div key={im.id} className="relative inline-block">
+                      <img
+                        src={im.src}
+                        alt={im.name}
+                        className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)] cursor-zoom-in"
+                        onClick={(e) => { e.stopPropagation(); openImageViewer(idx); }}
+                      />
+                      <button
+                        title="Remove image"
+                        className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                        onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-            {/* Images */}
-            {mImages.length > 0 && (
-              <div className="mb-5 flex gap-3 overflow-x-auto">
-                {mImages.map((im, idx) => (
-                  <div key={im.id} className="relative inline-block">
-                    <img
-                      src={im.src}
-                      alt={im.name}
-                      className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)] cursor-zoom-in"
-                      onClick={(e) => { e.stopPropagation(); openImageViewer(idx); }}
+              {/* Text or Checklist */}
+              {mType === "text" ? (
+                viewMode ? (
+                  <div
+                    className="note-content whitespace-pre-wrap"
+                    onClick={onModalBodyClick}
+                    dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
+                  />
+                ) : (
+                  <div className="relative">
+                    <textarea
+                      ref={mBodyRef}
+                      className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
+                      value={mBody}
+                      onChange={(e) => { setMBody(e.target.value); requestAnimationFrame(resizeModalTextarea); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
+                          const el = mBodyRef.current;
+                          const value = mBody;
+                          const start = el.selectionStart ?? value.length;
+                          const end = el.selectionEnd ?? value.length;
+                          const res = handleSmartEnter(value, start, end);
+                          if (res) {
+                            e.preventDefault();
+                            setMBody(res.text);
+                            requestAnimationFrame(() => {
+                              try { el.setSelectionRange(res.range[0], res.range[1]); } catch {}
+                              resizeModalTextarea();
+                            });
+                          }
+                        }
+                      }}
+                      placeholder="Write your note…"
+                    />
+                  </div>
+                )
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      value={mInput}
+                      onChange={(e) => setMInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } } }}
+                      placeholder="List item… (press Enter to add)"
+                      className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
                     />
                     <button
-                      title="Remove image"
-                      className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
-                      onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
+                      onClick={() => { const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } }}
+                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                     >
-                      ×
+                      Add
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Text or Checklist */}
-            {mType === "text" ? (
-              viewMode ? (
-                <div
-                  className="note-content whitespace-pre-wrap"
-                  onClick={onModalBodyClick}
-                  dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
-                />
-              ) : (
-                <textarea
-                  ref={mBodyRef}
-                  className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
-                  value={mBody}
-                  onChange={(e) => { setMBody(e.target.value); requestAnimationFrame(resizeModalTextarea); }}
-                  placeholder="Write your note…"
-                />
-              )
-            ) : (
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    value={mInput}
-                    onChange={(e) => setMInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } } }}
-                    placeholder="List item… (press Enter to add)"
-                    className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
-                  />
-                  <button
-                    onClick={() => { const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } }}
-                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                  >
-                    Add
-                  </button>
+                  {mItems.length > 0 ? (
+                    <div className="space-y-2">
+                      {mItems.map((it) => (
+                        <ChecklistRow
+                          key={it.id}
+                          item={it}
+                          onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
+                          onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
+                          onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
+                        />
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-gray-500">No items yet.</p>}
                 </div>
-                {mItems.length > 0 ? (
-                  <div className="space-y-2">
-                    {mItems.map((it) => (
-                      <ChecklistRow
-                        key={it.id}
-                        item={it}
-                        onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
-                        onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
-                        onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
-                      />
-                    ))}
-                  </div>
-                ) : <p className="text-sm text-gray-500">No items yet.</p>}
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Footer */}
@@ -2038,6 +2449,12 @@ export default function App() {
         headerBtnRef={headerBtnRef}
         openSidebar={() => setSidebarOpen(true)}
         activeTagFilter={tagFilter}
+        // formatting props
+        formatComposer={formatComposer}
+        showComposerFmt={showComposerFmt}
+        setShowComposerFmt={setShowComposerFmt}
+        composerFmtBtnRef={composerFmtBtnRef}
+        onComposerKeyDown={onComposerKeyDown}
       />
       {modal}
     </>
