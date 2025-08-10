@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { marked as markedParser } from "marked";
 
 // Ensure we can call marked.parse(...)
-const marked = typeof markedParser === "function" ? { parse: markedParser } : markedParser;
+const marked = typeof markedParser === "function" ? ({ parse: markedParser }) : markedParser;
 
 /** ---------- API Helpers ---------- */
 const API_BASE = "/api";
@@ -154,6 +154,13 @@ const mdToPlainForDownload = (n) => {
 };
 const sanitizeFilename = (name, fallback = "note") =>
   (name || fallback).toString().trim().replace(/[\/\\?%*:|"<>]/g, "-").slice(0, 64);
+const downloadText = (filename, content) => {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a);
+  a.click(); a.remove(); URL.revokeObjectURL(url);
+};
 
 /** ---------- Global CSS injection ---------- */
 const globalCSS = `
@@ -193,6 +200,7 @@ body {
 .note-content h1 { font-size: 1.5rem; line-height: 1.3; }
 .note-content h2 { font-size: 1.25rem; line-height: 1.35; }
 .note-content h3 { font-size: 1.125rem; line-height: 1.4; }
+
 .dragging { opacity: 0.5; transform: scale(1.05); }
 .drag-over { outline: 2px dashed rgba(99,102,241,.6); outline-offset: 6px; }
 .masonry-grid { column-gap: 1.5rem; column-count: 1; }
@@ -420,8 +428,8 @@ function AuthShell({ title, dark, onToggleDark, children }) {
   );
 }
 
-/** ---------- Login / Register ---------- */
-function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
+/** ---------- Login / Register / Secret Login ---------- */
+function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret }) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
@@ -441,10 +449,7 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="email"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500
-                     text-gray-900 dark:text-gray-100
-                     placeholder-gray-500 dark:placeholder-gray-400"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -452,10 +457,7 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
         />
         <input
           type="password"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500
-                     text-gray-900 dark:text-gray-100
-                     placeholder-gray-500 dark:placeholder-gray-400"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Password"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
@@ -466,15 +468,19 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
           Sign In
         </button>
       </form>
-      <div className="mt-4 text-sm text-center">
-        Don’t have an account?{" "}
+
+      <div className="mt-4 text-sm flex justify-between items-center">
         <button className="text-indigo-600 hover:underline" onClick={goRegister}>
-          Create one
+          Create account
+        </button>
+        <button className="text-indigo-600 hover:underline" onClick={goSecret}>
+          Forgot username/password?
         </button>
       </div>
     </AuthShell>
   );
 }
+
 function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -499,17 +505,14 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="text"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
           type="email"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
-                     focus:outline-none focus:ring-2 focus:ring-indigo-500
-                     text-gray-900 dark:text-gray-100
-                     placeholder-gray-500 dark:placeholder-gray-400"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -517,10 +520,7 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
         />
         <input
           type="password"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
-             focus:outline-none focus:ring-2 focus:ring-indigo-500
-             text-gray-900 dark:text-gray-100
-             placeholder-gray-500 dark:placeholder-gray-400"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Password (min 6 chars)"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
@@ -528,10 +528,7 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
         />
         <input
           type="password"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
-             focus:outline-none focus:ring-2 focus:ring-indigo-500
-             text-gray-900 dark:text-gray-100
-             placeholder-gray-500 dark:placeholder-gray-400"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Confirm password"
           value={pw2}
           onChange={(e) => setPw2(e.target.value)}
@@ -546,6 +543,45 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
         Already have an account?{" "}
         <button className="text-indigo-600 hover:underline" onClick={goLogin}>
           Sign in
+        </button>
+      </div>
+    </AuthShell>
+  );
+}
+
+function SecretLoginView({ dark, onToggleDark, onLoginWithKey, goLogin }) {
+  const [key, setKey] = useState("");
+  const [err, setErr] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await onLoginWithKey(key.trim());
+      if (!res.ok) setErr(res.error || "Login failed");
+    } catch (er) {
+      setErr(er.message || "Login failed");
+    }
+  };
+
+  return (
+    <AuthShell title="Sign in with Secret Key" dark={dark} onToggleDark={onToggleDark}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <textarea
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px] text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+          placeholder="Paste your secret key here"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          required
+        />
+        {err && <p className="text-red-600 text-sm">{err}</p>}
+        <button type="submit" className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+          Sign In with Secret Key
+        </button>
+      </form>
+      <div className="mt-4 text-sm text-center">
+        Remember your credentials?{" "}
+        <button className="text-indigo-600 hover:underline" onClick={goLogin}>
+          Sign in with email & password
         </button>
       </div>
     </AuthShell>
@@ -569,7 +605,7 @@ function NotesUI({
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
   togglePin,
   addImagesToState,
-  onExportAll, onImportAll, importFileRef, signOut,
+  onExportAll, onImportAll, onDownloadSecretKey, importFileRef, signOut,
   filteredEmptyWithSearch, allEmpty,
   headerMenuOpen, setHeaderMenuOpen,
   headerMenuRef, headerBtnRef,
@@ -617,7 +653,7 @@ function NotesUI({
           {headerMenuOpen && (
             <div
               ref={headerMenuRef}
-              className={`absolute top-12 right-0 min-w-[200px] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+              className={`absolute top-12 right-0 min-w-[220px] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -631,6 +667,12 @@ function NotesUI({
                 onClick={() => { importFileRef.current?.click(); setHeaderMenuOpen(false); }}
               >
                 Import notes (.json)
+              </button>
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                onClick={() => { onDownloadSecretKey?.(); setHeaderMenuOpen(false); }}
+              >
+                Download secret key (.txt)
               </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
@@ -922,7 +964,7 @@ export default function App() {
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const headerMenuRef = useRef(null);
   const headerBtnRef = useRef(null);
-  const importFileRef = useRef(null); // hoisted ref
+  const importFileRef = useRef(null);
 
   useEffect(() => {
     function onDocClick(e) {
@@ -1024,6 +1066,13 @@ export default function App() {
     navigate("#/notes");
     return { ok: true };
   };
+  const signInWithSecret = async (key) => {
+    const res = await api("/login/secret", { method: "POST", body: { key } });
+    setSession(res);
+    setAuth(res);
+    navigate("#/notes");
+    return { ok: true };
+  };
   const register = async (name, email, password) => {
     const res = await api("/register", { method: "POST", body: { name, email, password } });
     setSession(res);
@@ -1089,11 +1138,7 @@ export default function App() {
     const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
     const content = `${header}${tagsLine}${body}${imagesLine}\n`;
     const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = fname; document.body.appendChild(a);
-    a.click(); a.remove(); URL.revokeObjectURL(url);
+    downloadText(fname, content);
   };
 
   /** -------- Export / Import All -------- */
@@ -1130,6 +1175,28 @@ export default function App() {
       alert(`Imported ${notesArr.length} note(s) successfully.`);
     } catch (e) {
       alert(e.message || "Import failed");
+    }
+  };
+
+  /** -------- Secret Key actions -------- */
+  const downloadSecretKey = async () => {
+    try {
+      const data = await api("/secret-key", { method: "POST", token });
+      if (!data?.key) throw new Error("Secret key not returned by server.");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const fname = `glass-keep-secret-key-${ts}.txt`;
+      const content =
+        `Glass Keep — Secret Recovery Key\n\n` +
+        `Keep this key safe. Anyone with this key can sign in as you.\n\n` +
+        `Secret Key:\n${data.key}\n\n` +
+        `Instructions:\n` +
+        `1) Go to the login page.\n` +
+        `2) Click "Forgot username/password?".\n` +
+        `3) Choose "Sign in with Secret Key" and paste this key.\n`;
+      downloadText(fname, content);
+      alert("Secret key downloaded. Store it in a safe place.");
+    } catch (e) {
+      alert(e.message || "Could not generate secret key.");
     }
   };
 
@@ -1301,7 +1368,7 @@ export default function App() {
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!search;
   const allEmpty = notes.length === 0;
 
-  /** -------- Modal (built here, rendered after NotesUI) -------- */
+  /** -------- Modal menus click-outside -------- */
   const modalMenuBtnRef = useRef(null);
   const modalMenuRef = useRef(null);
   useEffect(() => {
@@ -1317,6 +1384,7 @@ export default function App() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [modalMenuOpen]);
 
+  /** -------- Modal JSX -------- */
   const modal = open && (
     <div
       className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
@@ -1577,12 +1645,23 @@ export default function App() {
         />
       );
     }
+    if (route === "#/login-secret") {
+      return (
+        <SecretLoginView
+          dark={dark}
+          onToggleDark={toggleDark}
+          onLoginWithKey={signInWithSecret}
+          goLogin={() => navigate("#/login")}
+        />
+      );
+    }
     return (
       <LoginView
         dark={dark}
         onToggleDark={toggleDark}
         onLogin={signIn}
         goRegister={() => navigate("#/register")}
+        goSecret={() => navigate("#/login-secret")}
       />
     );
   }
@@ -1629,6 +1708,7 @@ export default function App() {
         allEmpty={allEmpty}
         onExportAll={exportAll}
         onImportAll={importAll}
+        onDownloadSecretKey={downloadSecretKey}
         importFileRef={importFileRef}
         headerMenuOpen={headerMenuOpen}
         setHeaderMenuOpen={setHeaderMenuOpen}

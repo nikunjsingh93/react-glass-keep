@@ -7,9 +7,10 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const Database = require("better-sqlite3");
 const cors = require("cors");
+const crypto = require("crypto");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.API_PORT || process.env.PORT || 8080;
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-please-change";
 const NODE_ENV = process.env.NODE_ENV || "development";
 
@@ -28,7 +29,11 @@ if (NODE_ENV !== "production") {
 }
 
 // ---- SQLite ----
-const dbFile = process.env.SQLITE_FILE || path.join(__dirname, "data.sqlite");
+const dbFile =
+  process.env.DB_FILE ||
+  process.env.SQLITE_FILE ||
+  path.join(__dirname, "data.sqlite");
+
 const db = new Database(dbFile);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
@@ -58,6 +63,23 @@ CREATE TABLE IF NOT EXISTS notes (
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `);
+
+// --- tiny migration: add secret key columns if missing ---
+(function ensureSecretKeyColumns() {
+  const cols = db.prepare(`PRAGMA table_info(users)`).all();
+  const names = new Set(cols.map((c) => c.name));
+  const tx = db.transaction(() => {
+    if (!names.has("secret_key_hash")) {
+      db.exec(`ALTER TABLE users ADD COLUMN secret_key_hash TEXT`);
+    }
+    if (!names.has("secret_key_created_at")) {
+      db.exec(`ALTER TABLE users ADD COLUMN secret_key_created_at TEXT`);
+    }
+  });
+  try { tx(); } catch (e) {
+    // If columns already exist (older SQLite without IF NOT EXISTS), ignore
+  }
+})();
 
 // ---- Helpers ----
 const nowISO = () => new Date().toISOString();
@@ -142,6 +164,51 @@ app.post("/api/login", (req, res) => {
   }
   const token = signToken(user);
   res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+});
+
+// ---- Secret Key Feature ----
+
+// helper: generate a URL-safe random key (plaintext returned to user)
+function generateSecretKey(bytes = 32) {
+  // Prefer base64url (Node 18+). Fallback to base64-safe.
+  const buf = crypto.randomBytes(bytes);
+  try { return buf.toString("base64url"); }
+  catch {
+    return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+}
+
+const updateSecretForUser = db.prepare(
+  "UPDATE users SET secret_key_hash = ?, secret_key_created_at = ? WHERE id = ?"
+);
+
+const getUsersWithSecret = db.prepare(
+  "SELECT id, name, email, password_hash, secret_key_hash FROM users WHERE secret_key_hash IS NOT NULL"
+);
+
+// Auth required: create/rotate a new secret key for the current user
+app.post("/api/secret-key", auth, (req, res) => {
+  const key = generateSecretKey(32);
+  const hash = bcrypt.hashSync(key, 10);
+  updateSecretForUser.run(hash, nowISO(), req.user.id);
+  res.json({ key });
+});
+
+// Login with secret key (no email/password)
+app.post("/api/login/secret", (req, res) => {
+  const { key } = req.body || {};
+  if (!key || typeof key !== "string" || key.length < 16) {
+    return res.status(400).json({ error: "Invalid key." });
+  }
+
+  const rows = getUsersWithSecret.all();
+  for (const u of rows) {
+    if (u.secret_key_hash && bcrypt.compareSync(key, u.secret_key_hash)) {
+      const token = signToken(u);
+      return res.json({ token, user: { id: u.id, name: u.name, email: u.email } });
+    }
+  }
+  return res.status(401).json({ error: "Secret key not recognized." });
 });
 
 // ---- Notes routes ----
@@ -249,7 +316,7 @@ app.delete("/api/notes/:id", auth, (req, res) => {
 app.post("/api/notes/reorder", auth, (req, res) => {
   const { pinnedIds = [], otherIds = [] } = req.body || {};
   const base = Date.now();
-  const step = 1; // simple monotonically decreasing positions
+  const step = 1; // simple monotonically changing positions
   const reorder = db.transaction(() => {
     for (let i = 0; i < pinnedIds.length; i++) {
       patchPosition.run({
@@ -328,6 +395,9 @@ app.post("/api/notes/import", auth, (req, res) => {
   res.json({ ok: true, imported: src.length });
 });
 
+// Health (for diagnostics / compose)
+app.get("/api/health", (_req, res) => res.json({ ok: true, env: NODE_ENV }));
+
 // ---- Static (production) ----
 if (NODE_ENV === "production") {
   const dist = path.join(__dirname, "..", "dist");
@@ -337,6 +407,6 @@ if (NODE_ENV === "production") {
   });
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`API listening on http://0.0.0.0:${PORT}  (env=${NODE_ENV})`);
 });
