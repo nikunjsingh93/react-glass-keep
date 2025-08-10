@@ -190,6 +190,9 @@ body {
 .note-content h1, .note-content h2, .note-content h3 {
   margin-bottom: 0.75rem; font-weight: 600;
 }
+.note-content h1 { font-size: 1.5rem; line-height: 1.3; }
+.note-content h2 { font-size: 1.25rem; line-height: 1.35; }
+.note-content h3 { font-size: 1.125rem; line-height: 1.4; }
 .dragging { opacity: 0.5; transform: scale(1.05); }
 .drag-over { outline: 2px dashed rgba(99,102,241,.6); outline-offset: 6px; }
 .masonry-grid { column-gap: 1.5rem; column-count: 1; }
