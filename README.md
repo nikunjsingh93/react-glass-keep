@@ -101,6 +101,34 @@ docker run --name glass-keep \
 ```
 # Visit: http://localhost:8080
 
+docker-compose.yml
+```bash
+version: "3.8"
+services:
+  app:
+    container_name: glass-keep
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - API_PORT=8080
+      - DB_FILE=/app/data/notes.db
+      - JWT_SECRET=replace-with-a-long-random-string
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+```
+
+Run it from your project root (where the Dockerfile is):
+```bash
+docker compose up --build -d
+docker compose logs -f
+```
+
+
 ## 👤 Accounts
 
 * Click **Create one** on the login page to register
