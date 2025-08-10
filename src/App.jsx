@@ -507,7 +507,12 @@ function NotesUI(props) {
     openModal,
     onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
     togglePin,
+    addImagesToState,
   } = props;
+
+  const signOutBtnClass = dark
+    ? "px-3 py-1.5 bg-gray-700 text-gray-100 border border-gray-600 rounded-lg text-sm hover:bg-gray-600"
+    : "px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm hover:bg-gray-50";
 
   return (
     <div className="min-h-screen">
@@ -538,8 +543,7 @@ function NotesUI(props) {
           </button>
           <button
             onClick={signOut}
-            className="px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm hover:bg-gray-50
-                       dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600 dark:hover:bg-gray-600"
+            className={signOutBtnClass}
             title="Sign out"
           >
             Sign out
@@ -662,7 +666,7 @@ function NotesUI(props) {
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => { props.addImagesToState(e.target.files, setComposerImages); e.target.value = ""; }}
+                onChange={(e) => { addImagesToState(e.target.files, setComposerImages); e.target.value = ""; }}
               />
               <button
                 onClick={() => composerFileRef.current?.click()}
@@ -1248,7 +1252,7 @@ export default function App() {
             />
             <button
               onClick={() => modalFileRef.current?.click()}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg.white/10"
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
               title="Add images"
             >
               <ImageIcon />
