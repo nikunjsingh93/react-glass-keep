@@ -1,8 +1,48 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { marked as markedNamed } from "marked";
-const marked = markedNamed?.parse ? markedNamed : (window.marked || { parse: (t) => t });
+import { marked as markedParser } from "marked";
 
-/** ---- Color maps (light & dark) ---- */
+// Ensure we can call marked.parse(...)
+const marked = typeof markedParser === "function" ? { parse: markedParser } : markedParser;
+
+/** ---------- API Helpers ---------- */
+const API_BASE = "/api";
+const AUTH_KEY = "glass-keep-auth";
+
+const getAuth = () => {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
+  } catch {
+    return null;
+  }
+};
+const setAuth = (obj) => {
+  if (obj) localStorage.setItem(AUTH_KEY, JSON.stringify(obj));
+  else localStorage.removeItem(AUTH_KEY);
+};
+async function api(path, { method = "GET", body, token } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
+  if (!res.ok) {
+    const err = new Error(data?.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+/** ---------- Colors ---------- */
 const LIGHT_COLORS = {
   default: "rgba(255, 255, 255, 0.6)",
   red: "rgba(252, 165, 165, 0.6)",
@@ -24,7 +64,7 @@ const bgFor = (colorKey, dark) =>
   (dark ? DARK_COLORS : LIGHT_COLORS)[colorKey] ||
   (dark ? DARK_COLORS.default : LIGHT_COLORS.default);
 
-/** --- Light-mode modal color boost for readability --- */
+/** ---------- Modal light boost ---------- */
 const parseRGBA = (str) => {
   const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/.exec(str || "");
   if (!m) return { r: 255, g: 255, b: 255, a: 0.85 };
@@ -43,7 +83,7 @@ const modalBgFor = (colorKey, dark) => {
   return mixWithWhite(solid(base), 0.8, 0.92);
 };
 
-/** ---- Icons ---- */
+/** ---------- Icons ---------- */
 const PinOutline = () => (
   <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
        fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -57,19 +97,9 @@ const PinFilled = () => (
   </svg>
 );
 const Trash = () => (
-  <svg
-    className="w-5 h-5"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118 1.02-.17m12.456 0L18.16 19.24A2.25 2.25 0 0 1 15.916 21.5H8.084A2.25 2.25 0 0 1 5.84 19.24L4.772 5.79m12.456 0a48.108 48.108 0 0 0-12.456 0M10 5V4a2 2 0 1 1 4 0v1"
-    />
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118 1.02-.17m12.456 0L18.16 19.24A2.25 2.25 0 0 1 15.916 21.5H8.084A2.25 2.25 0 0 1 5.84 19.24L4.772 5.79m12.456 0a48.108 48.108 0 0 0-12.456 0M10 5V4a2 2 0 1 1 4 0v1" />
   </svg>
 );
 const Sun = () => (
@@ -92,8 +122,7 @@ const ImageIcon = () => (
   </svg>
 );
 const CloseIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none"
-       xmlns="http://www.w3.org/2000/svg" stroke="currentColor" strokeWidth="1.8">
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
   </svg>
 );
@@ -105,7 +134,8 @@ const Kebab = () => (
   </svg>
 );
 
-/** ---- Markdown → plain text (for grid preview) ---- */
+/** ---------- Utils ---------- */
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const mdToPlain = (md) => {
   try {
     const html = marked.parse(md || "");
@@ -117,8 +147,15 @@ const mdToPlain = (md) => {
     return md || "";
   }
 };
+const mdToPlainForDownload = (n) => {
+  if (n.type === "text") return mdToPlain(n.content || "");
+  const items = (n.items || []).map((it) => `${it.done ? "[x]" : "[ ]"} ${it.text || ""}`);
+  return items.join("\n");
+};
+const sanitizeFilename = (name, fallback = "note") =>
+  (name || fallback).toString().trim().replace(/[\/\\?%*:|"<>]/g, "-").slice(0, 64);
 
-/** ---- Styles injection (CSS + clamp + modal blur) ---- */
+/** ---------- Global CSS injection ---------- */
 const globalCSS = `
 :root {
   --bg-light: #f0f2f5;
@@ -180,22 +217,7 @@ body {
 }
 `;
 
-/** ---- Small utils ---- */
-const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-const base64Encode = (str) => {
-  try { return btoa(unescape(encodeURIComponent(str))); } catch { return str; }
-};
-
-/** ---- LocalStorage helpers ---- */
-const USERS_KEY = "glass-keep-users";
-const CURRENT_USER_KEY = "glass-keep-current-user";
-const notesKeyFor = (email) => `glass-keep-notes::${(email || "").toLowerCase()}`;
-const loadUsers = () => { try { return JSON.parse(localStorage.getItem(USERS_KEY) || "[]"); } catch { return []; } };
-const saveUsers = (arr) => localStorage.setItem(USERS_KEY, JSON.stringify(arr));
-const loadCurrentUser = () => { try { return JSON.parse(localStorage.getItem(CURRENT_USER_KEY) || "null"); } catch { return null; } };
-const saveCurrentUser = (user) => { if (user) localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user)); else localStorage.removeItem(CURRENT_USER_KEY); };
-
-/** Image compression */
+/** ---------- Image compression (client) ---------- */
 async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
   const dataUrl = await new Promise((res, rej) => {
     const fr = new FileReader();
@@ -221,20 +243,7 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-/** ---- Markdown -> plain for downloads ---- */
-const mdToPlainForDownload = (n) => {
-  if (n.type === "text") return mdToPlain(n.content || "");
-  const items = (n.items || []).map((it) => `${it.done ? "[x]" : "[ ]"} ${it.text || ""}`);
-  return items.join("\n");
-};
-const sanitizeFilename = (name, fallback = "note") =>
-  (name || fallback)
-    .toString()
-    .trim()
-    .replace(/[\/\\?%*:|"<>]/g, "-")
-    .slice(0, 64);
-
-/** ---- Shared UI bits ---- */
+/** ---------- Shared UI pieces ---------- */
 function ChecklistRow({ item, onToggle, onChange, onRemove, readOnly }) {
   return (
     <div className="flex items-start gap-2 group">
@@ -269,7 +278,6 @@ function ChecklistRow({ item, onToggle, onChange, onRemove, readOnly }) {
     </div>
   );
 }
-
 const ColorDot = ({ name, selected, onClick, darkMode }) => (
   <button
     type="button"
@@ -287,7 +295,7 @@ const ColorDot = ({ name, selected, onClick, darkMode }) => (
   </button>
 );
 
-/** Note card */
+/** ---------- Note Card ---------- */
 function NoteCard({
   n, dark,
   openModal, togglePin,
@@ -328,10 +336,9 @@ function NoteCard({
       data-id={n.id}
       data-group={group}
     >
-      {/* Pin */}
       <button
         aria-label={n.pinned ? "Unpin note" : "Pin note"}
-        onClick={(e) => { e.stopPropagation(); togglePin(n.id); }}
+        onClick={(e) => { e.stopPropagation(); togglePin(n.id, !n.pinned); }}
         className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         title={n.pinned ? "Unpin" : "Pin"}
       >
@@ -340,7 +347,6 @@ function NoteCard({
 
       {n.title && <h3 className="font-bold text-lg mb-2 pr-10 break-words">{n.title}</h3>}
 
-      {/* Image preview */}
       {mainImg && (
         <div className="mb-3 relative overflow-hidden rounded-lg border border-[var(--border-light)]">
           <img src={mainImg.src} alt={mainImg.name || "note image"} className="w-full h-40 object-cover" />
@@ -387,7 +393,7 @@ function NoteCard({
   );
 }
 
-/** Auth wrapper */
+/** ---------- Auth Shell ---------- */
 function AuthShell({ title, dark, onToggleDark, children }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -411,15 +417,20 @@ function AuthShell({ title, dark, onToggleDark, children }) {
   );
 }
 
+/** ---------- Login / Register ---------- */
 function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const res = onLogin(email.trim(), pw);
-    if (!res.ok) setErr(res.error || "Login failed");
+    try {
+      const res = await onLogin(email.trim(), pw);
+      if (!res.ok) setErr(res.error || "Login failed");
+    } catch (er) {
+      setErr(er.message || "Login failed");
+    }
   };
 
   return (
@@ -455,7 +466,6 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
     </AuthShell>
   );
 }
-
 function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -463,12 +473,16 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
   const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (pw.length < 6) return setErr("Password must be at least 6 characters.");
     if (pw !== pw2) return setErr("Passwords do not match.");
-    const res = onRegister(name.trim() || "User", email.trim(), pw);
-    if (!res.ok) setErr(res.error || "Registration failed");
+    try {
+      const res = await onRegister(name.trim() || "User", email.trim(), pw);
+      if (!res.ok) setErr(res.error || "Registration failed");
+    } catch (er) {
+      setErr(er.message || "Registration failed");
+    }
   };
 
   return (
@@ -520,44 +534,28 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
   );
 }
 
-/** Notes UI */
-function NotesUI(props) {
-  const {
-    currentUser, dark, toggleDark,
-    search, setSearch,
-    composerType, setComposerType,
-    title, setTitle,
-    content, setContent, contentRef,
-    clInput, setClInput, addComposerItem, clItems,
-    composerImages, setComposerImages, composerFileRef,
-    tags, setTags,
-    composerColor, setComposerColor,
-    addNote,
-    pinned, others,
-    openModal,
-    onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
-    togglePin,
-    addImagesToState,
-    onExportAll, onImportAll, importFileRef, signOut,
-  } = props;
-
-  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-
-  const headerMenuRef = useRef(null);
-  const headerBtnRef = useRef(null);
-  useEffect(() => {
-    function onDocClick(e) {
-      if (!headerMenuOpen) return;
-      const m = headerMenuRef.current;
-      const b = headerBtnRef.current;
-      if (m && m.contains(e.target)) return;
-      if (b && b.contains(e.target)) return;
-      setHeaderMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [headerMenuOpen]);
-
+/** ---------- NotesUI (presentational) ---------- */
+function NotesUI({
+  currentUser, dark, toggleDark,
+  search, setSearch,
+  composerType, setComposerType,
+  title, setTitle,
+  content, setContent, contentRef,
+  clInput, setClInput, addComposerItem, clItems,
+  composerImages, setComposerImages, composerFileRef,
+  tags, setTags,
+  composerColor, setComposerColor,
+  addNote,
+  pinned, others,
+  openModal,
+  onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+  togglePin,
+  addImagesToState,
+  onExportAll, onImportAll, importFileRef, signOut,
+  filteredEmptyWithSearch, allEmpty,
+  headerMenuOpen, setHeaderMenuOpen,
+  headerMenuRef, headerBtnRef,
+}) {
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -750,7 +748,18 @@ function NotesUI(props) {
                 accept="image/*"
                 multiple
                 className="hidden"
-                onChange={(e) => { addImagesToState(e.target.files, setComposerImages); e.target.value = ""; }}
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  const results = [];
+                  for (const f of files) {
+                    try {
+                      const src = await fileToCompressedDataURL(f);
+                      results.push({ id: uid(), src, name: f.name });
+                    } catch {}
+                  }
+                  if (results.length) setComposerImages((prev) => [...prev, ...results]);
+                  e.target.value = "";
+                }}
               />
               <button
                 onClick={() => composerFileRef.current?.click()}
@@ -785,8 +794,8 @@ function NotesUI(props) {
                   key={n.id}
                   n={n}
                   dark={dark}
-                  openModal={props.openModal}
-                  togglePin={props.togglePin}
+                  openModal={openModal}
+                  togglePin={togglePin}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -811,8 +820,8 @@ function NotesUI(props) {
                   key={n.id}
                   n={n}
                   dark={dark}
-                  openModal={props.openModal}
-                  togglePin={props.togglePin}
+                  openModal={openModal}
+                  togglePin={togglePin}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -824,28 +833,29 @@ function NotesUI(props) {
           </section>
         )}
 
-        {props.filteredEmptyWithSearch && (
+        {filteredEmptyWithSearch && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No matching notes found.
           </p>
         )}
-        {props.allEmpty && (
+        {allEmpty && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No notes yet. Add one to get started!
           </p>
         )}
       </main>
-
-      {/* Modal */}
-      {props.modal}
     </div>
   );
 }
 
-/** --------------------------- App --------------------------- */
+/** ---------- App ---------- */
 export default function App() {
   const [route, setRoute] = useState(window.location.hash || "#/login");
-  const [currentUser, setCurrentUser] = useState(loadCurrentUser());
+
+  // auth session { token, user }
+  const [session, setSession] = useState(getAuth());
+  const token = session?.token;
+  const currentUser = session?.user || null;
 
   // Theme
   const [dark, setDark] = useState(false);
@@ -868,7 +878,7 @@ export default function App() {
   const [clItems, setClItems] = useState([]);
   const [clInput, setClInput] = useState("");
 
-  // Modal
+  // Modal state
   const [open, setOpen] = useState(false);
   const [activeId, setActiveId] = useState(null);
   const [mType, setMType] = useState("text");
@@ -882,11 +892,7 @@ export default function App() {
   const mBodyRef = useRef(null);
   const modalFileRef = useRef(null);
   const [modalMenuOpen, setModalMenuOpen] = useState(false);
-
-  // confirm delete dialog state
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-
-  // Checklist modal
   const [mItems, setMItems] = useState([]);
   const [mInput, setMInput] = useState("");
 
@@ -894,8 +900,24 @@ export default function App() {
   const dragId = useRef(null);
   const dragGroup = useRef(null);
 
-  // Header import/export refs
-  const importFileRef = useRef(null);
+  // Header menu refs + state
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef(null);
+  const headerBtnRef = useRef(null);
+  const importFileRef = useRef(null); // hoisted ref
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!headerMenuOpen) return;
+      const m = headerMenuRef.current;
+      const b = headerBtnRef.current;
+      if (m && m.contains(e.target)) return;
+      if (b && b.contains(e.target)) return;
+      setHeaderMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [headerMenuOpen]);
 
   // CSS inject
   useEffect(() => {
@@ -916,7 +938,7 @@ export default function App() {
     setRoute(to);
   };
 
-  // Theme init
+  // Theme init/toggle
   useEffect(() => {
     const savedDark =
       localStorage.getItem("glass-keep-dark-mode") === "true" ||
@@ -932,14 +954,15 @@ export default function App() {
     localStorage.setItem("glass-keep-dark-mode", String(next));
   };
 
-  // Load notes when user changes
+  // Load notes
+  const loadNotes = async () => {
+    if (!token) return;
+    const data = await api("/notes", { token });
+    setNotes(data);
+  };
   useEffect(() => {
-    if (!currentUser?.email) { setNotes([]); return; }
-    try {
-      const raw = localStorage.getItem(notesKeyFor(currentUser.email));
-      setNotes(raw ? JSON.parse(raw) : []);
-    } catch { setNotes([]); }
-  }, [currentUser]);
+    if (token) loadNotes().catch(() => {});
+  }, [token]);
 
   // Lock body scroll on modal
   useEffect(() => {
@@ -969,46 +992,130 @@ export default function App() {
     if (!viewMode) requestAnimationFrame(resizeModalTextarea);
   }, [open, viewMode, mBody, mType]);
 
-  // Save notes per user
-  const saveNotes = (arr) => {
-    setNotes(arr);
-    if (!currentUser?.email) return;
-    try { localStorage.setItem(notesKeyFor(currentUser.email), JSON.stringify(arr)); }
-    catch (e) { console.error("localStorage save failed", e); }
-  };
-
-  // Auth
-  const saveCurrentUserAndRoute = (sess) => {
-    saveCurrentUser(sess);
-    setCurrentUser(sess);
-    navigate("#/notes");
-  };
+  /** -------- Auth actions -------- */
   const signOut = () => {
-    saveCurrentUser(null);
-    setCurrentUser(null);
+    setAuth(null);
+    setSession(null);
     setNotes([]);
     navigate("#/login");
   };
-  const signIn = (email, password) => {
-    const users = loadUsers();
-    const u = users.find((x) => x.email.toLowerCase() === email.toLowerCase());
-    if (!u) return { ok: false, error: "No account found for that email." };
-    if (u.pass !== base64Encode(password)) return { ok: false, error: "Incorrect password." };
-    saveCurrentUserAndRoute({ email: u.email, name: u.name });
+  const signIn = async (email, password) => {
+    const res = await api("/login", { method: "POST", body: { email, password } });
+    setSession(res);
+    setAuth(res);
+    navigate("#/notes");
     return { ok: true };
   };
-  const register = (name, email, password) => {
-    const users = loadUsers();
-    if (users.some((x) => x.email.toLowerCase() === email.toLowerCase())) {
-      return { ok: false, error: "Email is already registered." };
-    }
-    const newU = { id: uid(), name, email, pass: base64Encode(password) };
-    saveUsers([...users, newU]);
-    saveCurrentUserAndRoute({ email: newU.email, name: newU.name });
+  const register = async (name, email, password) => {
+    const res = await api("/register", { method: "POST", body: { name, email, password } });
+    setSession(res);
+    setAuth(res);
+    navigate("#/notes");
     return { ok: true };
   };
 
-  // Tags (modal)
+  /** -------- Composer helpers -------- */
+  const addComposerItem = () => {
+    const t = clInput.trim();
+    if (!t) return;
+    setClItems((prev) => [...prev, { id: uid(), text: t, done: false }]);
+    setClInput("");
+  };
+
+  const addNote = async () => {
+    if (composerType === "text") {
+      if (!title.trim() && !content.trim() && !tags.trim() && composerImages.length === 0) return;
+    } else {
+      if (!title.trim() && clItems.length === 0) return;
+    }
+    const newNote = {
+      id: uid(),
+      type: composerType,
+      title: title.trim(),
+      content: composerType === "text" ? content : "",
+      items: composerType === "checklist" ? clItems : [],
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      images: composerImages,
+      color: composerColor,
+      pinned: false,
+      position: Date.now(),
+      timestamp: new Date().toISOString(),
+    };
+    try {
+      const created = await api("/notes", { method: "POST", body: newNote, token });
+      setNotes((prev) => [created, ...prev]);
+      // reset composer
+      setTitle("");
+      setContent("");
+      setTags("");
+      setComposerImages([]);
+      setComposerColor("default");
+      setClItems([]);
+      setClInput("");
+      if (contentRef.current) contentRef.current.style.height = "auto";
+    } catch (e) {
+      alert(e.message || "Failed to add note");
+    }
+  };
+
+  /** -------- Download single note .txt -------- */
+  const handleDownloadNote = (note) => {
+    const title = note.title || "";
+    const tags = (note.tags || []).join(", ");
+    const body = mdToPlainForDownload(note);
+    const imagesLine =
+      (note.images && note.images.length)
+        ? `\n\nImages attached: ${note.images.length}${note.images.some(i=>i.name) ? " (" + note.images.map(i=>i.name).join(", ") + ")" : ""}`
+        : "";
+    const header = title ? `${title}\n\n` : "";
+    const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
+    const content = `${header}${tagsLine}${body}${imagesLine}\n`;
+    const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = fname; document.body.appendChild(a);
+    a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
+  /** -------- Export / Import All -------- */
+  const triggerJSONDownload = (filename, jsonText) => {
+    const blob = new Blob([jsonText], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.appendChild(a);
+    a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
+  const exportAll = async () => {
+    try {
+      const payload = await api("/notes/export", { token });
+      const json = JSON.stringify(payload, null, 2);
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const fname = sanitizeFilename(`glass-keep-notes-${currentUser?.email || "user"}-${ts}`) + ".json";
+      triggerJSONDownload(fname, json);
+    } catch (e) {
+      alert(e.message || "Export failed");
+    }
+  };
+
+  const importAll = async (fileList) => {
+    try {
+      if (!fileList || !fileList.length) return;
+      const file = fileList[0];
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const notesArr = Array.isArray(parsed?.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : []);
+      if (!notesArr.length) { alert("No notes found in file."); return; }
+      await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
+      await loadNotes();
+      alert(`Imported ${notesArr.length} note(s) successfully.`);
+    } catch (e) {
+      alert(e.message || "Import failed");
+    }
+  };
+
+  /** -------- Modal helpers -------- */
   const addTags = (raw) => {
     const parts = String(raw).split(",").map((t) => t.trim()).filter(Boolean);
     if (!parts.length) return;
@@ -1033,7 +1140,6 @@ export default function App() {
     if (text && text.includes(",")) { e.preventDefault(); addTags(text); }
   };
 
-  // Image helpers
   const addImagesToState = async (fileList, setter) => {
     const files = Array.from(fileList || []);
     const results = [];
@@ -1044,146 +1150,6 @@ export default function App() {
     if (results.length) setter((prev) => [...prev, ...results]);
   };
 
-  // Checklist helpers
-  const addComposerItem = () => {
-    const t = clInput.trim(); if (!t) return;
-    setClItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setClInput("");
-  };
-
-  // Add Note (composer)
-  const addNote = () => {
-    if (composerType === "text") {
-      if (!title.trim() && !content.trim() && !tags.trim() && composerImages.length === 0) return;
-    } else {
-      if (!title.trim() && clItems.length === 0) return;
-    }
-    const newNote = {
-      id: uid(),
-      type: composerType,
-      title: title.trim(),
-      content: composerType === "text" ? content : "",
-      items: composerType === "checklist" ? clItems : [],
-      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      images: composerImages,
-      color: composerColor,
-      pinned: false,
-      timestamp: new Date().toISOString(),
-    };
-    saveNotes([newNote, ...notes]);
-    // reset composer
-    setTitle("");
-    setContent("");
-    setTags("");
-    setComposerImages([]);
-    setComposerColor("default");
-    setClItems([]);
-    setClInput("");
-    if (contentRef.current) {
-      contentRef.current.style.height = "auto";
-    }
-  };
-
-  // Download helpers (single note .txt)
-  const handleDownloadNote = (note) => {
-    const title = note.title || "";
-    const tags = (note.tags || []).join(", ");
-    const body = mdToPlainForDownload(note);
-    const imagesLine =
-      (note.images && note.images.length)
-        ? `\n\nImages attached: ${note.images.length}${note.images.some(i=>i.name) ? " (" + note.images.map(i=>i.name).join(", ") + ")" : ""}`
-        : "";
-    const header = title ? `${title}\n\n` : "";
-    const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
-    const content = `${header}${tagsLine}${body}${imagesLine}\n`;
-    const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = fname; document.body.appendChild(a);
-    a.click(); a.remove(); URL.revokeObjectURL(url);
-  };
-
-  /** -------- Export / Import All Notes -------- */
-  const triggerJSONDownload = (filename, jsonText) => {
-    const blob = new Blob([jsonText], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename; document.body.appendChild(a);
-    a.click(); a.remove(); URL.revokeObjectURL(url);
-  };
-
-  const buildExportPayload = () => ({
-    app: "glass-keep",
-    version: 1,
-    user: currentUser?.email || null,
-    exportedAt: new Date().toISOString(),
-    notes,
-  });
-
-  const exportAll = () => {
-    const payload = buildExportPayload();
-    const json = JSON.stringify(payload, null, 2);
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const fname = sanitizeFilename(`glass-keep-notes-${currentUser?.email || "user"}-${ts}`) + ".json";
-    triggerJSONDownload(fname, json);
-  };
-
-  const sanitizeNoteShape = (obj) => {
-    const base = obj || {};
-    const type = base.type === "checklist" ? "checklist" : "text";
-    const out = {
-      id: String(base.id || uid()),
-      type,
-      title: String(base.title || ""),
-      content: type === "text" ? String(base.content || "") : "",
-      items: Array.isArray(base.items)
-        ? base.items.map((i) => ({
-            id: String(i?.id || uid()),
-            text: String(i?.text || ""),
-            done: !!i?.done,
-          }))
-        : [],
-      tags: Array.isArray(base.tags) ? base.tags.map((t) => String(t)).filter(Boolean) : [],
-      images: Array.isArray(base.images)
-        ? base.images
-            .filter((im) => im && im.src)
-            .map((im) => ({ id: String(im.id || uid()), src: String(im.src), name: String(im.name || "") }))
-        : [],
-      color: base.color && LIGHT_COLORS[base.color] ? base.color : "default",
-      pinned: !!base.pinned,
-      timestamp: base.timestamp || new Date().toISOString(),
-    };
-    return out;
-  };
-
-  const importAll = async (fileList) => {
-    try {
-      if (!fileList || !fileList.length) return;
-      const file = fileList[0];
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const srcNotes = Array.isArray(parsed?.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : []);
-      if (!Array.isArray(srcNotes) || srcNotes.length === 0) {
-        window.alert("No notes found in the selected file.");
-        return;
-      }
-      const existingIds = new Set(notes.map((n) => String(n.id)));
-      const sanitized = srcNotes.map(sanitizeNoteShape).map((n) => {
-        let id = String(n.id);
-        if (existingIds.has(id)) { id = uid(); }
-        existingIds.add(id);
-        return { ...n, id };
-      });
-      const next = [...notes, ...sanitized];
-      saveNotes(next);
-      window.alert(`Imported ${sanitized.length} note(s) successfully.`);
-    } catch (e) {
-      console.error("Import failed", e);
-      window.alert("Import failed. Please select a valid export JSON file.");
-    }
-  };
-
-  // Modal open/save/delete/pin
   const openModal = (id) => {
     const n = notes.find((x) => String(x.id) === String(id)); if (!n) return;
     setActiveId(String(id));
@@ -1199,28 +1165,49 @@ export default function App() {
     setModalMenuOpen(false);
     setOpen(true);
   };
-  const closeModal = () => { setOpen(false); setActiveId(null); setViewMode(true); setModalMenuOpen(false); setConfirmDeleteOpen(false); };
-  const saveModal = () => {
-    if (activeId == null) return;
-    const next = notes.map((n) =>
-      String(n.id) === String(activeId)
-        ? { ...n, type: mType, title: mTitle.trim(), content: mType === "text" ? mBody : "",
-            items: mType === "checklist" ? mItems : [], tags: mTagList, images: mImages, color: mColor }
-        : n
-    );
-    saveNotes(next); closeModal();
+  const closeModal = () => {
+    setOpen(false);
+    setActiveId(null);
+    setViewMode(true);
+    setModalMenuOpen(false);
+    setConfirmDeleteOpen(false);
   };
-  const deleteModal = () => {
+  const saveModal = async () => {
     if (activeId == null) return;
-    const next = notes.filter((n) => String(n.id) !== String(activeId));
-    saveNotes(next); closeModal();
+    const payload =
+      mType === "text"
+        ? { id: activeId, type: "text", title: mTitle.trim(), content: mBody, items: [], tags: mTagList, images: mImages, color: mColor,
+            pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned }
+        : { id: activeId, type: "checklist", title: mTitle.trim(), content: "", items: mItems, tags: mTagList, images: mImages, color: mColor,
+            pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned };
+    try {
+      await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+      setNotes((prev) => prev.map((n) => (String(n.id) === String(activeId) ? { ...n, ...payload } : n)));
+      closeModal();
+    } catch (e) {
+      alert(e.message || "Failed to save note");
+    }
   };
-  const togglePin = (id) => {
-    const next = notes.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !n.pinned } : n));
-    saveNotes(next);
+  const deleteModal = async () => {
+    if (activeId == null) return;
+    try {
+      await api(`/notes/${activeId}`, { method: "DELETE", token });
+      setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
+      closeModal();
+    } catch (e) {
+      alert(e.message || "Delete failed");
+    }
+  };
+  const togglePin = async (id, toPinned) => {
+    try {
+      await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
+      setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
+    } catch (e) {
+      alert(e.message || "Failed to toggle pin");
+    }
   };
 
-  // ---------- Drag & Drop (reorder on drop) ----------
+  /** -------- Drag & Drop reorder -------- */
   const moveWithin = (arr, itemId, targetId, placeAfter) => {
     const a = arr.slice();
     const from = a.indexOf(itemId);
@@ -1245,7 +1232,7 @@ export default function App() {
     ev.currentTarget.classList.add("drag-over");
   };
   const onDragLeave = (ev) => { ev.currentTarget.classList.remove("drag-over"); };
-  const onDrop = (overId, group, ev) => {
+  const onDrop = async (overId, group, ev) => {
     ev.preventDefault();
     ev.currentTarget.classList.remove("drag-over");
     const dragged = dragId.current; dragId.current = null;
@@ -1261,30 +1248,24 @@ export default function App() {
     let newPinned = pinnedIds, newOthers = otherIds;
     if (group === "pinned") newPinned = moveWithin(pinnedIds, String(dragged), String(overId), placeAfter);
     else newOthers = moveWithin(otherIds, String(dragged), String(overId), placeAfter);
+
+    // Optimistic update
     const byId = new Map(notes.map((n) => [String(n.id), n]));
     const reordered = [...newPinned.map((id) => byId.get(id)), ...newOthers.map((id) => byId.get(id))];
-    saveNotes(reordered);
+    setNotes(reordered);
+
+    // Persist order
+    try {
+      await api("/notes/reorder", { method: "POST", token, body: { pinnedIds: newPinned, otherIds: newOthers } });
+    } catch (e) {
+      console.error("Reorder failed:", e);
+      loadNotes().catch(() => {});
+    }
     dragGroup.current = null;
   };
   const onDragEnd = (ev) => { ev.currentTarget.classList.remove("dragging"); };
 
-  // Click-away for modal download menu
-  const modalMenuBtnRef = useRef(null);
-  const modalMenuRef = useRef(null);
-  useEffect(() => {
-    function onDocClick(e) {
-      if (!modalMenuOpen) return;
-      const m = modalMenuRef.current;
-      const b = modalMenuBtnRef.current;
-      if (m && m.contains(e.target)) return;
-      if (b && b.contains(e.target)) return;
-      setModalMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [modalMenuOpen]);
-
-  // Derived lists
+  /** -------- Derived lists -------- */
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     if (!q) return notes;
@@ -1302,8 +1283,22 @@ export default function App() {
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!search;
   const allEmpty = notes.length === 0;
 
-  // Modal content
-  const activeNote = activeId != null ? notes.find((n) => String(n.id) === String(activeId)) : null;
+  /** -------- Modal (built here, rendered after NotesUI) -------- */
+  const modalMenuBtnRef = useRef(null);
+  const modalMenuRef = useRef(null);
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!modalMenuOpen) return;
+      const m = modalMenuRef.current;
+      const b = modalMenuBtnRef.current;
+      if (m && m.contains(e.target)) return;
+      if (b && b.contains(e.target)) return;
+      setModalMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [modalMenuOpen]);
+
   const modal = open && (
     <div
       className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
@@ -1333,7 +1328,7 @@ export default function App() {
               >
                 <button
                   className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                  onClick={() => { if (activeNote) handleDownloadNote(activeNote); setModalMenuOpen(false); }}
+                  onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
                 >
                   Download .txt
                 </button>
@@ -1342,7 +1337,7 @@ export default function App() {
             <button
               className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               title="Pin/unpin"
-              onClick={() => activeId != null && togglePin(activeId)}
+              onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
             >
               {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
             </button>
@@ -1485,7 +1480,7 @@ export default function App() {
               accept="image/*"
               multiple
               className="hidden"
-              onChange={async (e) => { await addImagesToState(e.target.files, setMImages); e.target.value = ""; }}
+              onChange={async (e) => { const f = e.target.files; if (f && f.length) { await addImagesToState(f, setMImages); } e.target.value = ""; }}
             />
             <button
               onClick={() => modalFileRef.current?.click()}
@@ -1536,7 +1531,7 @@ export default function App() {
                 </button>
                 <button
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  onClick={() => { setConfirmDeleteOpen(false); deleteModal();}}
+                  onClick={async () => { setConfirmDeleteOpen(false); await deleteModal();}}
                 >
                   Delete
                 </button>
@@ -1575,48 +1570,54 @@ export default function App() {
   }
 
   return (
-    <NotesUI
-      currentUser={currentUser}
-      dark={dark}
-      toggleDark={toggleDark}
-      signOut={signOut}
-      search={search}
-      setSearch={setSearch}
-      composerType={composerType}
-      setComposerType={setComposerType}
-      title={title}
-      setTitle={setTitle}
-      content={content}
-      setContent={setContent}
-      contentRef={contentRef}
-      clInput={clInput}
-      setClInput={setClInput}
-      addComposerItem={addComposerItem}
-      clItems={clItems}
-      composerImages={composerImages}
-      setComposerImages={setComposerImages}
-      composerFileRef={composerFileRef}
-      tags={tags}
-      setTags={setTags}
-      composerColor={composerColor}
-      setComposerColor={setComposerColor}
-      addNote={addNote}
-      pinned={pinned}
-      others={others}
-      openModal={openModal}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      onDragEnd={onDragEnd}
-      togglePin={togglePin}
-      addImagesToState={addImagesToState}
-      filteredEmptyWithSearch={filteredEmptyWithSearch}
-      allEmpty={allEmpty}
-      modal={modal}
-      onExportAll={exportAll}
-      onImportAll={importAll}
-      importFileRef={importFileRef}
-    />
+    <>
+      <NotesUI
+        currentUser={currentUser}
+        dark={dark}
+        toggleDark={toggleDark}
+        signOut={signOut}
+        search={search}
+        setSearch={setSearch}
+        composerType={composerType}
+        setComposerType={setComposerType}
+        title={title}
+        setTitle={setTitle}
+        content={content}
+        setContent={setContent}
+        contentRef={contentRef}
+        clInput={clInput}
+        setClInput={setClInput}
+        addComposerItem={addComposerItem}
+        clItems={clItems}
+        composerImages={composerImages}
+        setComposerImages={setComposerImages}
+        composerFileRef={composerFileRef}
+        tags={tags}
+        setTags={setTags}
+        composerColor={composerColor}
+        setComposerColor={setComposerColor}
+        addNote={addNote}
+        pinned={pinned}
+        others={others}
+        openModal={openModal}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
+        togglePin={togglePin}
+        addImagesToState={addImagesToState}
+        filteredEmptyWithSearch={filteredEmptyWithSearch}
+        allEmpty={allEmpty}
+        onExportAll={exportAll}
+        onImportAll={importAll}
+        importFileRef={importFileRef}
+        headerMenuOpen={headerMenuOpen}
+        setHeaderMenuOpen={setHeaderMenuOpen}
+        headerMenuRef={headerMenuRef}
+        headerBtnRef={headerBtnRef}
+      />
+      {modal}
+    </>
   );
 }
