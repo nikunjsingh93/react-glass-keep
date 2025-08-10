@@ -287,19 +287,7 @@ const ColorDot = ({ name, selected, onClick, darkMode }) => (
   </button>
 );
 
-const KebabMenu = ({ open, onClose, children, alignRight = true, className = "" }) => {
-  if (!open) return null;
-  return (
-    <div
-      onClick={(e) => e.stopPropagation()}
-      className={`absolute z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${alignRight ? "right-0" : ""} ${className}`}
-    >
-      {children}
-    </div>
-  );
-};
-
-/** Note card (no kebab/download in grid anymore) */
+/** Note card */
 function NoteCard({
   n, dark,
   openModal, togglePin,
@@ -412,7 +400,7 @@ function AuthShell({ title, dark, onToggleDark, children }) {
         <div className="mt-6 text-center">
           <button
             onClick={onToggleDark}
-            className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:underline"
+            className={`inline-flex items-center gap-2 text-sm ${dark ? "text-gray-300" : "text-gray-700"} hover:underline`}
             title="Toggle dark mode"
           >
             {dark ? <Moon /> : <Sun />} Toggle theme
@@ -425,6 +413,7 @@ function AuthShell({ title, dark, onToggleDark, children }) {
 
 function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
   const [email, setEmail] = useState("");
+  the; // (removed earlier culprit) — ensure this line is NOT present in your file
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
 
@@ -540,7 +529,7 @@ function NotesUI(props) {
     composerType, setComposerType,
     title, setTitle,
     content, setContent, contentRef,
-    clInput, setClInput, addComposerItem, clItems, setClItems,
+    clInput, setClInput, addComposerItem, clItems,
     composerImages, setComposerImages, composerFileRef,
     tags, setTags,
     composerColor, setComposerColor,
@@ -550,14 +539,11 @@ function NotesUI(props) {
     onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
     togglePin,
     addImagesToState,
-    onDownload,
-    // header menu:
     onExportAll, onImportAll, importFileRef, signOut,
   } = props;
 
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
-  // click-away for header menu (nice-to-have)
   const headerMenuRef = useRef(null);
   const headerBtnRef = useRef(null);
   useEffect(() => {
@@ -590,7 +576,7 @@ function NotesUI(props) {
         </div>
 
         <div className="relative flex items-center gap-3">
-          <span className="text-sm text-gray-600 dark:text-gray-300 hidden sm:inline">
+          <span className={`text-sm hidden sm:inline ${dark ? "text-gray-100" : "text-gray-900"}`}>
             {currentUser?.name ? `Hi, ${currentUser.name}` : currentUser?.email}
           </span>
           <button
@@ -616,23 +602,23 @@ function NotesUI(props) {
           {headerMenuOpen && (
             <div
               ref={headerMenuRef}
-              className="absolute top-12 right-0 min-w-[180px] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
+              className={`absolute top-12 right-0 min-w-[200px] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <button
-                className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onExportAll?.(); setHeaderMenuOpen(false); }}
               >
                 Export notes (.json)
               </button>
               <button
-                className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { importFileRef.current?.click(); setHeaderMenuOpen(false); }}
               >
                 Import notes (.json)
               </button>
               <button
-                className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-black/5 dark:hover:bg-white/10"
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
                 onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
               >
                 Sign out
@@ -711,13 +697,7 @@ function NotesUI(props) {
               {clItems.length > 0 && (
                 <div className="space-y-2">
                   {clItems.map((it) => (
-                    <ChecklistRow
-                      key={it.id}
-                      item={it}
-                      onToggle={(checked) => setClItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
-                      onChange={(txt) => setClItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
-                      onRemove={() => setClItems((prev) => prev.filter(p => p.id !== it.id))}
-                    />
+                    <ChecklistRow key={it.id} item={it} readOnly />
                   ))}
                 </div>
               )}
@@ -1070,9 +1050,38 @@ export default function App() {
     const t = clInput.trim(); if (!t) return;
     setClItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setClInput("");
   };
-  const addModalItem = () => {
-    const t = mInput.trim(); if (!t) return;
-    setMItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setMInput("");
+
+  // Add Note (composer)
+  const addNote = () => {
+    if (composerType === "text") {
+      if (!title.trim() && !content.trim() && !tags.trim() && composerImages.length === 0) return;
+    } else {
+      if (!title.trim() && clItems.length === 0) return;
+    }
+    const newNote = {
+      id: uid(),
+      type: composerType,
+      title: title.trim(),
+      content: composerType === "text" ? content : "",
+      items: composerType === "checklist" ? clItems : [],
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      images: composerImages,
+      color: composerColor,
+      pinned: false,
+      timestamp: new Date().toISOString(),
+    };
+    saveNotes([newNote, ...notes]);
+    // reset composer
+    setTitle("");
+    setContent("");
+    setTags("");
+    setComposerImages([]);
+    setComposerColor("default");
+    setClItems([]);
+    setClInput("");
+    if (contentRef.current) {
+      contentRef.current.style.height = "auto";
+    }
   };
 
   // Download helpers (single note .txt)
@@ -1166,7 +1175,7 @@ export default function App() {
         existingIds.add(id);
         return { ...n, id };
       });
-      const next = [...notes, ...sanitized]; // keep existing, append imported
+      const next = [...notes, ...sanitized];
       saveNotes(next);
       window.alert(`Imported ${sanitized.length} note(s) successfully.`);
     } catch (e) {
@@ -1175,32 +1184,7 @@ export default function App() {
     }
   };
 
-  // CRUD
-  const addNote = () => {
-    if (!currentUser?.email) return;
-    if (composerType === "text") {
-      if (!title.trim() && !content.trim() && composerImages.length === 0) return;
-      const n = {
-        id: Date.now().toString(), type: "text", title: title.trim(), content,
-        items: [], tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-        images: composerImages, color: composerColor, pinned: false,
-        timestamp: new Date().toISOString(),
-      };
-      const next = [n, ...notes]; saveNotes(next);
-      setTitle(""); setContent(""); setTags(""); setComposerColor("default"); setComposerImages([]);
-    } else {
-      if (!title.trim() && clItems.length === 0 && composerImages.length === 0) return;
-      const n = {
-        id: Date.now().toString(), type: "checklist", title: title.trim(), content: "",
-        items: clItems, tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-        images: composerImages, color: composerColor, pinned: false,
-        timestamp: new Date().toISOString(),
-      };
-      const next = [n, ...notes]; saveNotes(next);
-      setTitle(""); setTags(""); setComposerColor("default"); setClItems([]); setClInput(""); setComposerImages([]);
-    }
-  };
-
+  // Modal open/save/delete/pin
   const openModal = (id) => {
     const n = notes.find((x) => String(x.id) === String(id)); if (!n) return;
     setActiveId(String(id));
@@ -1282,23 +1266,6 @@ export default function App() {
   };
   const onDragEnd = (ev) => { ev.currentTarget.classList.remove("dragging"); };
 
-  // Derived
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    if (!q) return notes;
-    return notes.filter((n) => {
-      const t = (n.title || "").toLowerCase();
-      const c = (n.content || "").toLowerCase();
-      const tagsStr = (n.tags || []).join(" ").toLowerCase();
-      const items = (n.items || []).map((i) => i.text).join(" ").toLowerCase();
-      const images = (n.images || []).map((im) => im.name).join(" ").toLowerCase();
-      return t.includes(q) || c.includes(q) || tagsStr.includes(q) || items.includes(q) || images.includes(q);
-    });
-  }, [notes, search]);
-
-  const pinned = filtered.filter((n) => n.pinned);
-  const others = filtered.filter((n) => !n.pinned);
-
   // Click-away for modal download menu
   const modalMenuBtnRef = useRef(null);
   const modalMenuRef = useRef(null);
@@ -1314,6 +1281,24 @@ export default function App() {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [modalMenuOpen]);
+
+  // Derived lists
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return notes;
+    return notes.filter((n) => {
+      const t = (n.title || "").toLowerCase();
+      const c = (n.content || "").toLowerCase();
+      const tagsStr = (n.tags || []).join(" ").toLowerCase();
+      const items = (n.items || []).map((i) => i.text).join(" ").toLowerCase();
+      const images = (n.images || []).map((im) => im.name).join(" ").toLowerCase();
+      return t.includes(q) || c.includes(q) || tagsStr.includes(q) || items.includes(q) || images.includes(q);
+    });
+  }, [notes, search]);
+  const pinned = filtered.filter((n) => n.pinned);
+  const others = filtered.filter((n) => !n.pinned);
+  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!search;
+  const allEmpty = notes.length === 0;
 
   // Modal content
   const activeNote = activeId != null ? notes.find((n) => String(n.id) === String(activeId)) : null;
@@ -1342,10 +1327,10 @@ export default function App() {
               <div
                 ref={modalMenuRef}
                 onClick={(e) => e.stopPropagation()}
-                className="absolute top-10 right-[4.5rem] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
+                className={`absolute top-10 right-[4.5rem] z-50 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               >
                 <button
-                  className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                  className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                   onClick={() => { if (activeNote) handleDownloadNote(activeNote); setModalMenuOpen(false); }}
                 >
                   Download .txt
@@ -1461,7 +1446,7 @@ export default function App() {
                 <button
                   className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
                   title="Remove tag"
-                    onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
+                  onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
                 >
                   ×
                 </button>
@@ -1502,7 +1487,7 @@ export default function App() {
             />
             <button
               onClick={() => modalFileRef.current?.click()}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg.white/10"
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
               title="Add images"
             >
               <ImageIcon />
@@ -1549,7 +1534,7 @@ export default function App() {
                 </button>
                 <button
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  onClick={() => { setConfirmDeleteOpen(false); deleteModal(); }}
+                  onClick={() => { setConfirmDeleteOpen(false); deleteModal();}}
                 >
                   Delete
                 </button>
@@ -1565,9 +1550,6 @@ export default function App() {
   useEffect(() => {
     if (currentUser?.email && route !== "#/notes") navigate("#/notes");
   }, [currentUser]); // eslint-disable-line
-
-  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!search;
-  const allEmpty = notes.length === 0;
 
   if (!currentUser?.email) {
     if (route === "#/register") {
@@ -1609,7 +1591,6 @@ export default function App() {
       setClInput={setClInput}
       addComposerItem={addComposerItem}
       clItems={clItems}
-      setClItems={setClItems}
       composerImages={composerImages}
       setComposerImages={setComposerImages}
       composerFileRef={composerFileRef}
@@ -1631,7 +1612,6 @@ export default function App() {
       filteredEmptyWithSearch={filteredEmptyWithSearch}
       allEmpty={allEmpty}
       modal={modal}
-      onDownload={handleDownloadNote}
       onExportAll={exportAll}
       onImportAll={importAll}
       importFileRef={importFileRef}
