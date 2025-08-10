@@ -299,14 +299,12 @@ const KebabMenu = ({ open, onClose, children, alignRight = true, className = "" 
   );
 };
 
-/** Note card */
+/** Note card (no kebab/download in grid anymore) */
 function NoteCard({
   n, dark,
-  openModal, togglePin, onDownload,
+  openModal, togglePin,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   const isChecklist = n.type === "checklist";
   const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
   const MAX_CHARS = 600;
@@ -342,25 +340,6 @@ function NoteCard({
       data-id={n.id}
       data-group={group}
     >
-      {/* Kebab menu (left of pin) */}
-      <button
-        onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
-        className="absolute top-3 right-[4.5rem] rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        title="More options"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-      >
-        <Kebab />
-      </button>
-      <KebabMenu open={menuOpen} onClose={() => setMenuOpen(false)} alignRight className="top-10 right-[4.5rem]">
-        <button
-          className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
-          onClick={() => { onDownload?.(n); setMenuOpen(false); }}
-        >
-          Download .txt
-        </button>
-      </KebabMenu>
-
       {/* Pin */}
       <button
         aria-label={n.pinned ? "Unpin note" : "Pin note"}
@@ -572,11 +551,27 @@ function NotesUI(props) {
     togglePin,
     addImagesToState,
     onDownload,
-    // new header menu props:
+    // header menu:
     onExportAll, onImportAll, importFileRef, signOut,
   } = props;
 
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+
+  // click-away for header menu (nice-to-have)
+  const headerMenuRef = useRef(null);
+  const headerBtnRef = useRef(null);
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!headerMenuOpen) return;
+      const m = headerMenuRef.current;
+      const b = headerBtnRef.current;
+      if (m && m.contains(e.target)) return;
+      if (b && b.contains(e.target)) return;
+      setHeaderMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [headerMenuOpen]);
 
   return (
     <div className="min-h-screen">
@@ -608,6 +603,7 @@ function NotesUI(props) {
 
           {/* Header 3-dot menu */}
           <button
+            ref={headerBtnRef}
             onClick={() => setHeaderMenuOpen((v) => !v)}
             className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
             title="Menu"
@@ -617,26 +613,32 @@ function NotesUI(props) {
             <Kebab />
           </button>
 
-          <KebabMenu open={headerMenuOpen} onClose={() => setHeaderMenuOpen(false)} alignRight className="top-10 right-0 min-w-[180px]">
-            <button
-              className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
-              onClick={() => { onExportAll?.(); setHeaderMenuOpen(false); }}
+          {headerMenuOpen && (
+            <div
+              ref={headerMenuRef}
+              className="absolute top-12 right-0 min-w-[180px] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              Export notes (.json)
-            </button>
-            <button
-              className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
-              onClick={() => { importFileRef.current?.click(); setHeaderMenuOpen(false); }}
-            >
-              Import notes (.json)
-            </button>
-            <button
-              className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-black/5 dark:hover:bg-white/10"
-              onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
-            >
-              Sign out
-            </button>
-          </KebabMenu>
+              <button
+                className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                onClick={() => { onExportAll?.(); setHeaderMenuOpen(false); }}
+              >
+                Export notes (.json)
+              </button>
+              <button
+                className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                onClick={() => { importFileRef.current?.click(); setHeaderMenuOpen(false); }}
+              >
+                Import notes (.json)
+              </button>
+              <button
+                className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-black/5 dark:hover:bg-white/10"
+                onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
 
           {/* Hidden import input */}
           <input
@@ -806,7 +808,6 @@ function NotesUI(props) {
                   dark={dark}
                   openModal={props.openModal}
                   togglePin={props.togglePin}
-                  onDownload={onDownload}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -833,7 +834,6 @@ function NotesUI(props) {
                   dark={dark}
                   openModal={props.openModal}
                   togglePin={props.togglePin}
-                  onDownload={onDownload}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -904,6 +904,9 @@ export default function App() {
   const modalFileRef = useRef(null);
   const [modalMenuOpen, setModalMenuOpen] = useState(false);
 
+  // confirm delete dialog state
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
   // Checklist modal
   const [mItems, setMItems] = useState([]);
   const [mInput, setMInput] = useState("");
@@ -912,7 +915,7 @@ export default function App() {
   const dragId = useRef(null);
   const dragGroup = useRef(null);
 
-  // Header import ref
+  // Header import/export refs
   const importFileRef = useRef(null);
 
   // CSS inject
@@ -996,6 +999,11 @@ export default function App() {
   };
 
   // Auth
+  const saveCurrentUserAndRoute = (sess) => {
+    saveCurrentUser(sess);
+    setCurrentUser(sess);
+    navigate("#/notes");
+  };
   const signOut = () => {
     saveCurrentUser(null);
     setCurrentUser(null);
@@ -1007,10 +1015,7 @@ export default function App() {
     const u = users.find((x) => x.email.toLowerCase() === email.toLowerCase());
     if (!u) return { ok: false, error: "No account found for that email." };
     if (u.pass !== base64Encode(password)) return { ok: false, error: "Incorrect password." };
-    const sess = { email: u.email, name: u.name };
-    saveCurrentUser(sess);
-    setCurrentUser(sess);
-    navigate("#/notes");
+    saveCurrentUserAndRoute({ email: u.email, name: u.name });
     return { ok: true };
   };
   const register = (name, email, password) => {
@@ -1019,12 +1024,8 @@ export default function App() {
       return { ok: false, error: "Email is already registered." };
     }
     const newU = { id: uid(), name, email, pass: base64Encode(password) };
-    const next = [...users, newU];
-    saveUsers(next);
-    const sess = { email: newU.email, name: newU.name };
-    saveCurrentUser(sess);
-    setCurrentUser(sess);
-    navigate("#/notes");
+    saveUsers([...users, newU]);
+    saveCurrentUserAndRoute({ email: newU.email, name: newU.name });
     return { ok: true };
   };
 
@@ -1074,18 +1075,7 @@ export default function App() {
     setMItems((prev) => [...prev, { id: uid(), text: t, done: false }]); setMInput("");
   };
 
-  // Download helpers
-  const triggerDownload = (filename, text) => {
-    const blob = new Blob([text], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
+  // Download helpers (single note .txt)
   const handleDownloadNote = (note) => {
     const title = note.title || "";
     const tags = (note.tags || []).join(", ");
@@ -1098,7 +1088,6 @@ export default function App() {
     const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
     const content = `${header}${tagsLine}${body}${imagesLine}\n`;
     const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
-    // For single-note .txt we need text/plain
     const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1107,6 +1096,14 @@ export default function App() {
   };
 
   /** -------- Export / Import All Notes -------- */
+  const triggerJSONDownload = (filename, jsonText) => {
+    const blob = new Blob([jsonText], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.appendChild(a);
+    a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
   const buildExportPayload = () => ({
     app: "glass-keep",
     version: 1,
@@ -1120,7 +1117,7 @@ export default function App() {
     const json = JSON.stringify(payload, null, 2);
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const fname = sanitizeFilename(`glass-keep-notes-${currentUser?.email || "user"}-${ts}`) + ".json";
-    triggerDownload(fname, json);
+    triggerJSONDownload(fname, json);
   };
 
   const sanitizeNoteShape = (obj) => {
@@ -1219,7 +1216,7 @@ export default function App() {
     setModalMenuOpen(false);
     setOpen(true);
   };
-  const closeModal = () => { setOpen(false); setActiveId(null); setViewMode(true); setModalMenuOpen(false); };
+  const closeModal = () => { setOpen(false); setActiveId(null); setViewMode(true); setModalMenuOpen(false); setConfirmDeleteOpen(false); };
   const saveModal = () => {
     if (activeId == null) return;
     const next = notes.map((n) =>
@@ -1302,6 +1299,22 @@ export default function App() {
   const pinned = filtered.filter((n) => n.pinned);
   const others = filtered.filter((n) => !n.pinned);
 
+  // Click-away for modal download menu
+  const modalMenuBtnRef = useRef(null);
+  const modalMenuRef = useRef(null);
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!modalMenuOpen) return;
+      const m = modalMenuRef.current;
+      const b = modalMenuBtnRef.current;
+      if (m && m.contains(e.target)) return;
+      if (b && b.contains(e.target)) return;
+      setModalMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [modalMenuOpen]);
+
   // Modal content
   const activeNote = activeId != null ? notes.find((n) => String(n.id) === String(activeId)) : null;
   const modal = open && (
@@ -1310,7 +1323,7 @@ export default function App() {
       onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
     >
       <div
-        className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col"
+        className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative"
         style={{ backgroundColor: modalBgFor(mColor, dark) }}
       >
         {/* Body */}
@@ -1318,6 +1331,7 @@ export default function App() {
           {/* Kebab + Pin + Close */}
           <div className="absolute top-3 right-3 flex items-center gap-2">
             <button
+              ref={modalMenuBtnRef}
               className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               title="More options"
               onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
@@ -1326,6 +1340,7 @@ export default function App() {
             </button>
             {modalMenuOpen && (
               <div
+                ref={modalMenuRef}
                 onClick={(e) => e.stopPropagation()}
                 className="absolute top-10 right-[4.5rem] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
               >
@@ -1446,7 +1461,7 @@ export default function App() {
                 <button
                   className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
                   title="Remove tag"
-                  onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
+                    onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
                 >
                   ×
                 </button>
@@ -1487,14 +1502,14 @@ export default function App() {
             />
             <button
               onClick={() => modalFileRef.current?.click()}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg.white/10"
               title="Add images"
             >
               <ImageIcon />
             </button>
 
             <button
-              onClick={deleteModal}
+              onClick={() => setConfirmDeleteOpen(true)}
               className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
               title="Delete"
             >
@@ -1508,6 +1523,40 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Confirm Delete Dialog */}
+        {confirmDeleteOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setConfirmDeleteOpen(false)}
+            />
+            <div
+              className="glass-card rounded-xl shadow-2xl w-[90%] max-w-sm p-6 relative"
+              style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold mb-2">Delete this note?</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                This action cannot be undone.
+              </p>
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                  onClick={() => setConfirmDeleteOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  onClick={() => { setConfirmDeleteOpen(false); deleteModal(); }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
