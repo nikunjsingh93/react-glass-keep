@@ -81,7 +81,7 @@ const Sun = () => (
 const Moon = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9 9 0 008.354-5.646z"/>
   </svg>
 );
 const ImageIcon = () => (
@@ -413,7 +413,6 @@ function AuthShell({ title, dark, onToggleDark, children }) {
 
 function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
   const [email, setEmail] = useState("");
-  the; // (removed earlier culprit) — ensure this line is NOT present in your file
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
 
@@ -1487,7 +1486,7 @@ export default function App() {
             />
             <button
               onClick={() => modalFileRef.current?.click()}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg白/10"
               title="Add images"
             >
               <ImageIcon />
