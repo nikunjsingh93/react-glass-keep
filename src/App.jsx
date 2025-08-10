@@ -221,7 +221,7 @@ async function fileToCompressedDataURL(file, maxDim = 1600, quality = 0.85) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-/** ---- Markdown -> plain ---- */
+/** ---- Markdown -> plain for downloads ---- */
 const mdToPlainForDownload = (n) => {
   if (n.type === "text") return mdToPlain(n.content || "");
   const items = (n.items || []).map((it) => `${it.done ? "[x]" : "[ ]"} ${it.text || ""}`);
@@ -287,6 +287,18 @@ const ColorDot = ({ name, selected, onClick, darkMode }) => (
   </button>
 );
 
+const KebabMenu = ({ open, onClose, children, alignRight = true, className = "" }) => {
+  if (!open) return null;
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      className={`absolute z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${alignRight ? "right-0" : ""} ${className}`}
+    >
+      {children}
+    </div>
+  );
+};
+
 /** Note card */
 function NoteCard({
   n, dark,
@@ -340,19 +352,14 @@ function NoteCard({
       >
         <Kebab />
       </button>
-      {menuOpen && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-10 right-[4.5rem] z-50 bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden"
+      <KebabMenu open={menuOpen} onClose={() => setMenuOpen(false)} alignRight className="top-10 right-[4.5rem]">
+        <button
+          className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+          onClick={() => { onDownload?.(n); setMenuOpen(false); }}
         >
-          <button
-            className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
-            onClick={() => { onDownload?.(n); setMenuOpen(false); }}
-          >
-            Download .txt
-          </button>
-        </div>
-      )}
+          Download .txt
+        </button>
+      </KebabMenu>
 
       {/* Pin */}
       <button
@@ -546,10 +553,10 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
   );
 }
 
-/** Notes UI (no hooks; all state passed via props) */
+/** Notes UI */
 function NotesUI(props) {
   const {
-    currentUser, dark, toggleDark, signOut,
+    currentUser, dark, toggleDark,
     search, setSearch,
     composerType, setComposerType,
     title, setTitle,
@@ -565,11 +572,11 @@ function NotesUI(props) {
     togglePin,
     addImagesToState,
     onDownload,
+    // new header menu props:
+    onExportAll, onImportAll, importFileRef, signOut,
   } = props;
 
-  const signOutBtnClass = dark
-    ? "px-3 py-1.5 bg-gray-700 text-gray-100 border border-gray-600 rounded-lg text-sm hover:bg-gray-600"
-    : "px-3 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm hover:bg-gray-50";
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen">
@@ -587,7 +594,7 @@ function NotesUI(props) {
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="relative flex items-center gap-3">
           <span className="text-sm text-gray-600 dark:text-gray-300 hidden sm:inline">
             {currentUser?.name ? `Hi, ${currentUser.name}` : currentUser?.email}
           </span>
@@ -598,13 +605,52 @@ function NotesUI(props) {
           >
             {dark ? <Moon /> : <Sun />}
           </button>
+
+          {/* Header 3-dot menu */}
           <button
-            onClick={signOut}
-            className={signOutBtnClass}
-            title="Sign out"
+            onClick={() => setHeaderMenuOpen((v) => !v)}
+            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+            title="Menu"
+            aria-haspopup="menu"
+            aria-expanded={headerMenuOpen}
           >
-            Sign out
+            <Kebab />
           </button>
+
+          <KebabMenu open={headerMenuOpen} onClose={() => setHeaderMenuOpen(false)} alignRight className="top-10 right-0 min-w-[180px]">
+            <button
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => { onExportAll?.(); setHeaderMenuOpen(false); }}
+            >
+              Export notes (.json)
+            </button>
+            <button
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => { importFileRef.current?.click(); setHeaderMenuOpen(false); }}
+            >
+              Import notes (.json)
+            </button>
+            <button
+              className="block w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
+            >
+              Sign out
+            </button>
+          </KebabMenu>
+
+          {/* Hidden import input */}
+          <input
+            ref={importFileRef}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={async (e) => {
+              if (e.target.files && e.target.files.length) {
+                await onImportAll?.(e.target.files);
+                e.target.value = "";
+              }
+            }}
+          />
         </div>
       </header>
 
@@ -866,6 +912,9 @@ export default function App() {
   const dragId = useRef(null);
   const dragGroup = useRef(null);
 
+  // Header import ref
+  const importFileRef = useRef(null);
+
   // CSS inject
   useEffect(() => {
     const style = document.createElement("style");
@@ -1027,7 +1076,7 @@ export default function App() {
 
   // Download helpers
   const triggerDownload = (filename, text) => {
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([text], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1049,7 +1098,84 @@ export default function App() {
     const tagsLine = tags ? `Tags: ${tags}\n\n` : "";
     const content = `${header}${tagsLine}${body}${imagesLine}\n`;
     const fname = sanitizeFilename(title || `note-${note.id}`) + ".txt";
-    triggerDownload(fname, content);
+    // For single-note .txt we need text/plain
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = fname; document.body.appendChild(a);
+    a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
+  /** -------- Export / Import All Notes -------- */
+  const buildExportPayload = () => ({
+    app: "glass-keep",
+    version: 1,
+    user: currentUser?.email || null,
+    exportedAt: new Date().toISOString(),
+    notes,
+  });
+
+  const exportAll = () => {
+    const payload = buildExportPayload();
+    const json = JSON.stringify(payload, null, 2);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const fname = sanitizeFilename(`glass-keep-notes-${currentUser?.email || "user"}-${ts}`) + ".json";
+    triggerDownload(fname, json);
+  };
+
+  const sanitizeNoteShape = (obj) => {
+    const base = obj || {};
+    const type = base.type === "checklist" ? "checklist" : "text";
+    const out = {
+      id: String(base.id || uid()),
+      type,
+      title: String(base.title || ""),
+      content: type === "text" ? String(base.content || "") : "",
+      items: Array.isArray(base.items)
+        ? base.items.map((i) => ({
+            id: String(i?.id || uid()),
+            text: String(i?.text || ""),
+            done: !!i?.done,
+          }))
+        : [],
+      tags: Array.isArray(base.tags) ? base.tags.map((t) => String(t)).filter(Boolean) : [],
+      images: Array.isArray(base.images)
+        ? base.images
+            .filter((im) => im && im.src)
+            .map((im) => ({ id: String(im.id || uid()), src: String(im.src), name: String(im.name || "") }))
+        : [],
+      color: base.color && LIGHT_COLORS[base.color] ? base.color : "default",
+      pinned: !!base.pinned,
+      timestamp: base.timestamp || new Date().toISOString(),
+    };
+    return out;
+  };
+
+  const importAll = async (fileList) => {
+    try {
+      if (!fileList || !fileList.length) return;
+      const file = fileList[0];
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const srcNotes = Array.isArray(parsed?.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : []);
+      if (!Array.isArray(srcNotes) || srcNotes.length === 0) {
+        window.alert("No notes found in the selected file.");
+        return;
+      }
+      const existingIds = new Set(notes.map((n) => String(n.id)));
+      const sanitized = srcNotes.map(sanitizeNoteShape).map((n) => {
+        let id = String(n.id);
+        if (existingIds.has(id)) { id = uid(); }
+        existingIds.add(id);
+        return { ...n, id };
+      });
+      const next = [...notes, ...sanitized]; // keep existing, append imported
+      saveNotes(next);
+      window.alert(`Imported ${sanitized.length} note(s) successfully.`);
+    } catch (e) {
+      console.error("Import failed", e);
+      window.alert("Import failed. Please select a valid export JSON file.");
+    }
   };
 
   // CRUD
@@ -1058,7 +1184,7 @@ export default function App() {
     if (composerType === "text") {
       if (!title.trim() && !content.trim() && composerImages.length === 0) return;
       const n = {
-        id: Date.now(), type: "text", title: title.trim(), content,
+        id: Date.now().toString(), type: "text", title: title.trim(), content,
         items: [], tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
         images: composerImages, color: composerColor, pinned: false,
         timestamp: new Date().toISOString(),
@@ -1068,7 +1194,7 @@ export default function App() {
     } else {
       if (!title.trim() && clItems.length === 0 && composerImages.length === 0) return;
       const n = {
-        id: Date.now(), type: "checklist", title: title.trim(), content: "",
+        id: Date.now().toString(), type: "checklist", title: title.trim(), content: "",
         items: clItems, tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
         images: composerImages, color: composerColor, pinned: false,
         timestamp: new Date().toISOString(),
@@ -1079,8 +1205,8 @@ export default function App() {
   };
 
   const openModal = (id) => {
-    const n = notes.find((x) => x.id === id); if (!n) return;
-    setActiveId(id);
+    const n = notes.find((x) => String(x.id) === String(id)); if (!n) return;
+    setActiveId(String(id));
     setMType(n.type || "text");
     setMTitle(n.title || "");
     setMBody(n.content || "");
@@ -1097,7 +1223,7 @@ export default function App() {
   const saveModal = () => {
     if (activeId == null) return;
     const next = notes.map((n) =>
-      n.id === activeId
+      String(n.id) === String(activeId)
         ? { ...n, type: mType, title: mTitle.trim(), content: mType === "text" ? mBody : "",
             items: mType === "checklist" ? mItems : [], tags: mTagList, images: mImages, color: mColor }
         : n
@@ -1106,11 +1232,11 @@ export default function App() {
   };
   const deleteModal = () => {
     if (activeId == null) return;
-    const next = notes.filter((n) => n.id !== activeId);
+    const next = notes.filter((n) => String(n.id) !== String(activeId));
     saveNotes(next); closeModal();
   };
   const togglePin = (id) => {
-    const next = notes.map((n) => (n.id === id ? { ...n, pinned: !n.pinned } : n));
+    const next = notes.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !n.pinned } : n));
     saveNotes(next);
   };
 
@@ -1127,8 +1253,8 @@ export default function App() {
     return a;
   };
   const onDragStart = (id, ev) => {
-    dragId.current = id;
-    const isPinned = !!notes.find((n) => n.id === id)?.pinned;
+    dragId.current = String(id);
+    const isPinned = !!notes.find((n) => String(n.id) === String(id))?.pinned;
     dragGroup.current = isPinned ? "pinned" : "others";
     ev.currentTarget.classList.add("dragging");
   };
@@ -1143,17 +1269,17 @@ export default function App() {
     ev.preventDefault();
     ev.currentTarget.classList.remove("drag-over");
     const dragged = dragId.current; dragId.current = null;
-    if (!dragged || dragged === overId) return;
+    if (!dragged || String(dragged) === String(overId)) return;
     if (dragGroup.current !== group) return;
     const rect = ev.currentTarget.getBoundingClientRect();
     const midpoint = rect.top + rect.height / 2;
     const placeAfter = ev.clientY > midpoint;
-    const pinnedIds = notes.filter((n) => n.pinned).map((n) => n.id);
-    const otherIds = notes.filter((n) => !n.pinned).map((n) => n.id);
+    const pinnedIds = notes.filter((n) => n.pinned).map((n) => String(n.id));
+    const otherIds = notes.filter((n) => !n.pinned).map((n) => String(n.id));
     let newPinned = pinnedIds, newOthers = otherIds;
-    if (group === "pinned") newPinned = moveWithin(pinnedIds, dragged, overId, placeAfter);
-    else newOthers = moveWithin(otherIds, dragged, overId, placeAfter);
-    const byId = new Map(notes.map((n) => [n.id, n]));
+    if (group === "pinned") newPinned = moveWithin(pinnedIds, String(dragged), String(overId), placeAfter);
+    else newOthers = moveWithin(otherIds, String(dragged), String(overId), placeAfter);
+    const byId = new Map(notes.map((n) => [String(n.id), n]));
     const reordered = [...newPinned.map((id) => byId.get(id)), ...newOthers.map((id) => byId.get(id))];
     saveNotes(reordered);
   };
@@ -1177,7 +1303,7 @@ export default function App() {
   const others = filtered.filter((n) => !n.pinned);
 
   // Modal content
-  const activeNote = activeId != null ? notes.find((n) => n.id === activeId) : null;
+  const activeNote = activeId != null ? notes.find((n) => String(n.id) === String(activeId)) : null;
   const modal = open && (
     <div
       className="modal-scrim fixed inset-0 bg-black/40 backdrop-blur-md z-40 flex items-center justify-center transition-opacity duration-300 overscroll-contain"
@@ -1216,7 +1342,7 @@ export default function App() {
               title="Pin/unpin"
               onClick={() => activeId != null && togglePin(activeId)}
             >
-              {(notes.find((n) => n.id === activeId)?.pinned) ? <PinFilled /> : <PinOutline />}
+              {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
             </button>
             <button
               className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1457,6 +1583,9 @@ export default function App() {
       allEmpty={allEmpty}
       modal={modal}
       onDownload={handleDownloadNote}
+      onExportAll={exportAll}
+      onImportAll={importAll}
+      importFileRef={importFileRef}
     />
   );
 }
