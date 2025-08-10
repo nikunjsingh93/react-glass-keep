@@ -438,7 +438,10 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="email"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500
+                     text-gray-900 dark:text-gray-100
+                     placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -446,7 +449,10 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister }) {
         />
         <input
           type="password"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500
+                     text-gray-900 dark:text-gray-100
+                     placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Password"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
@@ -497,7 +503,10 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
         />
         <input
           type="email"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500
+                     text-gray-900 dark:text-gray-100
+                     placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -505,7 +514,10 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
         />
         <input
           type="password"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
+             focus:outline-none focus:ring-2 focus:ring-indigo-500
+             text-gray-900 dark:text-gray-100
+             placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Password (min 6 chars)"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
@@ -513,7 +525,10 @@ function RegisterView({ dark, onToggleDark, onRegister, goLogin }) {
         />
         <input
           type="password"
-          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2
+             focus:outline-none focus:ring-2 focus:ring-indigo-500
+             text-gray-900 dark:text-gray-100
+             placeholder-gray-500 dark:placeholder-gray-400"
           placeholder="Confirm password"
           value={pw2}
           onChange={(e) => setPw2(e.target.value)}
