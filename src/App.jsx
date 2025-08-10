@@ -84,6 +84,9 @@ const modalBgFor = (colorKey, dark) => {
   return mixWithWhite(solid(base), 0.8, 0.92);
 };
 
+/** ---------- Special tag filters ---------- */
+const ALL_IMAGES = "__ALL_IMAGES__";
+
 /** ---------- Icons ---------- */
 const PinOutline = () => (
   <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
@@ -150,6 +153,11 @@ const Kebab = () => (
     <circle cx="12" cy="19" r="1.5" />
   </svg>
 );
+const Hamburger = () => (
+  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+);
 
 /** ---------- Utils ---------- */
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -179,7 +187,6 @@ const downloadText = (filename, content) => {
   a.click(); a.remove(); URL.revokeObjectURL(url);
 };
 const downloadDataUrl = async (filename, dataUrl) => {
-  // Works for data: URLs (and normal URLs that allow CORS)
   const res = await fetch(dataUrl);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -201,7 +208,7 @@ const imageExtFromDataURL = (dataUrl) => {
 };
 const normalizeImageFilename = (name, dataUrl, index = 1) => {
   const base = sanitizeFilename(name && name.trim() ? name : `image-${index}`);
-  const withoutExt = base.replace(/\.[^.]+$/, ""); // strip any existing extension
+  const withoutExt = base.replace(/\.[^.]+$/, ""); // strip existing extension
   const ext = imageExtFromDataURL(dataUrl);
   return `${withoutExt}.${ext}`;
 };
@@ -238,9 +245,7 @@ body {
   break-inside: avoid;
 }
 .note-content p { margin-bottom: 0.5rem; }
-.note-content h1, .note-content h2, .note-content h3 {
-  margin-bottom: 0.75rem; font-weight: 600;
-}
+.note-content h1, .note-content h2, .note-content h3 { margin-bottom: 0.75rem; font-weight: 600; }
 .note-content h1 { font-size: 1.5rem; line-height: 1.3; }
 .note-content h2 { font-size: 1.25rem; line-height: 1.35; }
 .note-content h3 { font-size: 1.125rem; line-height: 1.4; }
@@ -634,6 +639,76 @@ function SecretLoginView({ dark, onToggleDark, onLoginWithKey, goLogin }) {
   );
 }
 
+/** ---------- Tag Sidebar / Drawer ---------- */
+function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }) {
+  const isAllNotes = activeTag === null;
+  const isAllImages = activeTag === ALL_IMAGES;
+
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/30"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        />
+      )}
+      <aside
+        className={`fixed top-0 left-0 z-40 h-full w-72 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)", borderRight: "1px solid var(--border-light)" }}
+        aria-hidden={!open}
+      >
+        <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
+          <h3 className="text-lg font-semibold">Tags</h3>
+          <button
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={onClose}
+            title="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        <nav className="p-2 overflow-y-auto h-[calc(100%-56px)]">
+          {/* Notes (All) */}
+          <button
+            className={`w-full text-left px-3 py-2 rounded-md mb-1 ${isAllNotes ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            onClick={() => { onSelect(null); onClose(); }}
+          >
+            Notes (All)
+          </button>
+
+          {/* All Images */}
+          <button
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            onClick={() => { onSelect(ALL_IMAGES); onClose(); }}
+          >
+            All Images
+          </button>
+
+          {/* User tags */}
+          {tagsWithCounts.map(({ tag, count }) => {
+            const active = typeof activeTag === "string" && activeTag !== ALL_IMAGES &&
+              activeTag.toLowerCase() === tag.toLowerCase();
+            return (
+              <button
+                key={tag}
+                className={`w-full text-left px-3 py-2 rounded-md mb-1 flex items-center justify-between ${active ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+                onClick={() => { onSelect(tag); onClose(); }}
+                title={tag}
+              >
+                <span className="truncate">{tag}</span>
+                <span className="text-xs opacity-70">{count}</span>
+              </button>
+            );
+          })}
+          {tagsWithCounts.length === 0 && (
+            <p className="text-sm text-gray-500 mt-2">No tags yet. Add tags to your notes!</p>
+          )}
+        </nav>
+      </aside>
+    </>
+  );
+}
+
 /** ---------- NotesUI (presentational) ---------- */
 function NotesUI({
   currentUser, dark, toggleDark,
@@ -655,12 +730,34 @@ function NotesUI({
   filteredEmptyWithSearch, allEmpty,
   headerMenuOpen, setHeaderMenuOpen,
   headerMenuRef, headerBtnRef,
+  // new for sidebar
+  openSidebar,
+  activeTagFilter,
 }) {
+  const tagLabel =
+    activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
+
   return (
     <div className="min-h-screen">
       {/* Header */}
       <header className="p-4 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold">Glass Keep</h1>
+        <div className="flex items-center gap-3">
+          {/* Hamburger */}
+          <button
+            onClick={openSidebar}
+            className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title="Open tags"
+            aria-label="Open tags"
+          >
+            <Hamburger />
+          </button>
+          <h1 className="text-2xl sm:text-3xl font-bold">Glass Keep</h1>
+          {activeTagFilter && (
+            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 border border-indigo-600/20">
+              {tagLabel === "All Images" ? tagLabel : `Tag: ${tagLabel}`}
+            </span>
+          )}
+        </div>
 
         <div className="flex-grow flex justify-center px-4 sm:px-8">
           <input
@@ -970,6 +1067,10 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState("");
 
+  // Tag filter & sidebar
+  const [tagFilter, setTagFilter] = useState(null); // null = all, ALL_IMAGES = only notes with images
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   // Composer
   const [composerType, setComposerType] = useState("text");
   const [title, setTitle] = useState("");
@@ -1063,6 +1164,14 @@ export default function App() {
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("glass-keep-dark-mode", String(next));
   };
+
+  // Close sidebar with Escape
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setSidebarOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [sidebarOpen]);
 
   // Load notes
   const loadNotes = async () => {
@@ -1315,6 +1424,7 @@ export default function App() {
 
   const openModal = (id) => {
     const n = notes.find((x) => String(x.id) === String(id)); if (!n) return;
+    setSidebarOpen(false);
     setActiveId(String(id));
     setMType(n.type || "text");
     setMTitle(n.title || "");
@@ -1428,11 +1538,36 @@ export default function App() {
   };
   const onDragEnd = (ev) => { ev.currentTarget.classList.remove("dragging"); };
 
-  /** -------- Derived lists -------- */
+  /** -------- Tags list (unique + counts) -------- */
+  const tagsWithCounts = useMemo(() => {
+    const map = new Map();
+    for (const n of notes) {
+      for (const t of (n.tags || [])) {
+        const key = String(t).trim();
+        if (!key) continue;
+        map.set(key, (map.get(key) || 0) + 1);
+      }
+    }
+    return Array.from(map.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => a.tag.toLowerCase().localeCompare(b.tag.toLowerCase()));
+  }, [notes]);
+
+  /** -------- Derived lists (search + tag filter) -------- */
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    if (!q) return notes;
+    const tag = tagFilter === ALL_IMAGES ? null : (tagFilter?.toLowerCase() || null);
+
     return notes.filter((n) => {
+      // Tag filter
+      if (tagFilter === ALL_IMAGES) {
+        if (!(n.images && n.images.length)) return false;
+      } else if (tag && !(n.tags || []).some((t) => String(t).toLowerCase() === tag)) {
+        return false;
+      }
+
+      // Search filter
+      if (!q) return true;
       const t = (n.title || "").toLowerCase();
       const c = (n.content || "").toLowerCase();
       const tagsStr = (n.tags || []).join(" ").toLowerCase();
@@ -1440,10 +1575,10 @@ export default function App() {
       const images = (n.images || []).map((im) => im.name).join(" ").toLowerCase();
       return t.includes(q) || c.includes(q) || tagsStr.includes(q) || items.includes(q) || images.includes(q);
     });
-  }, [notes, search]);
+  }, [notes, search, tagFilter]);
   const pinned = filtered.filter((n) => n.pinned);
   const others = filtered.filter((n) => !n.pinned);
-  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!search;
+  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
   const allEmpty = notes.length === 0;
 
   /** -------- Modal menus click-outside -------- */
@@ -1806,6 +1941,11 @@ export default function App() {
     if (currentUser?.email && route !== "#/notes") navigate("#/notes");
   }, [currentUser]); // eslint-disable-line
 
+  // Close sidebar when navigating away or opening modal
+  useEffect(() => {
+    if (open) setSidebarOpen(false);
+  }, [open]);
+
   if (!currentUser?.email) {
     if (route === "#/register") {
       return (
@@ -1840,6 +1980,16 @@ export default function App() {
 
   return (
     <>
+      {/* Tag Sidebar / Drawer */}
+      <TagSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        tagsWithCounts={tagsWithCounts}
+        activeTag={tagFilter}
+        onSelect={(tag) => setTagFilter(tag)}
+        dark={dark}
+      />
+
       <NotesUI
         currentUser={currentUser}
         dark={dark}
@@ -1886,6 +2036,8 @@ export default function App() {
         setHeaderMenuOpen={setHeaderMenuOpen}
         headerMenuRef={headerMenuRef}
         headerBtnRef={headerBtnRef}
+        openSidebar={() => setSidebarOpen(true)}
+        activeTagFilter={tagFilter}
       />
       {modal}
     </>
