@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { marked as markedNamed } from "marked"; // modern marked
+import { marked as markedNamed } from "marked";
 const marked = markedNamed?.parse ? markedNamed : (window.marked || { parse: (t) => t });
 
 /** ---- Color maps (light & dark) ---- */
@@ -39,7 +39,7 @@ const mixWithWhite = (rgbaStr, whiteRatio = 0.8, outAlpha = 0.92) => {
 };
 const modalBgFor = (colorKey, dark) => {
   const base = bgFor(colorKey, dark);
-  if (dark) return base; // unchanged in dark mode
+  if (dark) return base;
   return mixWithWhite(solid(base), 0.8, 0.92);
 };
 
@@ -591,7 +591,6 @@ export default function App() {
     const imgs = n.images || [];
     const mainImg = imgs[0];
 
-    // --- Truncate tags with an ellipsis chip if too many for the card ---
     const MAX_TAG_CHIPS = 4;
     const allTags = Array.isArray(n.tags) ? n.tags : [];
     const showEllipsisChip = allTags.length > MAX_TAG_CHIPS;
@@ -788,16 +787,18 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex items-center justify-between mt-3">
+          {/* Responsive composer footer: wraps on small, single line on sm+ */}
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-3">
             <input
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               type="text"
               placeholder="Add tags (comma-separated)"
-              className="w-1/2 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
+              className="w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
             />
-            <div className="flex items-center space-x-3">
-              <div className="flex space-x-1">
+
+            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none">
+              <div className="flex space-x-1 flex-shrink-0">
                 {Object.keys(LIGHT_COLORS).map((name) => (
                   <ColorDot
                     key={name}
@@ -823,7 +824,7 @@ export default function App() {
               />
               <button
                 onClick={() => composerFileRef.current?.click()}
-                className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+                className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex-shrink-0"
                 title="Add images"
               >
                 <ImageIcon />
@@ -832,7 +833,7 @@ export default function App() {
               {/* Add Note (kept to one line) */}
               <button
                 onClick={addNote}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap flex-shrink-0"
               >
                 Add Note
               </button>
