@@ -1220,7 +1220,7 @@ export default function App() {
     saveNotes(next);
   };
 
-  // Drag reordering
+  // ---------- Drag & Drop (reorder on drop) ----------
   const moveWithin = (arr, itemId, targetId, placeAfter) => {
     const a = arr.slice();
     const from = a.indexOf(itemId);
@@ -1251,9 +1251,11 @@ export default function App() {
     const dragged = dragId.current; dragId.current = null;
     if (!dragged || String(dragged) === String(overId)) return;
     if (dragGroup.current !== group) return;
+
     const rect = ev.currentTarget.getBoundingClientRect();
     const midpoint = rect.top + rect.height / 2;
     const placeAfter = ev.clientY > midpoint;
+
     const pinnedIds = notes.filter((n) => n.pinned).map((n) => String(n.id));
     const otherIds = notes.filter((n) => !n.pinned).map((n) => String(n.id));
     let newPinned = pinnedIds, newOthers = otherIds;
@@ -1262,6 +1264,7 @@ export default function App() {
     const byId = new Map(notes.map((n) => [String(n.id), n]));
     const reordered = [...newPinned.map((id) => byId.get(id)), ...newOthers.map((id) => byId.get(id))];
     saveNotes(reordered);
+    dragGroup.current = null;
   };
   const onDragEnd = (ev) => { ev.currentTarget.classList.remove("dragging"); };
 
@@ -1486,7 +1489,7 @@ export default function App() {
             />
             <button
               onClick={() => modalFileRef.current?.click()}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg白/10"
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
               title="Add images"
             >
               <ImageIcon />
