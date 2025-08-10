@@ -271,6 +271,7 @@ export default function App() {
 
   // Drag
   const dragId = useRef(null);
+  const dragGroup = useRef(null); // 'pinned' | 'others'
 
   /** ---- Effects ---- */
   useEffect(() => {
@@ -508,35 +509,73 @@ export default function App() {
     saveNotes(next);
   };
 
-  /** ---- Drag within section (note cards) ---- */
+  /** ---- Drag helpers (stable reordering within pinned/others) ---- */
+  const moveWithin = (arr, itemId, targetId, placeAfter) => {
+    const a = arr.slice();
+    const from = a.indexOf(itemId);
+    let to = a.indexOf(targetId);
+    if (from === -1 || to === -1) return arr;
+    a.splice(from, 1);
+    // recompute target index after removal
+    to = a.indexOf(targetId);
+    if (placeAfter) to += 1;
+    a.splice(to, 0, itemId);
+    return a;
+  };
+
   const onDragStart = (id, ev) => {
     dragId.current = id;
+    const isPinned = !!notes.find((n) => n.id === id)?.pinned;
+    dragGroup.current = isPinned ? "pinned" : "others";
     ev.currentTarget.classList.add("dragging");
   };
-  const onDragOver = (overId, ev) => {
+
+  const onDragOver = (overId, group, ev) => {
     ev.preventDefault();
-    if (!dragId.current || dragId.current === overId) return;
+    if (!dragId.current) return;
+    if (dragGroup.current !== group) return; // block cross-group
     ev.currentTarget.classList.add("drag-over");
   };
+
   const onDragLeave = (ev) => {
     ev.currentTarget.classList.remove("drag-over");
   };
-  const onDrop = (overId, ev) => {
+
+  const onDrop = (overId, group, ev) => {
     ev.preventDefault();
     ev.currentTarget.classList.remove("drag-over");
-    const from = notes.find((n) => n.id === dragId.current);
-    const to = notes.find((n) => n.id === overId);
-    if (!from || !to || from.pinned !== to.pinned) return;
-    const arr = [...notes];
-    const fromIdx = arr.findIndex((n) => n.id === from.id);
-    const toIdx = arr.findIndex((n) => n.id === to.id);
-    const [moved] = arr.splice(fromIdx, 1);
-    arr.splice(toIdx, 0, moved);
-    saveNotes(arr);
+    const dragged = dragId.current;
+    dragId.current = null;
+
+    if (!dragged || dragged === overId) return;
+    if (dragGroup.current !== group) return;
+
+    const rect = ev.currentTarget.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const placeAfter = ev.clientY > midpoint;
+
+    const pinnedIds = notes.filter((n) => n.pinned).map((n) => n.id);
+    const otherIds = notes.filter((n) => !n.pinned).map((n) => n.id);
+
+    let newPinned = pinnedIds;
+    let newOthers = otherIds;
+
+    if (group === "pinned") {
+      newPinned = moveWithin(pinnedIds, dragged, overId, placeAfter);
+    } else {
+      newOthers = moveWithin(otherIds, dragged, overId, placeAfter);
+    }
+
+    const byId = new Map(notes.map((n) => [n.id, n]));
+    const reordered = [
+      ...newPinned.map((id) => byId.get(id)),
+      ...newOthers.map((id) => byId.get(id)),
+    ];
+    saveNotes(reordered);
   };
+
   const onDragEnd = (ev) => {
     ev.currentTarget.classList.remove("dragging");
-    dragId.current = null;
   };
 
   /** ---- Derived ---- */
@@ -596,17 +635,21 @@ export default function App() {
     const showEllipsisChip = allTags.length > MAX_TAG_CHIPS;
     const displayTags = allTags.slice(0, MAX_TAG_CHIPS);
 
+    const group = n.pinned ? "pinned" : "others";
+
     return (
       <div
         draggable
         onDragStart={(e) => onDragStart(n.id, e)}
-        onDragOver={(e) => onDragOver(n.id, e)}
+        onDragOver={(e) => onDragOver(n.id, group, e)}
         onDragLeave={onDragLeave}
-        onDrop={(e) => onDrop(n.id, e)}
+        onDrop={(e) => onDrop(n.id, group, e)}
         onDragEnd={onDragEnd}
         onClick={() => openModal(n.id)}
-        className="glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
+        className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
         style={{ backgroundColor: bgFor(n.color, dark) }}
+        data-id={n.id}
+        data-group={group}
       >
         {/* Pin */}
         <button
@@ -898,7 +941,7 @@ export default function App() {
           >
             {/* Content (single scroll area) */}
             <div className="p-6 relative flex-1 min-h-0 overflow-y-auto">
-              {/* Pin + Close group (Close to the RIGHT of Pin) */}
+              {/* Pin + Close group */}
               <div className="absolute top-3 right-3 flex items-center gap-2">
                 <button
                   className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
