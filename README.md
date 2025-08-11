@@ -121,14 +121,24 @@ Your Dockerfile builds the frontend, bundles the API, and runs the Express serve
 ### Build & Run
 
 ```bash
-docker build -t glass-keep .
+# Get the latest image from Docker Hub
+docker pull nikunjsingh/glass-keep:latest
+
+# Stop/remove any old container (ignore errors if it doesn't exist)
 docker rm -f glass-keep 2>/dev/null || true
+
+# Run it
 docker run --name glass-keep \
   -p 8080:8080 \
+  -e NODE_ENV=production \
+  -e PORT=8080 \
   -e API_PORT=8080 \
+  -e SQLITE_FILE=/app/data/notes.db \
   -e JWT_SECRET="replace-with-a-long-random-string" \
   -v "$(pwd)/data:/app/data" \
-  -d glass-keep
+  --restart unless-stopped \
+  -d nikunjsingh/glass-keep:latest
+
 ```
 
 Visit: [http://localhost:8080](http://localhost:8080)
@@ -139,15 +149,14 @@ Visit: [http://localhost:8080](http://localhost:8080)
 version: "3.8"
 services:
   app:
+    image: nikunjsingh/glass-keep:latest
     container_name: glass-keep
-    build:
-      context: .
-      dockerfile: Dockerfile
     environment:
-      - NODE_ENV=production
-      - API_PORT=8080
-      - DB_FILE=/app/data/notes.db
-      - JWT_SECRET=replace-with-a-long-random-string
+      NODE_ENV: production
+      PORT: 8080          # server/index.js reads PORT
+      API_PORT: 8080      # harmless extra (some scripts reference it)
+      SQLITE_FILE: /app/data/notes.db
+      JWT_SECRET: replace-with-a-long-random-string
     ports:
       - "8080:8080"
     volumes:
