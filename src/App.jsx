@@ -597,7 +597,6 @@ function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
       let top = r.bottom + offset;
       let left = r.left;
       setPos({ top, left });
-      // After positioning, clamp within viewport
       requestAnimationFrame(() => {
         const el = boxRef.current;
         if (!el) return;
@@ -609,7 +608,6 @@ function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
         const vh = window.innerHeight;
         if (l + bw + 8 > vw) l = Math.max(8, vw - bw - 8);
         if (t + bh + 8 > vh) {
-          // try above
           t = Math.max(8, r.top - bh - offset);
         }
         setPos({ top: t, left: l });
@@ -955,7 +953,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
         <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
           <button
-            className="p-2 rounded hover:bg-black/5 dark:hover:bg白/10"
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
             onClick={onClose}
             title="Close"
           >
@@ -973,7 +971,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
 
           {/* All Images */}
           <button
-            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg白/10" : "bg-black/5") : (dark ? "hover:bg白/10" : "hover:bg-black/5")}`}
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
             onClick={() => { onSelect(ALL_IMAGES); onClose(); }}
           >
             All Images
@@ -1051,7 +1049,17 @@ function NotesUI({
           >
             <Hamburger />
           </button>
-          <h1 className="text-2xl sm:text-3xl font-bold">Glass Keep</h1>
+
+          {/* App logo (between hamburger and title) */}
+          <img
+            src="/favicon-32x32.png"
+            srcSet="/pwa-192.png 2x, /pwa-512.png 3x"
+            alt="Glass Keep logo"
+            className="h-7 w-7 rounded-xl shadow-sm select-none pointer-events-none"
+            draggable="false"
+          />
+
+          <h1 className="hidden sm:block text-2xl sm:text-3xl font-bold">Glass Keep</h1>
           {activeTagFilter && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 border border-indigo-600/20">
               {tagLabel === "All Images" ? tagLabel : `Tag: ${tagLabel}`}
@@ -1063,7 +1071,7 @@ function NotesUI({
           <input
             type="text"
             placeholder="Search..."
-            className="w全 max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+            className="w-full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -1112,13 +1120,13 @@ function NotesUI({
                 Import notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg白/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg白/10" : "text-red-600 hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
                 onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
               >
                 Sign out
@@ -1919,7 +1927,6 @@ export default function App() {
 
   /** -------- Modal link handler: open links in new tab + click-anywhere to edit -------- */
   const onModalBodyClick = (e) => {
-    // Only respond in TEXT + VIEW mode
     if (!(viewMode && mType === "text")) return;
 
     const a = e.target.closest("a");
@@ -1932,7 +1939,6 @@ export default function App() {
         return;
       }
     }
-    // Enter edit mode on any click in the modal body area
     setViewMode(false);
   };
 
@@ -2010,34 +2016,29 @@ export default function App() {
           className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative"
           style={{ backgroundColor: modalBgFor(mColor, dark) }}
         >
-          {/* Scroll container */}
+          {/* Scroll container (allow horizontal overflow when needed) */}
           <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto">
-            {/* Sticky, WRAPPING header inside modal (title keeps priority; controls wrap after title ends) */}
+            {/* Sticky, WRAPPING header inside modal */}
             <div
               className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
               <div className="flex flex-wrap items-center gap-2">
-                {/* Title keeps space; controls will wrap below if needed */}
                 <input
                   className="flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
                   value={mTitle}
                   onChange={(e) => setMTitle(e.target.value)}
                   placeholder="Title"
                 />
-
-                {/* Controls grouped so they wrap together below the title */}
                 <div className="flex items-center gap-2 flex-none">
-                  {/* Mode toggle */}
                   <button
-                    className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                    className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg:white/10 text-sm"
                     onClick={() => { setViewMode((v) => !v); setShowModalFmt(false); }}
                     title={viewMode ? "Switch to Edit mode" : "Switch to View mode"}
                   >
                     {viewMode ? "Edit mode" : "View mode"}
                   </button>
 
-                  {/* Formatting button (modal) — only in EDIT mode */}
                   {mType === "text" && !viewMode && (
                     <>
                       <button
@@ -2061,7 +2062,6 @@ export default function App() {
                     </>
                   )}
 
-                  {/* Kebab menu (download .md) */}
                   <button
                     ref={modalMenuBtnRef}
                     className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -2088,7 +2088,6 @@ export default function App() {
                     </div>
                   </Popover>
 
-                  {/* Pin */}
                   <button
                     className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     title="Pin/unpin"
@@ -2097,7 +2096,6 @@ export default function App() {
                     {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
                   </button>
 
-                  {/* Close */}
                   <button
                     className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     title="Close"
@@ -2109,7 +2107,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Content area (click anywhere to enter edit in text view mode) */}
+            {/* Content area */}
             <div className="p-6" onClick={onModalBodyClick}>
               {/* Images */}
               {mImages.length > 0 && (
@@ -2298,7 +2296,7 @@ export default function App() {
                 </p>
                 <div className="mt-5 flex justify-end gap-3">
                   <button
-                    className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                    className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg:white/10"
                     onClick={() => setConfirmDeleteOpen(false)}
                   >
                     Cancel
@@ -2325,7 +2323,7 @@ export default function App() {
           {/* Controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
-              className="px-3 py-2 bg-white/10 text白 rounded-lg hover:bg白/20"
+              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg:white/20"
               title="Download (D)"
               onClick={async (e) => {
                 e.stopPropagation();
@@ -2339,7 +2337,7 @@ export default function App() {
               <DownloadIcon />
             </button>
             <button
-              className="px-3 py-2 bg-white/10 text白 rounded-lg hover:bg白/20"
+              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg:white/20"
               title="Close (Esc)"
               onClick={(e) => { e.stopPropagation(); closeImageViewer(); }}
             >
@@ -2351,14 +2349,14 @@ export default function App() {
           {mImages.length > 1 && (
             <>
               <button
-                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text白 rounded-full hover:bg白/20"
+                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text-white rounded-full hover:bg:white/20"
                 title="Previous (←)"
                 onClick={(e) => { e.stopPropagation(); prevImage(); }}
               >
                 <ArrowLeft />
               </button>
               <button
-                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text白 rounded-full hover:bg白/20"
+                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text-white rounded-full hover:bg:white/20"
                 title="Next (→)"
                 onClick={(e) => { e.stopPropagation(); nextImage(); }}
               >
@@ -2375,7 +2373,7 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
           />
           {/* Caption */}
-          <div className="absolute bottom-6 px-3 py-1 rounded bg-black/50 text白 text-xs">
+          <div className="absolute bottom-6 px-3 py-1 rounded bg-black/50 text-white text-xs">
             {mImages[imgViewIndex].name || `image-${imgViewIndex+1}`}
             {mImages.length > 1 ? `  (${imgViewIndex+1}/${mImages.length})` : ""}
           </div>
