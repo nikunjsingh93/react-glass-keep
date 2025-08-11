@@ -173,12 +173,11 @@ services:
       API_PORT: "8080"
       JWT_SECRET: replace-with-a-long-random-string
       DB_FILE: /app/data/notes.db
-      # This should match the "email/username" stored in your users table
-      ADMIN_EMAILS: your-admin-username
+      ADMIN_EMAILS: your-admin-username  # <— change this to your admin user
     ports:
       - "8080:8080"
     volumes:
-      - ${HOME}/.glass-keep:/app/data
+      - /home/YOURUSER/.glass-keep:/app/data   # <— change this to your actual home path username
 ```
 
 Run:
