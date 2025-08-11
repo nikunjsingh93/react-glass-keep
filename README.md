@@ -183,7 +183,7 @@ services:
 Run:
 
 ```bash
-mkdir -p ~/.glass-keep
+mkdir -p /home/YOURUSER/.glass-keep
 docker compose up -d
 ```
 
