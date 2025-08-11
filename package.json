@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-     "dev": "concurrently -k -n WEB,API -c auto \"vite\" \"npm:api\"",
+    "dev": "concurrently -k -n WEB,API -c auto \"vite\" \"npm:api\"",
     "api": "cross-env NODE_ENV=development API_PORT=8080 nodemon server/index.js",
     "build": "vite build",
     "preview": "vite preview"
@@ -43,6 +43,7 @@
     "nodemon": "^3.1.10",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11",
-    "vite": "^7.1.1"
+    "vite": "^7.1.1",
+    "vite-plugin-pwa": "^1.0.2"
   }
 }

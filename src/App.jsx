@@ -279,6 +279,12 @@ body {
 .note-content h2 { font-size: 1.25rem; line-height: 1.35; }
 .note-content h3 { font-size: 1.125rem; line-height: 1.4; }
 
+/* NEW: Prevent long headings/URLs from overflowing, allow tables/code to scroll */
+.note-content,
+.note-content * { overflow-wrap: anywhere; word-break: break-word; }
+.note-content pre { overflow: auto; }
+.note-content table { display: block; max-width: 100%; overflow-x: auto; }
+
 /* Default lists (subtle spacing for inline previews) */
 .note-content ul, .note-content ol { margin: 0.25rem 0 0.25rem 1.25rem; padding-left: 0.75rem; }
 .note-content ul { list-style: disc; }
@@ -949,7 +955,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
         <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
           <button
-            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg白/10"
             onClick={onClose}
             title="Close"
           >
@@ -967,7 +973,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
 
           {/* All Images */}
           <button
-            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg白/10" : "bg-black/5") : (dark ? "hover:bg白/10" : "hover:bg-black/5")}`}
             onClick={() => { onSelect(ALL_IMAGES); onClose(); }}
           >
             All Images
@@ -1057,7 +1063,7 @@ function NotesUI({
           <input
             type="text"
             placeholder="Search..."
-            className="w-full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+            className="w全 max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -1106,13 +1112,13 @@ function NotesUI({
                 Import notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg白/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg白/10" : "text-red-600 hover:bg-gray-100"}`}
                 onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
               >
                 Sign out
@@ -2005,7 +2011,7 @@ export default function App() {
           style={{ backgroundColor: modalBgFor(mColor, dark) }}
         >
           {/* Scroll container */}
-          <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto">
             {/* Sticky, WRAPPING header inside modal (title keeps priority; controls wrap after title ends) */}
             <div
               className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
@@ -2319,7 +2325,7 @@ export default function App() {
           {/* Controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
-              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+              className="px-3 py-2 bg-white/10 text白 rounded-lg hover:bg白/20"
               title="Download (D)"
               onClick={async (e) => {
                 e.stopPropagation();
@@ -2333,7 +2339,7 @@ export default function App() {
               <DownloadIcon />
             </button>
             <button
-              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+              className="px-3 py-2 bg-white/10 text白 rounded-lg hover:bg白/20"
               title="Close (Esc)"
               onClick={(e) => { e.stopPropagation(); closeImageViewer(); }}
             >
@@ -2345,14 +2351,14 @@ export default function App() {
           {mImages.length > 1 && (
             <>
               <button
-                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text-white rounded-full hover:bg-white/20"
+                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text白 rounded-full hover:bg白/20"
                 title="Previous (←)"
                 onClick={(e) => { e.stopPropagation(); prevImage(); }}
               >
                 <ArrowLeft />
               </button>
               <button
-                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text-white rounded-full hover:bg-white/20"
+                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 text白 rounded-full hover:bg白/20"
                 title="Next (→)"
                 onClick={(e) => { e.stopPropagation(); nextImage(); }}
               >
@@ -2369,7 +2375,7 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
           />
           {/* Caption */}
-          <div className="absolute bottom-6 px-3 py-1 rounded bg-black/50 text-white text-xs">
+          <div className="absolute bottom-6 px-3 py-1 rounded bg-black/50 text白 text-xs">
             {mImages[imgViewIndex].name || `image-${imgViewIndex+1}`}
             {mImages.length > 1 ? `  (${imgViewIndex+1}/${mImages.length})` : ""}
           </div>
