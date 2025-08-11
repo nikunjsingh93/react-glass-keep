@@ -10,7 +10,16 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt", "apple-touch-icon.png"],
+      includeAssets: [
+        "favicon.ico",
+        "favicon-16x16.png",
+        "favicon-32x32.png",
+        "apple-touch-icon.png",
+        "pwa-192.png",
+        "pwa-512.png",
+        "pwa-512-maskable.png",
+        "robots.txt"
+      ],
       manifest: {
         name: "Glass Keep",
         short_name: "GlassKeep",
@@ -30,9 +39,8 @@ export default defineConfig({
       workbox: {
         navigateFallback: "/index.html",
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp}"]
-      },
-      // Enable this if you want to test SW in dev:
-      // devOptions: { enabled: true }
+      }
+      // devOptions: { enabled: true } // ← uncomment to test SW in dev (remember to disable later)
     })
   ],
   server: {
