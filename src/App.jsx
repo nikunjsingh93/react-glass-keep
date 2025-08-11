@@ -110,7 +110,7 @@ const Trash = () => (
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 0 018 0z"/>
+      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
   </svg>
 );
 const Moon = () => (
@@ -1002,106 +1002,6 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
   );
 }
 
-/** ---------- Admin View (no token paste; uses session token) ---------- */
-function AdminView({ dark, onToggleDark, token, goBack }) {
-  const [users, setUsers] = useState([]);
-  const [err, setErr] = useState("");
-
-  const load = async () => {
-    try {
-      const data = await api("/admin/users", { token });
-      setUsers(data);
-      setErr("");
-    } catch (e) {
-      setErr(e.message || "Failed to load users");
-    }
-  };
-
-  useEffect(() => { load(); }, []); // eslint-disable-line
-
-  const deleteUser = async (id) => {
-    if (!confirm("Delete this user and all their notes?")) return;
-    try {
-      await api(`/admin/users/${id}`, { method: "DELETE", token });
-      setUsers((prev) => prev.filter((u) => u.id !== id));
-    } catch (e) {
-      alert(e.message || "Delete failed");
-    }
-  };
-
-  return (
-    <div className="min-h-screen px-4 sm:px-6 md:px-8 py-6">
-      <header className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={goBack}
-            className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
-            title="Back to notes"
-          >
-            ← Back
-          </button>
-          <h1 className="text-2xl font-bold">Admin Panel</h1>
-        </div>
-        <button
-          onClick={onToggleDark}
-          className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-          title="Toggle theme"
-        >
-          {dark ? <Moon /> : <Sun />}
-        </button>
-      </header>
-
-      <div className="glass-card rounded-xl p-4">
-        {err && <p className="text-red-600 mb-3 text-sm">{err}</p>}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b border-[var(--border-light)]">
-                <th className="py-2 pr-3">ID</th>
-                <th className="py-2 pr-3">Name</th>
-                <th className="py-2 pr-3">Email</th>
-                <th className="py-2 pr-3">Admin</th>
-                <th className="py-2 pr-3">Notes</th>
-                <th className="py-2 pr-3">Created</th>
-                <th className="py-2 pr-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b border-[var(--border-light)]">
-                  <td className="py-2 pr-3">{u.id}</td>
-                  <td className="py-2 pr-3">{u.name}</td>
-                  <td className="py-2 pr-3">{u.email}</td>
-                  <td className="py-2 pr-3">{u.is_admin ? "Yes" : "No"}</td>
-                  <td className="py-2 pr-3">{u.notes}</td>
-                  <td className="py-2 pr-3">{new Date(u.created_at).toLocaleString()}</td>
-                  <td className="py-2 pr-3">
-                    <button
-                      className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700"
-                      onClick={() => deleteUser(u.id)}
-                      disabled={u.is_admin && users.filter((x) => x.is_admin).length <= 1}
-                      title={u.is_admin && users.filter((x) => x.is_admin).length <= 1 ? "Cannot delete the last admin" : "Delete user"}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-6 text-center text-gray-500">
-                    No users found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /** ---------- NotesUI (presentational) ---------- */
 function NotesUI({
   currentUser, dark, toggleDark,
@@ -1143,7 +1043,7 @@ function NotesUI({
           {/* Hamburger */}
           <button
             onClick={openSidebar}
-            className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg:white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             title="Open tags"
             aria-label="Open tags"
           >
@@ -1207,15 +1107,6 @@ function NotesUI({
               className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Admin menu item appears only for admins */}
-              {currentUser?.is_admin && (
-                <button
-                  className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                  onClick={() => { window.location.hash = "#/admin"; setHeaderMenuOpen(false); }}
-                >
-                  Admin Panel
-                </button>
-              )}
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onExportAll?.(); }}
@@ -1229,7 +1120,7 @@ function NotesUI({
                 Import notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
@@ -1271,7 +1162,7 @@ function NotesUI({
               Note
             </button>
             <button
-              className={`px-3 py-1.5 text-sm ${composerType === "checklist" ? "bg-indigo-600 text-white" : "hover:bg-black/5 dark:hover:bg-white/5"}`}
+              className={`px-3 py-1.5 text-sm ${composerType === "checklist" ? "bg-indigo-600 text-white" : "hover:bg-black/5 dark:hover:bg:white/5"}`}
               onClick={() => setComposerType("checklist")}
             >
               Checklist
@@ -1492,6 +1383,139 @@ function NotesUI({
   );
 }
 
+/** ---------- AdminView ---------- */
+/** ---------- Admin View (replace your existing AdminView with this) ---------- */
+function AdminView({ dark }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const sess = getAuth();
+  const token = sess?.token;
+
+  const formatBytes = (n = 0) => {
+    if (!Number.isFinite(n) || n <= 0) return "0 B";
+    const units = ["B","KB","MB","GB","TB"];
+    const e = Math.min(Math.floor(Math.log10(n) / 3), units.length - 1);
+    const v = n / Math.pow(1024, e);
+    return `${v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[e]}`;
+    // (1024 base tends to “feel” better for app/storage numbers)
+  };
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to load users");
+      setUsers(Array.isArray(data) ? data : []);
+    } catch (e) {
+      alert(e.message || "Failed to load admin data");
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function removeUser(id) {
+    if (!confirm("Delete this user and ALL their notes? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Delete failed");
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch (e) {
+      alert(e.message || "Delete failed");
+    }
+  }
+
+  useEffect(() => { load(); }, []); // load once
+
+  return (
+    <div className="min-h-screen px-4 sm:px-6 md:px-8 lg:px-12 py-8">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-4">Admin</h1>
+        <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
+          Manage registered users. You can remove users (this also deletes their notes).
+        </p>
+
+        <div className="glass-card rounded-xl p-4 shadow-lg overflow-x-auto">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-lg">Users</h2>
+            <button
+              onClick={load}
+              className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+            >
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b border-[var(--border-light)]">
+                <th className="py-2 pr-3">Name</th>
+                <th className="py-2 pr-3">Email / Username</th>
+                <th className="py-2 pr-3">Notes</th>
+                <th className="py-2 pr-3">Storage</th>
+                <th className="py-2 pr-3">Admin</th>
+                <th className="py-2 pr-3">Created</th>
+                <th className="py-2 pr-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={7} className="py-6 text-center text-gray-500 dark:text-gray-400">
+                    No users found.
+                  </td>
+                </tr>
+              )}
+              {users.map((u) => (
+                <tr key={u.id} className="border-b border-[var(--border-light)] last:border-0">
+                  <td className="py-2 pr-3">{u.name}</td>
+                  <td className="py-2 pr-3">{u.email}</td>
+                  <td className="py-2 pr-3">{u.notes ?? 0}</td>
+                  <td className="py-2 pr-3">{formatBytes(u.storage_bytes ?? 0)}</td>
+                  <td className="py-2 pr-3">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        u.is_admin
+                          ? "bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30"
+                          : "bg-gray-500/10 text-gray-700 dark:text-gray-300 border border-gray-500/20"
+                      }`}
+                    >
+                      {u.is_admin ? "Yes" : "No"}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-3">
+                    {new Date(u.created_at).toLocaleString()}
+                  </td>
+                  <td className="py-2 pr-3">
+                    <button
+                      className="px-2.5 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
+                      onClick={() => removeUser(u.id)}
+                      title="Delete user"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {loading && (
+            <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading…</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** ---------- App ---------- */
 export default function App() {
   const [route, setRoute] = useState(window.location.hash || "#/login");
@@ -1500,7 +1524,6 @@ export default function App() {
   const [session, setSession] = useState(getAuth());
   const token = session?.token;
   const currentUser = session?.user || null;
-  const isAdmin = !!currentUser?.is_admin;
 
   // Theme
   const [dark, setDark] = useState(false);
@@ -2502,7 +2525,47 @@ export default function App() {
     if (open) setSidebarOpen(false);
   }, [open]);
 
-  // Route handling
+  // ---- Routing ----
+  if (route === "#/admin") {
+    if (!currentUser?.email) {
+      return (
+        <AuthShell title="Admin Panel" dark={dark} onToggleDark={toggleDark}>
+          <p className="text-sm mb-4">
+            You must sign in as an admin to view this page.
+          </p>
+          <button
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            onClick={() => (window.location.hash = "#/login")}
+          >
+            Go to Sign In
+          </button>
+        </AuthShell>
+      );
+    }
+    if (!currentUser?.is_admin) {
+      return (
+        <AuthShell title="Admin Panel" dark={dark} onToggleDark={toggleDark}>
+          <p className="text-sm">Not authorized. Your account is not an admin.</p>
+          <button
+            className="mt-4 px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={() => (window.location.hash = "#/notes")}
+          >
+            Back to Notes
+          </button>
+        </AuthShell>
+      );
+    }
+    return (
+      <AdminView
+        token={token}
+        currentUser={currentUser}
+        dark={dark}
+        onToggleDark={toggleDark}
+        onBackToNotes={() => (window.location.hash = "#/notes")}
+      />
+    );
+  }
+
   if (!currentUser?.email) {
     if (route === "#/register") {
       return (
@@ -2535,45 +2598,6 @@ export default function App() {
     );
   }
 
-  // Admin route (no manual token entry; must be admin)
-  if (route === "#/admin") {
-    if (!isAdmin) {
-      return (
-        <div className="min-h-screen flex items-center justify-center px-4">
-          <div className="w-full max-w-lg glass-card rounded-xl p-6">
-            <h1 className="text-2xl font-bold mb-2">Not authorized</h1>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              Your account is not an admin. Ask an admin to grant access.
-            </p>
-            <div className="flex gap-3">
-              <button
-                className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg:white/10"
-                onClick={() => navigate("#/notes")}
-              >
-                Back to notes
-              </button>
-              <button
-                onClick={() => { localStorage.removeItem("glass-keep-auth"); window.location.reload(); }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <AdminView
-        dark={dark}
-        onToggleDark={toggleDark}
-        token={token}
-        goBack={() => navigate("#/notes")}
-      />
-    );
-  }
-
-  // Notes app
   return (
     <>
       {/* Tag Sidebar / Drawer */}

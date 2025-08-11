@@ -460,8 +460,22 @@ function adminOnly(req, res, next) {
   next();
 }
 
+// Aggregates note size in bytes (roughly) per user
 const listAllUsers = db.prepare(`
-  SELECT u.id, u.name, u.email, u.created_at, u.is_admin, COUNT(n.id) AS notes
+  SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.created_at,
+    u.is_admin,
+    COUNT(n.id) AS notes,
+    COALESCE(SUM(
+      LENGTH(COALESCE(n.title, '')) +
+      LENGTH(COALESCE(n.content, '')) +
+      LENGTH(COALESCE(n.items_json, '')) +
+      LENGTH(COALESCE(n.tags_json, '')) +
+      LENGTH(COALESCE(n.images_json, ''))
+    ), 0) AS storage_bytes
   FROM users u
   LEFT JOIN notes n ON n.user_id = u.id
   GROUP BY u.id
@@ -478,6 +492,7 @@ app.get("/api/admin/users", auth, adminOnly, (_req, res) => {
       is_admin: !!r.is_admin,
       notes: r.notes,
       created_at: r.created_at,
+      storage_bytes: r.storage_bytes || 0,
     }))
   );
 });
