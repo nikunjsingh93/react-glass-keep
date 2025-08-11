@@ -4,80 +4,80 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 ---
 
-**Web App Screenshots**
+## Screenshots
 
-<img width="1470" height="956" alt="Screenshot 2025-08-10 at 11 31 40 PM" src="https://github.com/user-attachments/assets/19c743ad-ef3e-4d7f-ab03-32929c99f524" />
+**Web**
 
-<img width="1204" height="867" alt="Screenshot 2025-08-10 at 11 32 37 PM" src="https://github.com/user-attachments/assets/77a49683-60d6-4e1e-8efd-5bcaa46c6620" />
+![Web Screenshot 1](https://github.com/user-attachments/assets/19c743ad-ef3e-4d7f-ab03-32929c99f524)
+![Web Screenshot 2](https://github.com/user-attachments/assets/77a49683-60d6-4e1e-8efd-5bcaa46c6620)
 
-**Mobile Screenshots**
+**Mobile**
 
-<img width="346" height="743" alt="Screenshot 2025-08-10 at 11 41 14 PM" src="https://github.com/user-attachments/assets/fc321b77-fea1-48ca-a0f3-de773b3c9989" />
-
-<img width="344" height="747" alt="Screenshot 2025-08-10 at 11 41 38 PM" src="https://github.com/user-attachments/assets/a9af158e-df93-4ecd-b0ac-362e9ce792db" />
+![Mobile Screenshot 1](https://github.com/user-attachments/assets/fc321b77-fea1-48ca-a0f3-de773b3c9989)
+![Mobile Screenshot 2](https://github.com/user-attachments/assets/a9af158e-df93-4ecd-b0ac-362e9ce792db)
 
 ---
 
 ## ✨ Features
 
-* **Auth & Multi-user**
-  * Register, Login (username + password), Sign out
-  * **Secret recovery key** download + **Sign in with Secret Key**
-  * Each user sees **only their notes**
-* **Admin Panel**
-  * **Visit:** `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod)
-  * Lists **all users** with: Name, Email/Username, **Is Admin**, **Notes count**, **Storage used**, Created at
-  * **Delete user** (also deletes their notes; protected against deleting the last admin)
-* **Notes**
-  * **Text notes** with Markdown (H1/H2/H3, bold, italic, strike, links, blockquote, inline/fenced code)
-  * **Checklists** (add items, toggle done, inline edit)
-  * **Smart Enter** continues lists / exits on empty line
-  * **Formatting toolbar** in editor (composer + modal edit mode)
-  * **Links open in new tab** from view mode
-* **Images**
-  * Attach multiple images (client-side compression)
-  * Thumbs in grid, larger in modal
-  * **Fullscreen viewer** with next/prev + **download image**
-* **Organization & Layout**
-  * **Pin / Unpin**; “Pinned / Others” sections
-  * **Tags as chips** (comma input → chips; quick add/remove)
-  * **Tag sidebar/drawer** with list of all tags + counts
-  * Quick filters: **Notes (All)** and **All Images**
-  * Per-note **color themes**
-  * **Search** across title, Markdown text, tags, checklist items, image names
-  * **Drag to reorder** within each section
-  * Grid cards show truncated body with **…** and tag chips with **…** when overflowing
-* **Modal**
-  * Glassy blurred backdrop; **sticky header**
-  * **View / Edit** toggle button
-  * Pin, more (⋮) menu (**Download .md**), Close
-  * Footer: tags chip editor, color palette, image add, **Delete (confirm dialog)**, **Save**
-  * Click anywhere in body (view mode) to switch to edit
-  * Dense list rendering in view mode (minimal spacing)
-* **PWA**
-  * Installable on desktop & mobile
-  * Offline caching of the built app shell
-* **Data**
-  * **Export all** notes (JSON) and **Import** (merges; keeps existing notes)
-  * Per-note **Download .md**
-  * Backend: **Express API + SQLite** (`better-sqlite3`)
-* **UI/Theme**
-  * Tailwind (v4) look & feel with glassmorphism
-  * Dark/Light mode with persistence
-  * Responsive header: hamburger + logo; “Glass Keep” title hidden on small screens
+- **Auth & Multi-user**
+  - Register, Login (username + password), Sign out
+  - **Secret recovery key** download + **Sign in with Secret Key**
+  - Each user sees **only their notes**
+- **Admin Panel**
+  - Visit: `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod)
+  - View **all users** with: Name, Email/Username, **Is Admin**, **Notes count**, **Storage used**, Created at
+  - **Delete user** (also deletes their notes; protected against deleting the last admin)
+- **Notes**
+  - **Text notes** with Markdown (H1/H2/H3, bold, italic, strike, links, blockquote, inline/fenced code)
+  - **Checklists** (add items, toggle done, inline edit)
+  - **Smart Enter** continues lists / exits on empty line
+  - **Formatting toolbar** in editor (composer + modal edit mode)
+  - **Links open in new tab** from view mode
+- **Images**
+  - Attach multiple images (client-side compression)
+  - Thumbs in grid, larger in modal
+  - **Fullscreen viewer** with next/prev + **download image**
+- **Organization & Layout**
+  - **Pin / Unpin**; “Pinned / Others” sections
+  - **Tags as chips** (comma input → chips; quick add/remove)
+  - **Tag sidebar/drawer** with list of all tags + counts
+  - Quick filters: **Notes (All)** and **All Images**
+  - Per-note **color themes**
+  - **Search** across title, Markdown text, tags, checklist items, image names
+  - **Drag to reorder** within each section
+- **Modal**
+  - Glassy blurred backdrop; **sticky header**
+  - **View / Edit** toggle button
+  - Pin, more (⋮) menu (**Download .md**), Close
+  - Footer: tags chip editor, color palette, image add, **Delete (confirm dialog)**, **Save**
+  - Click anywhere in body (view mode) to switch to edit
+  - Dense list rendering in view mode (minimal spacing)
+- **PWA**
+  - Installable on desktop & mobile
+  - Offline caching of the built app shell
+- **Data**
+  - **Export all** notes (JSON) and **Import** (merges; keeps existing notes)
+  - Per-note **Download .md**
+  - Backend: **Express API + SQLite** (`better-sqlite3`)
+- **UI/Theme**
+  - Tailwind (v4) look & feel with glassmorphism
+  - Dark/Light mode with persistence
+  - Responsive header: hamburger + logo; “Glass Keep” title hidden on small screens
 
 ---
 
 ## 🧰 Requirements
 
-* **Node.js 18+** and npm
-* (Optional) **Docker** & **Docker Compose**
-* SQLite is embedded (no external DB needed)
+- **Node.js 18+** and npm
+- (Optional) **Docker** & **Docker Compose**
+- SQLite is embedded (no external DB needed)
 
 ---
 
 ## 📦 Project Structure
 
+```text
 .
 ├─ public/                # PWA icons, manifest (via Vite PWA plugin)
 ├─ src/                   # React app (App.jsx, etc.)
@@ -87,13 +87,13 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 ├─ package.json
 └─ README.md
 
----
 
-## 🛠 Setup (Development)
+⸻
 
-### 1) Install dependencies
+🛠 Setup (Development)
 
-```bash
+1) Install dependencies
+
 npm install
 # If you don't have these dev/runtime deps yet:
 npm install -D concurrently nodemon
@@ -101,10 +101,12 @@ npm install express better-sqlite3 cors jsonwebtoken bcryptjs
 
 2) Run (web + API)
 
-# POSIX/mac/Linux:
+POSIX/mac/Linux:
+
 ADMIN_EMAILS="your-admin-username" npm run dev
 
-# Windows (PowerShell):
+Windows (PowerShell):
+
 setx ADMIN_EMAILS "your-admin-username"
 npm run dev
 
@@ -113,8 +115,11 @@ npm run dev
 	•	API (Express): http://localhost:8080
 (Vite dev server proxies /api → http://localhost:8080.)
 
-If you already created your account and want to promote it to admin in dev, you can also use SQLite directly:
-sqlite3 server/data.sqlite "UPDATE users SET is_admin=1 WHERE email='your-admin-username';"
+Promote an existing user to admin (optional):
+
+-- Run against server/data.sqlite
+UPDATE users SET is_admin=1 WHERE email='your-admin-username';
+
 
 ⸻
 
@@ -146,7 +151,7 @@ docker run -d \
 
 	•	App & API: http://localhost:8080
 	•	Admin Panel (Docker/prod): http://localhost:8080/#/admin
-(Make sure ADMIN_EMAILS contains the username/email of your admin account exactly as stored in the DB.)
+(Make sure ADMIN_EMAILS matches the username/email exactly as stored in the DB.)
 
 docker-compose.yml
 
@@ -177,18 +182,17 @@ Persistent data: the SQLite DB lives in the mounted host directory (~/.glass-kee
 ⸻
 
 🧭 Using the Admin Panel
-	•	Where:
+	•	Where
 	•	Dev: http://localhost:5173/#/admin
 	•	Docker/Prod: http://localhost:8080/#/admin
 	•	Who can access: Users with is_admin = 1.
-Promote by either:
-	•	Setting ADMIN_EMAILS="your-admin-username" before starting the server/container (auto-promotes on boot), or
-	•	Running a one-off SQL update in the DB:
+	•	Auto-promote by setting ADMIN_EMAILS="your-admin-username" before starting the server/container, or
+	•	Run a one-off SQL update:
 
 UPDATE users SET is_admin=1 WHERE email='your-admin-username';
 
 
-	•	What you can do:
+	•	What you can do
 	•	View all users with: Is Admin, Notes count, Storage used, Created at
 	•	Delete a user (also removes their notes; cannot delete the last admin)
 
@@ -232,8 +236,8 @@ Ensure the API is running on port 8080 (npm run dev starts both web & API).
 	•	Admin page shows “Unauthorized”
 Verify your account is admin (is_admin=1) or that ADMIN_EMAILS includes your username/email exactly.
 	•	Docker CSS looks wrong
-Rebuild after Tailwind config changes: docker compose build --no-cache.
-Make sure you pulled the latest image and hard-refresh (clear PWA cache if installed).
+Rebuild after Tailwind changes: docker compose build --no-cache.
+Pull the latest image and hard-refresh (clear PWA cache if installed).
 	•	Data disappeared after re-deploy
 Confirm the host volume is mounted to /app/data and points at a persistent host path (~/.glass-keep).
 
@@ -242,4 +246,3 @@ Confirm the host volume is mounted to /app/data and points at a persistent host 
 📝 License
 
 MIT
-
