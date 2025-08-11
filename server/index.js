@@ -2,6 +2,7 @@
 // Express + SQLite (better-sqlite3) + JWT auth API for Glass Keep
 
 const path = require("path");
+const fs = require("fs");
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -10,15 +11,15 @@ const cors = require("cors");
 const crypto = require("crypto");
 
 const app = express();
-const PORT = process.env.API_PORT || process.env.PORT || 8080;
+const PORT = Number(process.env.API_PORT || process.env.PORT || 8080);
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-please-change";
 const NODE_ENV = process.env.NODE_ENV || "development";
 
-// JSON limits for image data URLs
+// ---------- Body parsing ----------
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
-// In dev, allow Vite origin
+// ---------- CORS (dev only) ----------
 if (NODE_ENV !== "production") {
   app.use(
     cors({
@@ -28,17 +29,24 @@ if (NODE_ENV !== "production") {
   );
 }
 
-// ---- SQLite ----
+// ---------- SQLite ----------
 const dbFile =
   process.env.DB_FILE ||
   process.env.SQLITE_FILE ||
   path.join(__dirname, "data.sqlite");
 
+// Ensure the directory for the DB exists (helps on Windows/macOS + Docker bind mounts)
+try {
+  fs.mkdirSync(path.dirname(dbFile), { recursive: true });
+} catch (e) {
+  console.error("Failed to ensure DB directory:", e);
+}
+
 const db = new Database(dbFile);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
-// Create tables (fresh DB)
+// Fresh tables (safe if already exist)
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +76,7 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 `);
 
-// --- tiny migrations (safe on existing DBs) ---
+// Tiny migrations (safe to run repeatedly)
 (function ensureColumns() {
   try {
     const cols = db.prepare(`PRAGMA table_info(users)`).all();
@@ -85,12 +93,12 @@ CREATE TABLE IF NOT EXISTS notes (
       }
     });
     tx();
-  } catch (_) {
+  } catch {
     // ignore if ALTER not supported or already applied
   }
 })();
 
-// Optionally promote admins from env
+// Optionally promote admins from env (comma-separated)
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((s) => s.trim().toLowerCase())
@@ -100,7 +108,7 @@ if (ADMIN_EMAILS.length) {
   for (const e of ADMIN_EMAILS) mkAdmin.run(e);
 }
 
-// ---- Helpers ----
+// ---------- Helpers ----------
 const nowISO = () => new Date().toISOString();
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -172,7 +180,7 @@ const patchPosition = db.prepare(`
 `);
 const deleteNote = db.prepare("DELETE FROM notes WHERE id = ? AND user_id = ?");
 
-// ---- Auth routes ----
+// ---------- Auth ----------
 app.post("/api/register", (req, res) => {
   const { name, email, password } = req.body || {};
   if (!email || !password)
@@ -204,31 +212,24 @@ app.post("/api/login", (req, res) => {
   });
 });
 
-// ---- Secret Key Feature ----
-
-// helper: generate a URL-safe random key (plaintext returned to user)
+// ---------- Secret Key (Recovery) ----------
 function generateSecretKey(bytes = 32) {
   const buf = crypto.randomBytes(bytes);
   try {
     return buf.toString("base64url");
   } catch {
-    return buf
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/g, "");
+    return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   }
 }
 
 const updateSecretForUser = db.prepare(
   "UPDATE users SET secret_key_hash = ?, secret_key_created_at = ? WHERE id = ?"
 );
-
 const getUsersWithSecret = db.prepare(
   "SELECT id, name, email, is_admin, secret_key_hash FROM users WHERE secret_key_hash IS NOT NULL"
 );
 
-// Auth required: create/rotate a new secret key for the current user
+// Create/rotate a user's secret key
 app.post("/api/secret-key", auth, (req, res) => {
   const key = generateSecretKey(32);
   const hash = bcrypt.hashSync(key, 10);
@@ -236,13 +237,12 @@ app.post("/api/secret-key", auth, (req, res) => {
   res.json({ key });
 });
 
-// Login with secret key (no email/password)
+// Login with secret key
 app.post("/api/login/secret", (req, res) => {
   const { key } = req.body || {};
   if (!key || typeof key !== "string" || key.length < 16) {
     return res.status(400).json({ error: "Invalid key." });
   }
-
   const rows = getUsersWithSecret.all();
   for (const u of rows) {
     if (u.secret_key_hash && bcrypt.compareSync(key, u.secret_key_hash)) {
@@ -256,7 +256,7 @@ app.post("/api/login/secret", (req, res) => {
   return res.status(401).json({ error: "Secret key not recognized." });
 });
 
-// ---- Notes routes ----
+// ---------- Notes ----------
 app.get("/api/notes", auth, (req, res) => {
   const rows = listNotes.all(req.user.id);
   res.json(
@@ -340,20 +340,12 @@ app.patch("/api/notes/:id", auth, (req, res) => {
     id,
     user_id: req.user.id,
     title: typeof req.body.title === "string" ? String(req.body.title) : null,
-    content:
-      typeof req.body.content === "string" ? String(req.body.content) : null,
-    items_json: Array.isArray(req.body.items)
-      ? JSON.stringify(req.body.items)
-      : null,
-    tags_json: Array.isArray(req.body.tags)
-      ? JSON.stringify(req.body.tags)
-      : null,
-    images_json: Array.isArray(req.body.images)
-      ? JSON.stringify(req.body.images)
-      : null,
+    content: typeof req.body.content === "string" ? String(req.body.content) : null,
+    items_json: Array.isArray(req.body.items) ? JSON.stringify(req.body.items) : null,
+    tags_json: Array.isArray(req.body.tags) ? JSON.stringify(req.body.tags) : null,
+    images_json: Array.isArray(req.body.images) ? JSON.stringify(req.body.images) : null,
     color: typeof req.body.color === "string" ? req.body.color : null,
-    pinned:
-      typeof req.body.pinned === "boolean" ? (req.body.pinned ? 1 : 0) : null,
+    pinned: typeof req.body.pinned === "boolean" ? (req.body.pinned ? 1 : 0) : null,
     timestamp: req.body.timestamp || null,
   };
   patchPartial.run(p);
@@ -365,11 +357,11 @@ app.delete("/api/notes/:id", auth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Reorder: pinnedIds, otherIds arrays define order (top to bottom)
+// Reorder within sections
 app.post("/api/notes/reorder", auth, (req, res) => {
   const { pinnedIds = [], otherIds = [] } = req.body || {};
   const base = Date.now();
-  const step = 1; // simple monotonically changing positions
+  const step = 1;
   const reorder = db.transaction(() => {
     for (let i = 0; i < pinnedIds.length; i++) {
       patchPosition.run({
@@ -452,15 +444,16 @@ app.post("/api/notes/import", auth, (req, res) => {
   res.json({ ok: true, imported: src.length });
 });
 
-// ---- Admin routes ----
+// ---------- Admin ----------
 function adminOnly(req, res, next) {
-  // Optional: verify current admin bit in DB to avoid stale tokens
   const row = getUserById.get(req.user.id);
   if (!row || !row.is_admin) return res.status(403).json({ error: "Admin only" });
   next();
 }
 
-// Aggregates note size in bytes (roughly) per user
+// Include a rough storage usage estimate (bytes) for each user
+// This sums the LENGTH() of relevant TEXT columns across a user's notes.
+// It’s an approximation (UTF-8 chars ≈ bytes, and data-URL images are strings).
 const listAllUsers = db.prepare(`
   SELECT
     u.id,
@@ -470,11 +463,11 @@ const listAllUsers = db.prepare(`
     u.is_admin,
     COUNT(n.id) AS notes,
     COALESCE(SUM(
-      LENGTH(COALESCE(n.title, '')) +
-      LENGTH(COALESCE(n.content, '')) +
-      LENGTH(COALESCE(n.items_json, '')) +
-      LENGTH(COALESCE(n.tags_json, '')) +
-      LENGTH(COALESCE(n.images_json, ''))
+      COALESCE(LENGTH(n.title),0) +
+      COALESCE(LENGTH(n.content),0) +
+      COALESCE(LENGTH(n.items_json),0) +
+      COALESCE(LENGTH(n.tags_json),0) +
+      COALESCE(LENGTH(n.images_json),0)
     ), 0) AS storage_bytes
   FROM users u
   LEFT JOIN notes n ON n.user_id = u.id
@@ -490,9 +483,9 @@ app.get("/api/admin/users", auth, adminOnly, (_req, res) => {
       name: r.name,
       email: r.email,
       is_admin: !!r.is_admin,
-      notes: r.notes,
+      notes: Number(r.notes || 0),
+      storage_bytes: Number(r.storage_bytes || 0),
       created_at: r.created_at,
-      storage_bytes: r.storage_bytes || 0,
     }))
   );
 });
@@ -500,11 +493,9 @@ app.get("/api/admin/users", auth, adminOnly, (_req, res) => {
 const deleteUserStmt = db.prepare("DELETE FROM users WHERE id = ?");
 app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
   const id = Number(req.params.id);
-
   if (id === req.user.id) {
     return res.status(400).json({ error: "You cannot delete yourself." });
   }
-
   const target = getUserById.get(id);
   if (!target) return res.status(404).json({ error: "User not found" });
 
@@ -517,10 +508,10 @@ app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-// Health (for diagnostics / compose)
+// ---------- Health ----------
 app.get("/api/health", (_req, res) => res.json({ ok: true, env: NODE_ENV }));
 
-// ---- Static (production) ----
+// ---------- Static (production) ----------
 if (NODE_ENV === "production") {
   const dist = path.join(__dirname, "..", "dist");
   app.use(express.static(dist));
@@ -529,6 +520,7 @@ if (NODE_ENV === "production") {
   });
 }
 
+// ---------- Listen ----------
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`API listening on http://0.0.0.0:${PORT}  (env=${NODE_ENV})`);
 });
