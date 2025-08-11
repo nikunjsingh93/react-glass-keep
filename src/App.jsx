@@ -2058,10 +2058,9 @@ export default function App() {
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
   const allEmpty = notes.length === 0;
 
-  /** -------- Modal link handler: open links in new tab + click-anywhere to edit -------- */
+  /** -------- Modal link handler: open links in new tab (no click-to-edit anymore) -------- */
   const onModalBodyClick = (e) => {
     if (!(viewMode && mType === "text")) return;
-
     const a = e.target.closest("a");
     if (a) {
       const href = a.getAttribute("href") || "";
@@ -2069,10 +2068,9 @@ export default function App() {
         e.preventDefault();
         e.stopPropagation();
         window.open(href, "_blank", "noopener,noreferrer");
-        return;
       }
     }
-    setViewMode(false);
+    // Note: intentionally NOT toggling to edit mode on click anymore.
   };
 
   /** -------- Image viewer helpers -------- */
