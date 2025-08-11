@@ -38,13 +38,17 @@ const db = new Database(dbFile);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
+// Create tables (fresh DB)
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  secret_key_hash TEXT,
+  secret_key_created_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notes (
@@ -64,31 +68,53 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 `);
 
-// --- tiny migration: add secret key columns if missing ---
-(function ensureSecretKeyColumns() {
-  const cols = db.prepare(`PRAGMA table_info(users)`).all();
-  const names = new Set(cols.map((c) => c.name));
-  const tx = db.transaction(() => {
-    if (!names.has("secret_key_hash")) {
-      db.exec(`ALTER TABLE users ADD COLUMN secret_key_hash TEXT`);
-    }
-    if (!names.has("secret_key_created_at")) {
-      db.exec(`ALTER TABLE users ADD COLUMN secret_key_created_at TEXT`);
-    }
-  });
-  try { tx(); } catch (e) {
-    // If columns already exist (older SQLite without IF NOT EXISTS), ignore
+// --- tiny migrations (safe on existing DBs) ---
+(function ensureColumns() {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(users)`).all();
+    const names = new Set(cols.map((c) => c.name));
+    const tx = db.transaction(() => {
+      if (!names.has("is_admin")) {
+        db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
+      }
+      if (!names.has("secret_key_hash")) {
+        db.exec(`ALTER TABLE users ADD COLUMN secret_key_hash TEXT`);
+      }
+      if (!names.has("secret_key_created_at")) {
+        db.exec(`ALTER TABLE users ADD COLUMN secret_key_created_at TEXT`);
+      }
+    });
+    tx();
+  } catch (_) {
+    // ignore if ALTER not supported or already applied
   }
 })();
+
+// Optionally promote admins from env
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+if (ADMIN_EMAILS.length) {
+  const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE lower(email)=?");
+  for (const e of ADMIN_EMAILS) mkAdmin.run(e);
+}
 
 // ---- Helpers ----
 const nowISO = () => new Date().toISOString();
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 function signToken(user) {
-  return jwt.sign({ uid: user.id, email: user.email, name: user.name }, JWT_SECRET, {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    {
+      uid: user.id,
+      email: user.email,
+      name: user.name,
+      is_admin: !!user.is_admin,
+    },
+    JWT_SECRET,
+    { expiresIn: "7d" }
+  );
 }
 
 function auth(req, res, next) {
@@ -97,7 +123,12 @@ function auth(req, res, next) {
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = { id: payload.uid, email: payload.email, name: payload.name };
+    req.user = {
+      id: payload.uid,
+      email: payload.email,
+      name: payload.name,
+      is_admin: !!payload.is_admin,
+    };
     next();
   } catch {
     return res.status(401).json({ error: "Invalid token" });
@@ -125,9 +156,6 @@ const updateNote = db.prepare(`
     images_json=@images_json, color=@color, pinned=@pinned, position=@position, timestamp=@timestamp
   WHERE id=@id AND user_id=@user_id
 `);
-const patchPinned = db.prepare(`
-  UPDATE notes SET pinned=@pinned WHERE id=@id AND user_id=@user_id
-`);
 const patchPartial = db.prepare(`
   UPDATE notes SET title=COALESCE(@title,title),
                    content=COALESCE(@content,content),
@@ -139,20 +167,27 @@ const patchPartial = db.prepare(`
                    timestamp=COALESCE(@timestamp,timestamp)
   WHERE id=@id AND user_id=@user_id
 `);
-const patchPosition = db.prepare(`UPDATE notes SET position=@position, pinned=@pinned WHERE id=@id AND user_id=@user_id`);
+const patchPosition = db.prepare(`
+  UPDATE notes SET position=@position, pinned=@pinned WHERE id=@id AND user_id=@user_id
+`);
 const deleteNote = db.prepare("DELETE FROM notes WHERE id = ? AND user_id = ?");
 
 // ---- Auth routes ----
 app.post("/api/register", (req, res) => {
   const { name, email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: "Email and password are required." });
-  if (getUserByEmail.get(email)) return res.status(409).json({ error: "Email already registered." });
+  if (!email || !password)
+    return res.status(400).json({ error: "Email and password are required." });
+  if (getUserByEmail.get(email))
+    return res.status(409).json({ error: "Email already registered." });
 
   const hash = bcrypt.hashSync(password, 10);
   const info = insertUser.run(name?.trim() || "User", email.trim(), hash, nowISO());
   const user = getUserById.get(info.lastInsertRowid);
   const token = signToken(user);
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({
+    token,
+    user: { id: user.id, name: user.name, email: user.email, is_admin: !!user.is_admin },
+  });
 });
 
 app.post("/api/login", (req, res) => {
@@ -163,18 +198,25 @@ app.post("/api/login", (req, res) => {
     return res.status(401).json({ error: "Incorrect password." });
   }
   const token = signToken(user);
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({
+    token,
+    user: { id: user.id, name: user.name, email: user.email, is_admin: !!user.is_admin },
+  });
 });
 
 // ---- Secret Key Feature ----
 
 // helper: generate a URL-safe random key (plaintext returned to user)
 function generateSecretKey(bytes = 32) {
-  // Prefer base64url (Node 18+). Fallback to base64-safe.
   const buf = crypto.randomBytes(bytes);
-  try { return buf.toString("base64url"); }
-  catch {
-    return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  try {
+    return buf.toString("base64url");
+  } catch {
+    return buf
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
   }
 }
 
@@ -183,7 +225,7 @@ const updateSecretForUser = db.prepare(
 );
 
 const getUsersWithSecret = db.prepare(
-  "SELECT id, name, email, password_hash, secret_key_hash FROM users WHERE secret_key_hash IS NOT NULL"
+  "SELECT id, name, email, is_admin, secret_key_hash FROM users WHERE secret_key_hash IS NOT NULL"
 );
 
 // Auth required: create/rotate a new secret key for the current user
@@ -205,7 +247,10 @@ app.post("/api/login/secret", (req, res) => {
   for (const u of rows) {
     if (u.secret_key_hash && bcrypt.compareSync(key, u.secret_key_hash)) {
       const token = signToken(u);
-      return res.json({ token, user: { id: u.id, name: u.name, email: u.email } });
+      return res.json({
+        token,
+        user: { id: u.id, name: u.name, email: u.email, is_admin: !!u.is_admin },
+      });
     }
   }
   return res.status(401).json({ error: "Secret key not recognized." });
@@ -295,12 +340,20 @@ app.patch("/api/notes/:id", auth, (req, res) => {
     id,
     user_id: req.user.id,
     title: typeof req.body.title === "string" ? String(req.body.title) : null,
-    content: typeof req.body.content === "string" ? String(req.body.content) : null,
-    items_json: Array.isArray(req.body.items) ? JSON.stringify(req.body.items) : null,
-    tags_json: Array.isArray(req.body.tags) ? JSON.stringify(req.body.tags) : null,
-    images_json: Array.isArray(req.body.images) ? JSON.stringify(req.body.images) : null,
+    content:
+      typeof req.body.content === "string" ? String(req.body.content) : null,
+    items_json: Array.isArray(req.body.items)
+      ? JSON.stringify(req.body.items)
+      : null,
+    tags_json: Array.isArray(req.body.tags)
+      ? JSON.stringify(req.body.tags)
+      : null,
+    images_json: Array.isArray(req.body.images)
+      ? JSON.stringify(req.body.images)
+      : null,
     color: typeof req.body.color === "string" ? req.body.color : null,
-    pinned: typeof req.body.pinned === "boolean" ? (req.body.pinned ? 1 : 0) : null,
+    pinned:
+      typeof req.body.pinned === "boolean" ? (req.body.pinned ? 1 : 0) : null,
     timestamp: req.body.timestamp || null,
   };
   patchPartial.run(p);
@@ -365,7 +418,11 @@ app.get("/api/notes/export", auth, (req, res) => {
 
 app.post("/api/notes/import", auth, (req, res) => {
   const payload = req.body || {};
-  const src = Array.isArray(payload.notes) ? payload.notes : Array.isArray(payload) ? payload : [];
+  const src = Array.isArray(payload.notes)
+    ? payload.notes
+    : Array.isArray(payload)
+    ? payload
+    : [];
   if (!src.length) return res.status(400).json({ error: "No notes to import." });
 
   const rows = listNotes.all(req.user.id);
@@ -393,6 +450,56 @@ app.post("/api/notes/import", auth, (req, res) => {
   });
   tx(src);
   res.json({ ok: true, imported: src.length });
+});
+
+// ---- Admin routes ----
+function adminOnly(req, res, next) {
+  // Optional: verify current admin bit in DB to avoid stale tokens
+  const row = getUserById.get(req.user.id);
+  if (!row || !row.is_admin) return res.status(403).json({ error: "Admin only" });
+  next();
+}
+
+const listAllUsers = db.prepare(`
+  SELECT u.id, u.name, u.email, u.created_at, u.is_admin, COUNT(n.id) AS notes
+  FROM users u
+  LEFT JOIN notes n ON n.user_id = u.id
+  GROUP BY u.id
+  ORDER BY u.created_at DESC
+`);
+
+app.get("/api/admin/users", auth, adminOnly, (_req, res) => {
+  const rows = listAllUsers.all();
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      is_admin: !!r.is_admin,
+      notes: r.notes,
+      created_at: r.created_at,
+    }))
+  );
+});
+
+const deleteUserStmt = db.prepare("DELETE FROM users WHERE id = ?");
+app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
+  const id = Number(req.params.id);
+
+  if (id === req.user.id) {
+    return res.status(400).json({ error: "You cannot delete yourself." });
+  }
+
+  const target = getUserById.get(id);
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const adminCount = db.prepare("SELECT COUNT(*) AS c FROM users WHERE is_admin=1").get().c;
+  if (target.is_admin && adminCount <= 1) {
+    return res.status(400).json({ error: "Cannot delete the last admin." });
+  }
+
+  deleteUserStmt.run(id);
+  res.json({ ok: true });
 });
 
 // Health (for diagnostics / compose)
