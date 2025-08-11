@@ -147,6 +147,7 @@ docker run --name glass-keep \
   -e API_PORT=8080 \
   -e SQLITE_FILE=/app/data/notes.db \
   -e JWT_SECRET="replace-with-a-long-random-string" \
+  -e ADMIN_EMAILS="admin1,admin2" \
   -v "$(pwd)/data:/app/data" \
   --restart unless-stopped \
   -d nikunjsingh/glass-keep:latest
@@ -162,13 +163,13 @@ version: "3.8"
 services:
   app:
     image: nikunjsingh/glass-keep:latest
-    container_name: glass-keep
     environment:
       NODE_ENV: production
-      PORT: 8080          # server/index.js reads PORT
-      API_PORT: 8080      # harmless extra (some scripts reference it)
+      PORT: 8080
+      API_PORT: 8080
       SQLITE_FILE: /app/data/notes.db
       JWT_SECRET: replace-with-a-long-random-string
+      ADMIN_EMAILS: admin1
     ports:
       - "8080:8080"
     volumes:
