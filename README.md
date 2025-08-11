@@ -246,4 +246,4 @@ docker compose logs -f
 
 ## 📝 License
 
-MIT (or your choice).
+MIT
