@@ -136,21 +136,24 @@ Your Dockerfile builds the frontend, bundles the API, and runs the Express serve
 # Get the latest image from Docker Hub
 docker pull nikunjsingh/glass-keep:latest
 
-# Stop/remove any old container (ignore errors if it doesn't exist)
+# Create data dir
+mkdir -p ~/.glass-keep
+
+# (optional) stop/remove any old container
 docker rm -f glass-keep 2>/dev/null || true
 
-# Run it
-docker run --name glass-keep \
+# Run
+docker run -d \
+  --name glass-keep \
+  --restart unless-stopped \
   -p 8080:8080 \
   -e NODE_ENV=production \
-  -e PORT=8080 \
   -e API_PORT=8080 \
-  -e SQLITE_FILE=/app/data/notes.db \
   -e JWT_SECRET="replace-with-a-long-random-string" \
-  -e ADMIN_EMAILS="admin1,admin2" \
-  -v "$(pwd)/data:/app/data" \
-  --restart unless-stopped \
-  -d nikunjsingh/glass-keep:latest
+  -e DB_FILE="/app/data/notes.db" \
+  -e ADMIN_EMAILS="your-admin-username" \
+  -v ~/.glass-keep:/app/data \
+  nikunjsingh/glass-keep:latest
 
 ```
 
@@ -163,25 +166,26 @@ version: "3.8"
 services:
   app:
     image: nikunjsingh/glass-keep:latest
+    container_name: glass-keep
+    restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 8080
-      API_PORT: 8080
-      SQLITE_FILE: /app/data/notes.db
+      API_PORT: "8080"
       JWT_SECRET: replace-with-a-long-random-string
-      ADMIN_EMAILS: admin1
+      DB_FILE: /app/data/notes.db
+      # This should match the "email/username" stored in your users table
+      ADMIN_EMAILS: your-admin-username
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
-    restart: unless-stopped
+      - ${HOME}/.glass-keep:/app/data
 ```
 
 Run:
 
 ```bash
-docker compose up --build -d
-docker compose logs -f
+mkdir -p ~/.glass-keep
+docker compose up -d
 ```
 
 > **Persistent data:** notes DB lives in the mounted `./data` folder on your host.
