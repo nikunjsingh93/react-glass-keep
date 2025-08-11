@@ -111,6 +111,7 @@ npm run dev
 ```
 
 * Frontend (Vite): [http://localhost:5173](http://localhost:5173)
+* Admin Panel: [http://localhost:5173/#/admin](http://localhost:5173/#/admin)
 * API (Express): [http://localhost:8080](http://localhost:8080)
   (The Vite dev server proxies `/api` → `http://localhost:8080`.)
 
