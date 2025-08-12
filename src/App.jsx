@@ -333,16 +333,31 @@ body {
 }
 
 /* Copy buttons */
-.code-copy-btn {
+/* Copy buttons */
+.note-content pre .code-copy-btn {
   position: absolute;
   top: 8px;
   right: 8px;
   font-size: .75rem;
   padding: .2rem .45rem;
   border-radius: .35rem;
-  border: 1px solid var(--border-light);
-  background: rgba(0,0,0,0.06);
+  /* solid, dark default */
+  background: #111;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  opacity: 1;
+  z-index: 2;
 }
+
+/* Light theme variant */
+html:not(.dark) .note-content pre .code-copy-btn {
+  background: #fff;
+  color: #111;
+  border: 1px solid rgba(0,0,0,0.12);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+}
+  
 .inline-code-copy-btn {
   margin-left: 6px;
   font-size: .7rem;
