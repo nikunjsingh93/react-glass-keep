@@ -254,6 +254,29 @@ const downloadDataUrl = async (filename, dataUrl) => {
   URL.revokeObjectURL(url);
 };
 
+// Download arbitrary blob
+const triggerBlobDownload = (filename, blob) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a);
+  a.click(); a.remove(); URL.revokeObjectURL(url);
+};
+
+// Lazy-load JSZip for generating ZIP files client-side
+async function ensureJSZip() {
+  if (window.JSZip) return window.JSZip;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+    s.async = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Failed to load JSZip."));
+    document.head.appendChild(s);
+  });
+  if (!window.JSZip) throw new Error("JSZip not available");
+  return window.JSZip;
+}
+
 // --- Image filename helpers (fix double extensions) ---
 const imageExtFromDataURL = (dataUrl) => {
   const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,/.exec(dataUrl || "");
@@ -802,6 +825,10 @@ function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
 function NoteCard({
   n, dark,
   openModal, togglePin,
+  // multi-select
+  multiMode = false,
+  selected = false,
+  onToggleSelect = () => {},
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
 }) {
   const isChecklist = n.type === "checklist";
@@ -827,18 +854,25 @@ function NoteCard({
 
   return (
     <div
-      draggable
-      onDragStart={(e) => onDragStart(n.id, e)}
-      onDragOver={(e) => onDragOver(n.id, group, e)}
-      onDragLeave={onDragLeave}
-      onDrop={(e) => onDrop(n.id, group, e)}
-      onDragEnd={onDragEnd}
-      onClick={() => openModal(n.id)}
+      draggable={!multiMode}
+      onDragStart={(e) => { if (!multiMode) onDragStart(n.id, e); }}
+      onDragOver={(e) => { if (!multiMode) onDragOver(n.id, group, e); }}
+      onDragLeave={(e) => { if (!multiMode) onDragLeave(e); }}
+      onDrop={(e) => { if (!multiMode) onDrop(n.id, group, e); }}
+      onDragEnd={(e) => { if (!multiMode) onDragEnd(e); }}
+      onClick={() => { if (!multiMode) openModal(n.id); }}
       className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
       style={{ backgroundColor: bgFor(n.color, dark) }}
       data-id={n.id}
       data-group={group}
     >
+      {multiMode && (
+        <label className="absolute top-3 left-3 bg-white/70 dark:bg-black/40 rounded-md px-2 py-1 flex items-center gap-2 select-none" onClick={(e) => e.stopPropagation()}>
+          <input type="checkbox" checked={selected} onChange={(e) => onToggleSelect(n.id, e.target.checked)} />
+          <span className="text-xs">Select</span>
+        </label>
+      )}
+      {!multiMode && (
       <button
         aria-label={n.pinned ? "Unpin note" : "Pin note"}
         onClick={(e) => { e.stopPropagation(); togglePin(n.id, !n.pinned); }}
@@ -847,6 +881,7 @@ function NoteCard({
       >
         {n.pinned ? <PinFilled /> : <PinOutline />}
       </button>
+      )}
 
       {n.title && <h3 className="font-bold text-lg mb-2 pr-10 break-words">{n.title}</h3>}
 
@@ -1189,13 +1224,49 @@ function NotesUI({
   // color popover
   colorBtnRef, showColorPop, setShowColorPop,
   // loading state
-  notesLoading,
+    notesLoading,
+    // multi-select
+    multiMode,
+    selectedIds,
+    onStartMulti,
+    onExitMulti,
+    onToggleSelect,
+    onSelectAllPinned,
+    onSelectAllOthers,
+    onBulkDelete,
+    onBulkPin,
+    onBulkColor,
+    onBulkDownloadZip,
 }) {
   const tagLabel =
     activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
 
   return (
     <div className="min-h-screen">
+      {/* Multi-select toolbar (floats above header when active) */}
+      {multiMode && (
+        <div className="p-3 sm:p-4 flex items-center justify-between sticky top-0 z-[25] glass-card mb-2" style={{ position: "sticky" }}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={onBulkDownloadZip}>
+              Download (.zip)
+            </button>
+            <button className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm" onClick={onBulkDelete}>
+              Delete
+            </button>
+            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={() => onBulkColor("default")}>Color: Default</button>
+            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={() => onBulkPin(true)}>Pin</button>
+            <span className="text-xs opacity-70 ml-2">Selected: {selectedIds.length}</span>
+          </div>
+          <button
+            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            title="Exit multi-select"
+            onClick={onExitMulti}
+          >
+            <CloseIcon />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="p-4 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
         <div className="flex items-center gap-3">
@@ -1295,6 +1366,12 @@ function NotesUI({
                 onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
               >
                 Sign out
+              </button>
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                onClick={() => { setHeaderMenuOpen(false); onStartMulti?.(); }}
+              >
+                Multi select
               </button>
             </div>
           )}
@@ -1542,13 +1619,16 @@ function NotesUI({
               Pinned
             </h2>
             <div className="masonry-grid">
-              {pinned.map((n) => (
+          {pinned.map((n) => (
                 <NoteCard
                   key={n.id}
                   n={n}
                   dark={dark}
                   openModal={openModal}
                   togglePin={togglePin}
+              multiMode={multiMode}
+              selected={selectedIds.includes(String(n.id))}
+              onToggleSelect={onToggleSelect}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -1568,13 +1648,16 @@ function NotesUI({
               </h2>
             )}
             <div className="masonry-grid">
-              {others.map((n) => (
+          {others.map((n) => (
                 <NoteCard
                   key={n.id}
                   n={n}
                   dark={dark}
                   openModal={openModal}
                   togglePin={togglePin}
+              multiMode={multiMode}
+              selected={selectedIds.includes(String(n.id))}
+              onToggleSelect={onToggleSelect}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -1835,6 +1918,88 @@ export default function App() {
 
   // Loading state for notes
   const [notesLoading, setNotesLoading] = useState(false);
+
+  // -------- Multi-select state --------
+  const [multiMode, setMultiMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]); // array of string ids
+  const isSelected = (id) => selectedIds.includes(String(id));
+  const onStartMulti = () => { setMultiMode(true); setSelectedIds([]); };
+  const onExitMulti = () => { setMultiMode(false); setSelectedIds([]); };
+  const onToggleSelect = (id, checked) => {
+    const sid = String(id);
+    setSelectedIds((prev) => (checked ? Array.from(new Set([...prev, sid])) : prev.filter((x) => x !== sid)));
+  };
+  const onSelectAllPinned = () => {
+    const ids = notes.filter((n) => n.pinned).map((n) => String(n.id));
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+  const onSelectAllOthers = () => {
+    const ids = notes.filter((n) => !n.pinned).map((n) => String(n.id));
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+
+  const onBulkDelete = async () => {
+    if (!selectedIds.length) return;
+    if (!confirm(`Delete ${selectedIds.length} selected note(s)? This cannot be undone.`)) return;
+    try {
+      // Fire deletes sequentially to keep API simple
+      for (const id of selectedIds) {
+        await api(`/notes/${id}`, { method: "DELETE", token });
+      }
+      setNotes((prev) => prev.filter((n) => !selectedIds.includes(String(n.id))));
+      onExitMulti();
+    } catch (e) {
+      alert(e.message || "Bulk delete failed");
+    }
+  };
+
+  const onBulkPin = async (pinnedVal) => {
+    if (!selectedIds.length) return;
+    try {
+      // Optimistic update
+      setNotes((prev) => prev.map((n) => (selectedIds.includes(String(n.id)) ? { ...n, pinned: !!pinnedVal } : n)));
+      // Persist in background (best-effort)
+      for (const id of selectedIds) {
+        await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!pinnedVal } });
+      }
+    } catch (e) {
+      console.error("Bulk pin failed", e);
+      loadNotes().catch(() => {});
+    }
+  };
+
+  const onBulkColor = async (colorName) => {
+    if (!selectedIds.length) return;
+    try {
+      setNotes((prev) => prev.map((n) => (selectedIds.includes(String(n.id)) ? { ...n, color: colorName } : n)));
+      for (const id of selectedIds) {
+        await api(`/notes/${id}`, { method: "PATCH", token, body: { color: colorName } });
+      }
+    } catch (e) {
+      console.error("Bulk color failed", e);
+      loadNotes().catch(() => {});
+    }
+  };
+
+  const onBulkDownloadZip = async () => {
+    try {
+      const ids = new Set(selectedIds);
+      const chosen = notes.filter((n) => ids.has(String(n.id)));
+      if (!chosen.length) return;
+      const JSZip = await ensureJSZip();
+      const zip = new JSZip();
+      chosen.forEach((n, idx) => {
+        const md = mdForDownload(n);
+        const base = sanitizeFilename(n.title || `note-${String(n.id).slice(-6)}`);
+        zip.file(`${base || `note-${idx+1}`}.md`, md);
+      });
+      const blob = await zip.generateAsync({ type: "blob" });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      triggerBlobDownload(`glass-keep-selected-${ts}.zip`, blob);
+    } catch (e) {
+      alert(e.message || "ZIP download failed");
+    }
+  };
 
   // NEW: modal scroll container ref + state to place Edited at bottom when not scrollable
   const modalScrollRef = useRef(null);
@@ -3177,6 +3342,18 @@ export default function App() {
         setShowColorPop={setShowColorPop}
         // loading
         notesLoading={notesLoading}
+        // multi-select
+        multiMode={multiMode}
+        selectedIds={selectedIds}
+        onStartMulti={onStartMulti}
+        onExitMulti={onExitMulti}
+        onToggleSelect={onToggleSelect}
+        onSelectAllPinned={onSelectAllPinned}
+        onSelectAllOthers={onSelectAllOthers}
+        onBulkDelete={onBulkDelete}
+        onBulkPin={onBulkPin}
+        onBulkColor={onBulkColor}
+        onBulkDownloadZip={onBulkDownloadZip}
       />
       {modal}
     </>
