@@ -1105,7 +1105,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
         <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
           <button
-            className="p-2 rounded hover:bg-black/5 dark:hover:bg:white/10"
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
             onClick={onClose}
             title="Close"
           >
@@ -1123,7 +1123,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
 
           {/* All Images */}
           <button
-            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg:white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
             onClick={() => { onSelect(ALL_IMAGES); onClose(); }}
           >
             All Images
@@ -1273,13 +1273,13 @@ function NotesUI({
                 Export notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { importFileRef.current?.click(); }}
               >
                 Import notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
@@ -1311,7 +1311,10 @@ function NotesUI({
 
       {/* Composer */}
       <div className="px-4 sm:px-6 md:px-8 lg:px-12 max-w-2xl mx-auto">
-        <div className="glass-card rounded-xl shadow-lg p-4 mb-8 relative">
+        <div
+          className="glass-card rounded-xl shadow-lg p-4 mb-8 relative"
+          style={{ backgroundColor: bgFor(composerColor, dark) }}
+        >
           {/* Collapsed single input */}
           {composerCollapsed ? (
             <input
@@ -1584,7 +1587,6 @@ function NotesUI({
 }
 
 /** ---------- AdminView ---------- */
-/** ---------- Admin View (replace your existing AdminView with this) ---------- */
 function AdminView({ dark }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1813,6 +1815,10 @@ export default function App() {
   // Loading state for notes
   const [notesLoading, setNotesLoading] = useState(false);
 
+  // NEW: modal scroll container ref + state to place Edited at bottom when not scrollable
+  const modalScrollRef = useRef(null);
+  const [modalScrollable, setModalScrollable] = useState(false);
+
   // Derived: Active note + edited text
   const activeNoteObj = useMemo(
     () => notes.find((x) => String(x.id) === String(activeId)),
@@ -1995,6 +2001,38 @@ export default function App() {
   useEffect(() => {
     if (viewMode || mType !== "text") setShowModalFmt(false);
   }, [viewMode, mType]);
+
+  // Detect if modal body is scrollable to decide Edited stamp placement
+  useEffect(() => {
+    if (!open) return;
+    const el = modalScrollRef.current;
+    if (!el) return;
+
+    const check = () => {
+      // +1 fudge factor to avoid off-by-one on some browsers
+      setModalScrollable(el.scrollHeight > el.clientHeight + 1);
+    };
+    check();
+
+    // React to container size changes and window resizes
+    let ro;
+    if ("ResizeObserver" in window) {
+      ro = new ResizeObserver(check);
+      ro.observe(el);
+    }
+    window.addEventListener("resize", check);
+
+    // Also recheck shortly after (images rendering, fonts, etc.)
+    const t1 = setTimeout(check, 50);
+    const t2 = setTimeout(check, 200);
+
+    return () => {
+      window.removeEventListener("resize", check);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      ro?.disconnect();
+    };
+  }, [open, mBody, mTitle, mItems.length, mImages.length, viewMode, mType]);
 
   /** -------- Auth actions -------- */
   const signOut = () => {
@@ -2502,7 +2540,10 @@ export default function App() {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Scroll container */}
-          <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto">
+          <div
+            ref={modalScrollRef}
+            className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto"
+          >
             {/* Sticky header (kept single line on desktop, wraps on mobile) */}
             <div
               className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
@@ -2695,13 +2736,20 @@ export default function App() {
                 </div>
               )}
 
-              {/* Edited stamp – bottom-right of body, just before footer */}
-              {editedStamp && (
+              {/* Inline Edited stamp: only when scrollable (appears at very end) */}
+              {editedStamp && modalScrollable && (
                 <div className="mt-6 text-xs text-gray-600 dark:text-gray-300 text-right">
                   Edited: {editedStamp}
                 </div>
               )}
             </div>
+
+            {/* Absolute Edited stamp: only when NOT scrollable (sits just above footer) */}
+            {editedStamp && !modalScrollable && (
+              <div className="absolute bottom-3 right-4 text-xs text-gray-600 dark:text-gray-300 pointer-events-none">
+                Edited: {editedStamp}
+              </div>
+            )}
           </div>
 
           {/* Footer */}
