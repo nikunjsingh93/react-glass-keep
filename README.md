@@ -105,7 +105,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 ```bash
 npm install
-# If you don't have these dev/runtime deps yet:
+# (Optional) only If you don't have these dev/runtime deps yet:
 npm install -D concurrently nodemon
 npm install express better-sqlite3 cors jsonwebtoken bcryptjs
 ```
