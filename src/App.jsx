@@ -2741,41 +2741,66 @@ export default function App() {
     const root = noteViewRef.current;
     if (!root) return;
 
-    // Fenced blocks (pre)
-    root.querySelectorAll("pre").forEach((pre) => {
-      if (pre.querySelector(".code-copy-btn")) return;
-      const btn = document.createElement("button");
-      btn.className = "code-copy-btn";
-      btn.textContent = "Copy";
-      btn.setAttribute("data-copy-btn", "1");
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const codeEl = pre.querySelector("code");
-        const text = codeEl ? codeEl.textContent : pre.textContent;
-        navigator.clipboard?.writeText(text || "");
-        btn.textContent = "Copied";
-        setTimeout(() => (btn.textContent = "Copy"), 1200);
+    const attach = () => {
+      // Fenced blocks (pre)
+      root.querySelectorAll("pre").forEach((pre) => {
+        if (pre.querySelector(".code-copy-btn")) return;
+        const btn = document.createElement("button");
+        btn.className = "code-copy-btn";
+        btn.textContent = "Copy";
+        btn.setAttribute("data-copy-btn", "1");
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const codeEl = pre.querySelector("code");
+          const text = codeEl ? codeEl.textContent : pre.textContent;
+          navigator.clipboard?.writeText(text || "");
+          btn.textContent = "Copied";
+          setTimeout(() => (btn.textContent = "Copy"), 1200);
+        });
+        pre.appendChild(btn);
       });
-      pre.appendChild(btn);
-    });
 
-    // Inline code
-    root.querySelectorAll("code").forEach((code) => {
-      if (code.closest("pre")) return; // skip fenced
-      if (code.nextSibling && code.nextSibling.nodeType === 1 && code.nextSibling.classList?.contains("inline-code-copy-btn")) return;
-      const btn = document.createElement("button");
-      btn.className = "inline-code-copy-btn";
-      btn.textContent = "Copy";
-      btn.setAttribute("data-copy-btn", "1");
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        navigator.clipboard?.writeText(code.textContent || "");
-        btn.textContent = "Copied";
-        setTimeout(() => (btn.textContent = "Copy"), 1200);
+      // Inline code
+      root.querySelectorAll("code").forEach((code) => {
+        if (code.closest("pre")) return; // skip fenced
+        if (
+          code.nextSibling &&
+          code.nextSibling.nodeType === 1 &&
+          code.nextSibling.classList?.contains("inline-code-copy-btn")
+        )
+          return;
+        const btn = document.createElement("button");
+        btn.className = "inline-code-copy-btn";
+        btn.textContent = "Copy";
+        btn.setAttribute("data-copy-btn", "1");
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          navigator.clipboard?.writeText(code.textContent || "");
+          btn.textContent = "Copied";
+          setTimeout(() => (btn.textContent = "Copy"), 1200);
+        });
+        code.insertAdjacentElement("afterend", btn);
       });
-      code.insertAdjacentElement("afterend", btn);
-    });
-  }, [open, viewMode, mType, mBody]);
+    };
+
+    attach();
+    // Ensure buttons after layout/async renders
+    requestAnimationFrame(attach);
+    const t1 = setTimeout(attach, 50);
+    const t2 = setTimeout(attach, 200);
+
+    // Observe DOM changes while in view mode
+    const mo = new MutationObserver(() => attach());
+    try {
+      mo.observe(root, { childList: true, subtree: true });
+    } catch {}
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      mo.disconnect();
+    };
+  }, [open, viewMode, mType, mBody, activeId]);
 
   /** -------- Modal JSX -------- */
   const modal = open && (
