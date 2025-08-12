@@ -5,15 +5,16 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 ---
 **Web App Screenshots**
 
-<img width="1470" height="956" alt="Screenshot 2025-08-10 at 11 31 40 PM" src="https://github.com/user-attachments/assets/19c743ad-ef3e-4d7f-ab03-32929c99f524" />
+<img width="1203" height="865" alt="Screenshot 2025-08-11 at 9 38 44 PM" src="https://github.com/user-attachments/assets/bbe2917f-9821-4739-99a1-030c0a793b09" />
 
-<img width="1204" height="867" alt="Screenshot 2025-08-10 at 11 32 37 PM" src="https://github.com/user-attachments/assets/77a49683-60d6-4e1e-8efd-5bcaa46c6620" />
+<img width="1205" height="861" alt="Screenshot 2025-08-11 at 9 39 07 PM" src="https://github.com/user-attachments/assets/98a31307-b19d-4b3c-b287-7b0ac49df179" />
 
-**Mobile Screenshots**
 
-<img width="346" height="743" alt="Screenshot 2025-08-10 at 11 41 14 PM" src="https://github.com/user-attachments/assets/fc321b77-fea1-48ca-a0f3-de773b3c9989" />
+**Mobile Screenshot**
 
-<img width="344" height="747" alt="Screenshot 2025-08-10 at 11 41 38 PM" src="https://github.com/user-attachments/assets/a9af158e-df93-4ecd-b0ac-362e9ce792db" />
+<img width="337" height="686" alt="Screenshot 2025-08-11 at 9 40 54 PM" src="https://github.com/user-attachments/assets/bec9a5e3-6cec-455b-91e9-23ca9b9d5972" />
+
+<img width="338" height="685" alt="Screenshot 2025-08-11 at 9 41 18 PM" src="https://github.com/user-attachments/assets/75e92742-0ac6-40f2-9927-3be4b538cec1" />
 
 
 ## ✨ Features
