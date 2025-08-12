@@ -867,8 +867,13 @@ function NoteCard({
       data-group={group}
     >
       {multiMode && (
-        <label className="absolute top-3 left-3 bg-white/70 dark:bg-black/40 rounded-md px-2 py-1 flex items-center gap-2 select-none" onClick={(e) => e.stopPropagation()}>
-          <input type="checkbox" checked={selected} onChange={(e) => onToggleSelect(n.id, e.target.checked)} />
+        <label className="absolute top-3 right-3 bg-white/70 dark:bg-black/40 rounded-md px-2 py-1 flex items-center gap-2 select-none" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            className="w-5 h-5"
+            checked={selected}
+            onChange={(e) => onToggleSelect(n.id, e.target.checked)}
+          />
           <span className="text-xs">Select</span>
         </label>
       )}
@@ -1238,6 +1243,9 @@ function NotesUI({
     onBulkColor,
     onBulkDownloadZip,
 }) {
+    // Multi-select color popover (local UI state)
+    const multiColorBtnRef = useRef(null);
+    const [showMultiColorPop, setShowMultiColorPop] = useState(false);
   const tagLabel =
     activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
 
@@ -1253,7 +1261,34 @@ function NotesUI({
             <button className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm" onClick={onBulkDelete}>
               Delete
             </button>
-            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={() => onBulkColor("default")}>Color: Default</button>
+            <button
+              ref={multiColorBtnRef}
+              type="button"
+              onClick={() => setShowMultiColorPop((v) => !v)}
+              className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+              title="Color"
+            >
+              🎨 Color
+            </button>
+            <Popover anchorRef={multiColorBtnRef} open={showMultiColorPop} onClose={() => setShowMultiColorPop(false)}>
+              <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
+                <div className="grid grid-cols-6 gap-2">
+                  {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
+                    <ColorDot
+                      key={name}
+                      name={name}
+                      darkMode={dark}
+                      selected={false}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onBulkColor(name);
+                        setShowMultiColorPop(false);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </Popover>
             <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={() => onBulkPin(true)}>Pin</button>
             <span className="text-xs opacity-70 ml-2">Selected: {selectedIds.length}</span>
           </div>
@@ -1362,16 +1397,16 @@ function NotesUI({
                 Download secret key (.txt)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
-              >
-                Sign out
-              </button>
-              <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { setHeaderMenuOpen(false); onStartMulti?.(); }}
               >
                 Multi select
+              </button>
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
+                onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
+              >
+                Sign out
               </button>
             </div>
           )}
