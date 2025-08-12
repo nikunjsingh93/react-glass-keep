@@ -44,7 +44,8 @@ async function api(path, { method = "GET", body, token } = {}) {
   return data;
 }
 
-/** ---------- Colors (base + pastel boho) ---------- */
+/** ---------- Colors ---------- */
+/* Added 6 pastel boho colors + two-line picker layout via grid-cols-6 */
 const LIGHT_COLORS = {
   default: "rgba(255, 255, 255, 0.6)",
   red: "rgba(252, 165, 165, 0.6)",
@@ -52,13 +53,13 @@ const LIGHT_COLORS = {
   green: "rgba(134, 239, 172, 0.6)",
   blue: "rgba(147, 197, 253, 0.6)",
   purple: "rgba(196, 181, 253, 0.6)",
-  // Boho
-  peach: "rgba(255, 204, 188, 0.6)",
-  sage: "rgba(195, 221, 201, 0.6)",
-  sand: "rgba(232, 221, 201, 0.6)",
-  lilac: "rgba(221, 204, 238, 0.6)",
-  sky: "rgba(204, 228, 255, 0.6)",
-  terracotta: "rgba(217, 150, 130, 0.6)",
+
+  peach: "rgba(255, 183, 178, 0.6)",
+  sage: "rgba(197, 219, 199, 0.6)",
+  mint: "rgba(183, 234, 211, 0.6)",
+  sky: "rgba(189, 224, 254, 0.6)",
+  sand: "rgba(240, 219, 182, 0.6)",
+  mauve: "rgba(220, 198, 224, 0.6)",
 };
 const DARK_COLORS = {
   default: "rgba(40, 40, 40, 0.6)",
@@ -67,14 +68,28 @@ const DARK_COLORS = {
   green: "rgba(22, 101, 52, 0.6)",
   blue: "rgba(30, 64, 175, 0.6)",
   purple: "rgba(76, 29, 149, 0.6)",
-  // Boho (muted)
-  peach: "rgba(142, 92, 84, 0.6)",
-  sage: "rgba(58, 87, 68, 0.6)",
-  sand: "rgba(102, 92, 74, 0.6)",
-  lilac: "rgba(88, 65, 109, 0.6)",
-  sky: "rgba(42, 78, 122, 0.6)",
-  terracotta: "rgba(111, 64, 52, 0.6)",
+
+  peach: "rgba(191, 90, 71, 0.6)",
+  sage: "rgba(54, 83, 64, 0.6)",
+  mint: "rgba(32, 102, 77, 0.6)",
+  sky: "rgba(30, 91, 150, 0.6)",
+  sand: "rgba(140, 108, 66, 0.6)",
+  mauve: "rgba(98, 74, 112, 0.6)",
 };
+const COLOR_ORDER = [
+  "default",
+  "red",
+  "yellow",
+  "green",
+  "blue",
+  "purple",
+  "peach",
+  "sage",
+  "mint",
+  "sky",
+  "sand",
+  "mauve",
+];
 const solid = (rgba) => (typeof rgba === "string" ? rgba.replace("0.6", "1") : rgba);
 const bgFor = (colorKey, dark) =>
   (dark ? DARK_COLORS : LIGHT_COLORS)[colorKey] ||
@@ -124,7 +139,7 @@ const Trash = () => (
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 0 018 0z"/>
   </svg>
 );
 const Moon = () => (
@@ -252,11 +267,34 @@ const imageExtFromDataURL = (dataUrl) => {
 const normalizeImageFilename = (name, dataUrl, index = 1) => {
   const base = sanitizeFilename(name && name.trim() ? name : `image-${index}`);
   const withoutExt = base.replace(/\.[^.]+$/, "");
-  theExt: {
-    const ext = imageExtFromDataURL(dataUrl);
-    return `${withoutExt}.${ext}`;
-  }
+  const ext = imageExtFromDataURL(dataUrl);
+  return `${withoutExt}.${ext}`;
 };
+
+/** Format “Edited” text */
+function formatEditedStamp(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+
+  const sameYMD = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  if (sameYMD(d, now)) return `Today, ${timeStr}`;
+  const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (sameYMD(d, yest)) return `Yesterday, ${timeStr}`;
+
+  const month = d.toLocaleString([], { month: "short" });
+  const day = d.getDate();
+  if (d.getFullYear() === now.getFullYear()) return `${month} ${day}`;
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${month} ${day}, '${yy}`;
+}
 
 /** ---------- Global CSS injection ---------- */
 const globalCSS = `
@@ -1067,7 +1105,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
         <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
           <button
-            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg:white/10"
             onClick={onClose}
             title="Close"
           >
@@ -1085,7 +1123,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
 
           {/* All Images */}
           <button
-            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg:white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
             onClick={() => { onSelect(ALL_IMAGES); onClose(); }}
           >
             All Images
@@ -1150,9 +1188,8 @@ function NotesUI({
   titleRef,
   // color popover
   colorBtnRef, showColorPop, setShowColorPop,
-  // loading flags
+  // loading state
   notesLoading,
-  loadingMore,
 }) {
   const tagLabel =
     activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
@@ -1226,7 +1263,7 @@ function NotesUI({
           {headerMenuOpen && (
             <div
               ref={headerMenuRef}
-              className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+              className={`absolute top-12 right-0 min-w=[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -1236,13 +1273,13 @@ function NotesUI({
                 Export notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { importFileRef.current?.click(); }}
               >
                 Import notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
@@ -1281,6 +1318,7 @@ function NotesUI({
               value={content}
               onChange={(e) => {}}
               onFocus={() => {
+                // expand and focus title
                 setComposerCollapsed(false);
                 setTimeout(() => titleRef.current?.focus(), 10);
               }}
@@ -1387,7 +1425,7 @@ function NotesUI({
                     </>
                   )}
 
-                  {/* Checklist toggle */}
+                  {/* Checklist toggle button (footer-left) */}
                   <button
                     type="button"
                     onClick={() => setComposerType((t) => (t === "text" ? "checklist" : "text"))}
@@ -1414,7 +1452,7 @@ function NotesUI({
                   >
                     <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
                       <div className="grid grid-cols-6 gap-2">
-                        {Object.keys(LIGHT_COLORS).map((name) => (
+                        {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
                           <ColorDot
                             key={name}
                             name={name}
@@ -1475,13 +1513,6 @@ function NotesUI({
 
       {/* Notes lists */}
       <main className="px-4 sm:px-6 md:px-8 lg:px-12 pb-12">
-        {/* Loading indicator for first load */}
-        {notesLoading && (pinned.length + others.length === 0) && (
-          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
-            Loading notes…
-          </p>
-        )}
-
         {pinned.length > 0 && (
           <section className="mb-10">
             <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
@@ -1532,21 +1563,19 @@ function NotesUI({
           </section>
         )}
 
-        {filteredEmptyWithSearch && !notesLoading && (
+        {notesLoading && (pinned.length + others.length === 0) && (
+          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+            Loading Notes…
+          </p>
+        )}
+        {!notesLoading && filteredEmptyWithSearch && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No matching notes found.
           </p>
         )}
-        {allEmpty && !notesLoading && (
+        {!notesLoading && allEmpty && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No notes yet. Add one to get started!
-          </p>
-        )}
-
-        {/* Loading more indicator (background pagination) */}
-        {loadingMore && (pinned.length + others.length) > 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 mt-8">
-            Loading more…
           </p>
         )}
       </main>
@@ -1555,6 +1584,7 @@ function NotesUI({
 }
 
 /** ---------- AdminView ---------- */
+/** ---------- Admin View (replace your existing AdminView with this) ---------- */
 function AdminView({ dark }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1685,40 +1715,6 @@ function AdminView({ dark }) {
   );
 }
 
-/** ---------- Helpers: Edited time ---------- */
-function formatEdited(tsISO) {
-  if (!tsISO) return "";
-  const d = new Date(tsISO);
-  if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-
-  const yesterday = (() => {
-    const y = new Date(now);
-    y.setDate(now.getDate() - 1);
-    return (
-      d.getFullYear() === y.getFullYear() &&
-      d.getMonth() === y.getMonth() &&
-      d.getDate() === y.getDate()
-    );
-  })();
-
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (sameDay) return `Today, ${time}`;
-  if (yesterday) return `Yesterday, ${time}`;
-
-  const sameYear = d.getFullYear() === now.getFullYear();
-  const shortMonthDay = d.toLocaleDateString([], { month: "short", day: "numeric" });
-  if (sameYear) return shortMonthDay;
-
-  const yr = String(d.getFullYear()).slice(-2);
-  return `${shortMonthDay}, '${yr}`;
-}
-
 /** ---------- App ---------- */
 export default function App() {
   const [route, setRoute] = useState(window.location.hash || "#/login");
@@ -1734,12 +1730,6 @@ export default function App() {
   // Notes & search
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState("");
-
-  // Loading flags & pagination cursors
-  const [notesLoading, setNotesLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const nextCursorRef = useRef(null);
-  const PAGELIMIT = 300;
 
   // Tag filter & sidebar
   const [tagFilter, setTagFilter] = useState(null); // null = all, ALL_IMAGES = only notes with images
@@ -1784,7 +1774,8 @@ export default function App() {
   // Modal formatting
   const [showModalFmt, setShowModalFmt] = useState(false);
   const modalFmtBtnRef = useRef(null);
-  // Modal color dropdown
+
+  // Modal color popover
   const modalColorBtnRef = useRef(null);
   const [showModalColorPop, setShowModalColorPop] = useState(false);
 
@@ -1818,6 +1809,19 @@ export default function App() {
 
   // For code copy buttons in view mode
   const noteViewRef = useRef(null);
+
+  // Loading state for notes
+  const [notesLoading, setNotesLoading] = useState(false);
+
+  // Derived: Active note + edited text
+  const activeNoteObj = useMemo(
+    () => notes.find((x) => String(x.id) === String(activeId)),
+    [notes, activeId]
+  );
+  const editedStamp = useMemo(() => {
+    const ts = activeNoteObj?.updated_at || activeNoteObj?.timestamp;
+    return ts ? formatEditedStamp(ts) : "";
+  }, [activeNoteObj]);
 
   useEffect(() => {
     // Only close header and modal kebab on outside click
@@ -1882,76 +1886,53 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, [sidebarOpen]);
 
-  /** -------- Notes loading (paginated background) -------- */
-  const loadNotesInitial = async () => {
+  // Load notes (batched if supported)
+  const loadNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
-    setLoadingMore(false);
-    nextCursorRef.current = null;
+    setNotes([]);
 
+    const LIMIT = 300;
+    let usedPagination = false;
     try {
-      // Try paginated first
-      const first = await api(`/notes?limit=${PAGELIMIT}`, { token });
-
-      if (Array.isArray(first)) {
-        // Server returned full array (no pagination support)
-        setNotes(first);
-        setNotesLoading(false);
-        return;
+      // Try paginated endpoint first
+      let offset = 0;
+      let first = true;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const batch = await api(`/notes?offset=${offset}&limit=${LIMIT}`, { token });
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        usedPagination = true;
+        if (first) {
+          setNotes(batch);
+          first = false;
+        } else {
+          setNotes((prev) => [...prev, ...batch]);
+        }
+        if (batch.length < LIMIT) break;
+        offset += batch.length;
+        // Yield to UI
+        await new Promise((r) => setTimeout(r, 0));
       }
-
-      const firstNotes = Array.isArray(first?.notes) ? first.notes : [];
-      setNotes(firstNotes);
-      const next = first?.nextCursor || first?.cursor || null;
-      nextCursorRef.current = next;
-
-      setNotesLoading(false);
-
-      if (next) {
-        // Load next pages in background
-        setLoadingMore(true);
-        // slight delay to yield to UI
-        setTimeout(fetchMorePages, 150);
+      if (!usedPagination) {
+        // Fallback to full fetch
+        const data = await api("/notes", { token });
+        setNotes(Array.isArray(data) ? data : []);
       }
-    } catch (e) {
-      console.error(e);
-      setNotes([]);
-      setNotesLoading(false);
-      setLoadingMore(false);
-      nextCursorRef.current = null;
-    }
-  };
-
-  const fetchMorePages = async () => {
-    if (!token) return;
-    let cursor = nextCursorRef.current;
-    if (!cursor) {
-      setLoadingMore(false);
-      return;
-    }
-    try {
-      while (cursor) {
-        // chunked background fetch
-        const res = await api(`/notes?limit=${PAGELIMIT}&cursor=${encodeURIComponent(cursor)}`, { token });
-        const pageNotes = Array.isArray(res?.notes) ? res.notes : [];
-        setNotes((prev) => [...prev, ...pageNotes]);
-
-        cursor = res?.nextCursor || res?.cursor || null;
-        nextCursorRef.current = cursor;
-
-        if (!cursor) break;
-        // small pause between pages
-        await new Promise((r) => setTimeout(r, 150));
+    } catch {
+      // Fallback on any error
+      try {
+        const data = await api("/notes", { token });
+        setNotes(Array.isArray(data) ? data : []);
+      } catch {
+        setNotes([]);
       }
-    } catch (e) {
-      console.error("Background pagination failed:", e);
     } finally {
-      setLoadingMore(false);
+      setNotesLoading(false);
     }
   };
-
   useEffect(() => {
-    if (token) loadNotesInitial().catch(() => {});
+    if (token) loadNotes().catch(() => {});
   }, [token]);
 
   // Lock body scroll on modal & image viewer
@@ -2059,6 +2040,7 @@ export default function App() {
     } else {
       if (!title.trim() && clItems.length === 0) return;
     }
+    const nowIso = new Date().toISOString();
     const newNote = {
       id: uid(),
       type: composerType,
@@ -2070,7 +2052,8 @@ export default function App() {
       color: composerColor,
       pinned: false,
       position: Date.now(),
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      updated_at: nowIso,
     };
     try {
       const created = await api("/notes", { method: "POST", body: newNote, token });
@@ -2128,7 +2111,7 @@ export default function App() {
       const notesArr = Array.isArray(parsed?.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : []);
       if (!notesArr.length) { alert("No notes found in file."); return; }
       await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
-      await loadNotesInitial();
+      await loadNotes();
       alert(`Imported ${notesArr.length} note(s) successfully.`);
     } catch (e) {
       alert(e.message || "Import failed");
@@ -2215,24 +2198,28 @@ export default function App() {
     setModalMenuOpen(false);
     setConfirmDeleteOpen(false);
     setShowModalFmt(false);
-    setShowModalColorPop(false);
   };
   const saveModal = async () => {
     if (activeId == null) return;
-    const existing = notes.find((n) => String(n.id) === String(activeId));
+    const base = {
+      id: activeId,
+      title: mTitle.trim(),
+      tags: mTagList,
+      images: mImages,
+      color: mColor,
+      pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+    };
     const payload =
       mType === "text"
-        ? { id: activeId, type: "text", title: mTitle.trim(), content: mBody, items: [], tags: mTagList, images: mImages, color: mColor,
-            pinned: !!existing?.pinned }
-        : { id: activeId, type: "checklist", title: mTitle.trim(), content: "", items: mItems, tags: mTagList, images: mImages, color: mColor,
-            pinned: !!existing?.pinned };
+        ? { ...base, type: "text", content: mBody, items: [] }
+        : { ...base, type: "checklist", content: "", items: mItems };
+
     try {
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
-      // optimistic local update + bump timestamp so Edited reads fresh
+      // Also update updated_at locally so the Edited stamp updates immediately
+      const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
-        (String(n.id) === String(activeId))
-          ? { ...n, ...payload, timestamp: new Date().toISOString() }
-          : n
+        (String(n.id) === String(activeId) ? { ...n, ...payload, updated_at: nowIso } : n)
       ));
       closeModal();
     } catch (e) {
@@ -2310,7 +2297,7 @@ export default function App() {
       await api("/notes/reorder", { method: "POST", token, body: { pinnedIds: newPinned, otherIds: newOthers } });
     } catch (e) {
       console.error("Reorder failed:", e);
-      loadNotesInitial().catch(() => {});
+      loadNotes().catch(() => {});
     }
     dragGroup.current = null;
   };
@@ -2354,7 +2341,7 @@ export default function App() {
   const pinned = filtered.filter((n) => n.pinned);
   const others = filtered.filter((n) => !n.pinned);
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
-  const allEmpty = notes.length === 0; // note: UI guards with notesLoading for first load
+  const allEmpty = notes.length === 0;
 
   /** -------- Modal link handler: open links in new tab (no auto-enter edit) -------- */
   const onModalBodyClick = (e) => {
@@ -2370,6 +2357,7 @@ export default function App() {
         return;
       }
     }
+    // NO automatic edit-mode toggle
   };
 
   /** -------- Image viewer helpers -------- */
@@ -2490,15 +2478,6 @@ export default function App() {
   }, [open, viewMode, mType, mBody]);
 
   /** -------- Modal JSX -------- */
-  const activeNote = useMemo(
-    () => notes.find((n) => String(n.id) === String(activeId)),
-    [notes, activeId]
-  );
-  const editedText = useMemo(() => {
-    const ts = activeNote?.updated_at || activeNote?.updatedAt || activeNote?.updated || activeNote?.timestamp;
-    return ts ? `Edited: ${formatEdited(ts)}` : "";
-  }, [activeNote]);
-
   const modal = open && (
     <>
       <div
@@ -2508,6 +2487,7 @@ export default function App() {
           scrimClickStartRef.current = (e.target === e.currentTarget);
         }}
         onClick={(e) => {
+          // Close only if press started AND ended on scrim (prevents drag-outside-close)
           if (scrimClickStartRef.current && e.target === e.currentTarget) {
             closeModal();
           }
@@ -2523,31 +2503,23 @@ export default function App() {
         >
           {/* Scroll container */}
           <div className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto">
-            {/* Sticky header */}
+            {/* Sticky header (kept single line on desktop, wraps on mobile) */}
             <div
               className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
-              {/* Keep one row on sm+; allow wrap only on mobile */}
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              <div className="flex flex-wrap items-center gap-2">
                 <input
-                  className="flex-1 min-w-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
+                  className="flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
                   value={mTitle}
                   onChange={(e) => setMTitle(e.target.value)}
                   placeholder="Title"
                 />
-                <div className="flex items-center gap-2 ml-auto">
-                  {/* Edited text (view mode or edit mode — always visible) */}
-                  {editedText && (
-                    <span className="text-xs text-gray-700 dark:text-gray-200 opacity-80 whitespace-nowrap">
-                      {editedText}
-                    </span>
-                  )}
-
+                <div className="flex items-center gap-2 flex-none ml-auto">
                   {/* View/Edit toggle only for TEXT notes */}
                   {mType === "text" && (
                     <button
-                      className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm whitespace-nowrap"
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
                       onClick={() => { setViewMode((v) => !v); setShowModalFmt(false); }}
                       title={viewMode ? "Switch to Edit mode" : "Switch to View mode"}
                     >
@@ -2686,7 +2658,7 @@ export default function App() {
                 )
               ) : (
                 <div className="space-y-3">
-                  {/* Add new item row */}
+                  {/* Add new item row (both modes keep it visible for quick add) */}
                   <div className="flex gap-2">
                     <input
                       value={mInput}
@@ -2710,9 +2682,9 @@ export default function App() {
                           key={it.id}
                           item={it}
                           readOnly={viewMode}
-                          disableToggle={false}
-                          showRemove={true}
-                          size="lg"
+                          disableToggle={false}      /* allow toggle in view mode */
+                          showRemove={true}          /* show delete X in view mode */
+                          size="lg"                  /* bigger checkboxes and X in modal */
                           onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
                           onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
                           onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
@@ -2720,6 +2692,13 @@ export default function App() {
                       ))}
                     </div>
                   ) : <p className="text-sm text-gray-500">No items yet.</p>}
+                </div>
+              )}
+
+              {/* Edited stamp – bottom-right of body, just before footer */}
+              {editedStamp && (
+                <div className="mt-6 text-xs text-gray-600 dark:text-gray-300 text-right">
+                  Edited: {editedStamp}
                 </div>
               )}
             </div>
@@ -2774,7 +2753,7 @@ export default function App() {
               >
                 <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
                   <div className="grid grid-cols-6 gap-2">
-                    {Object.keys(LIGHT_COLORS).map((name) => (
+                    {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
                       <ColorDot
                         key={name}
                         name={name}
@@ -2968,7 +2947,13 @@ export default function App() {
       );
     }
     return (
-      <AdminView dark={dark} />
+      <AdminView
+        token={token}
+        currentUser={currentUser}
+        dark={dark}
+        onToggleDark={toggleDark}
+        onBackToNotes={() => (window.location.hash = "#/notes")}
+      />
     );
   }
 
@@ -3080,7 +3065,6 @@ export default function App() {
         setShowColorPop={setShowColorPop}
         // loading
         notesLoading={notesLoading}
-        loadingMore={loadingMore}
       />
       {modal}
     </>
