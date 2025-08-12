@@ -63,10 +63,14 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
   * Installable on desktop & mobile
   * Offline caching of the built app shell
+* **Bulk actions (multi-select)** ✅ NEW
+
+  * Select multiple notes at once to Download, Pin/Unpin, Delete, or Change Color.
 * **Data**
 
   * **Export all** notes (JSON) and **Import** (merges; keeps existing notes)
   * Per-note **Download .md**
+  * Import from Google Keep (Google Takeout) — pick multiple .json files in one go to bring your Keep notes over. ✅ NEW
   * Backend: **Express API + SQLite** (`better-sqlite3`)
 * **UI/Theme**
 
