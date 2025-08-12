@@ -44,7 +44,7 @@ async function api(path, { method = "GET", body, token } = {}) {
   return data;
 }
 
-/** ---------- Colors (added 6 pastel boho) ---------- */
+/** ---------- Colors (base + pastel boho) ---------- */
 const LIGHT_COLORS = {
   default: "rgba(255, 255, 255, 0.6)",
   red: "rgba(252, 165, 165, 0.6)",
@@ -53,12 +53,12 @@ const LIGHT_COLORS = {
   blue: "rgba(147, 197, 253, 0.6)",
   purple: "rgba(196, 181, 253, 0.6)",
   // Boho
-  blush: "rgba(244, 194, 194, 0.6)",
-  peach: "rgba(255, 210, 183, 0.6)",
-  sage: "rgba(196, 214, 204, 0.6)",
-  mint: "rgba(188, 226, 199, 0.6)",
-  sand: "rgba(236, 221, 199, 0.6)",
-  lavender: "rgba(221, 214, 252, 0.6)",
+  peach: "rgba(255, 204, 188, 0.6)",
+  sage: "rgba(195, 221, 201, 0.6)",
+  sand: "rgba(232, 221, 201, 0.6)",
+  lilac: "rgba(221, 204, 238, 0.6)",
+  sky: "rgba(204, 228, 255, 0.6)",
+  terracotta: "rgba(217, 150, 130, 0.6)",
 };
 const DARK_COLORS = {
   default: "rgba(40, 40, 40, 0.6)",
@@ -67,13 +67,13 @@ const DARK_COLORS = {
   green: "rgba(22, 101, 52, 0.6)",
   blue: "rgba(30, 64, 175, 0.6)",
   purple: "rgba(76, 29, 149, 0.6)",
-  // Boho dark counterparts (slightly deeper)
-  blush: "rgba(142, 74, 84, 0.6)",
-  peach: "rgba(142, 88, 62, 0.6)",
-  sage: "rgba(53, 89, 76, 0.6)",
-  mint: "rgba(39, 96, 70, 0.6)",
-  sand: "rgba(108, 93, 73, 0.6)",
-  lavender: "rgba(86, 70, 132, 0.6)",
+  // Boho (muted)
+  peach: "rgba(142, 92, 84, 0.6)",
+  sage: "rgba(58, 87, 68, 0.6)",
+  sand: "rgba(102, 92, 74, 0.6)",
+  lilac: "rgba(88, 65, 109, 0.6)",
+  sky: "rgba(42, 78, 122, 0.6)",
+  terracotta: "rgba(111, 64, 52, 0.6)",
 };
 const solid = (rgba) => (typeof rgba === "string" ? rgba.replace("0.6", "1") : rgba);
 const bgFor = (colorKey, dark) =>
@@ -118,11 +118,9 @@ const PinFilled = () => (
 const Trash = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
     <path strokeLinecap="round" strokeLinejoin="round"
-      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118.1 20 13z" />
+      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118 1.02-.17m12.456 0L18.16 19.24A2.25 2.25 0 0 1 15.916 21.5H8.084A2.25 2.25 0 0 1 5.84 19.24L4.772 5.79m12.456 0a48.108 48.108 0 0 0-12.456 0M10 5V4a2 2 0 1 1 4 0v1" />
   </svg>
 );
-/* (Fix accidental path truncation in prior snippet) */
-const TrashPathFix = () => null;
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -254,25 +252,10 @@ const imageExtFromDataURL = (dataUrl) => {
 const normalizeImageFilename = (name, dataUrl, index = 1) => {
   const base = sanitizeFilename(name && name.trim() ? name : `image-${index}`);
   const withoutExt = base.replace(/\.[^.]+$/, "");
-  const ext = imageExtFromDataURL(dataUrl);
-  return `${withoutExt}.${ext}`;
-};
-
-/** ---------- Edited: timestamp formatter ---------- */
-const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const formatEditedLabel = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
-  const now = new Date();
-  const diffDays = Math.floor((startOfDay(now) - startOfDay(d)) / 86400000);
-  const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (diffDays === 0) return `Today, ${timeStr}`;
-  if (diffDays === 1) return `Yesterday, ${timeStr}`;
-  const monthDay = d.toLocaleDateString([], { month: "short", day: "numeric" });
-  if (d.getFullYear() === now.getFullYear()) return monthDay;
-  const yy = new Intl.DateTimeFormat([], { year: "2-digit" }).format(d);
-  return `${monthDay}, '${yy}`;
+  theExt: {
+    const ext = imageExtFromDataURL(dataUrl);
+    return `${withoutExt}.${ext}`;
+  }
 };
 
 /** ---------- Global CSS injection ---------- */
@@ -386,6 +369,7 @@ html:not(.dark) .note-content pre .code-copy-btn {
   border: 1px solid rgba(0,0,0,0.12);
   box-shadow: 0 2px 10px rgba(0,0,0,0.12);
 }
+  
 .inline-code-copy-btn {
   margin-left: 6px;
   font-size: .7rem;
@@ -666,23 +650,22 @@ function handleSmartEnter(value, start, end) {
   }
 
   // Blockquote?
-m = /^(\s*)>\s?(.*)$/.exec(line);
-if (m) {
-  const indent = m[1] || "";
-  const text = m[2] || "";
-  if (text.trim() === "") {
-    // exit quote
-    const newBefore = value.slice(0, lineStart);
-    const newText = newBefore + "\n" + after;
-    const caret = newBefore.length + 1;
-    return { text: newText, range: [caret, caret] };
-  } else {
-    const prefix = `${indent}> `;
-    const newText = before + "\n" + prefix + after;
-    const caret = start + 1 + prefix.length;
-    return { text: newText, range: [caret, caret] };
+  m = /^(\s*)>\s?(.*)$/.exec(line);
+  if (m) {
+    const indent = m[1] || "";
+    const text = m[2] || "";
+    if (text.trim() === "") {
+      const newBefore = value.slice(0, lineStart);
+      const newText = newBefore + "\n" + after;
+      const caret = newBefore.length + 1;
+      return { text: newText, range: [caret, caret] };
+    } else {
+      const prefix = `${indent}> `;
+      const newText = before + "\n" + prefix + after;
+      const caret = start + 1 + prefix.length;
+      return { text: newText, range: [caret, caret] };
+    }
   }
-}
 
   return null;
 }
@@ -1084,7 +1067,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
         <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
           <button
-            className="p-2 rounded hover:bg-black/5 dark:hover:bg:white/10"
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
             onClick={onClose}
             title="Close"
           >
@@ -1102,7 +1085,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
 
           {/* All Images */}
           <button
-            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg:white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${isAllImages ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
             onClick={() => { onSelect(ALL_IMAGES); onClose(); }}
           >
             All Images
@@ -1115,7 +1098,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
             return (
               <button
                 key={tag}
-                className={`w-full text-left px-3 py-2 rounded-md mb-1 flex items-center justify-between ${active ? (dark ? "bg:white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+                className={`w-full text-left px-3 py-2 rounded-md mb-1 flex items-center justify-between ${active ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
                 onClick={() => { onSelect(tag); onClose(); }}
                 title={tag}
               >
@@ -1166,7 +1149,10 @@ function NotesUI({
   composerCollapsed, setComposerCollapsed,
   titleRef,
   // color popover
-  colorBtnRef, showColorPop, setShowColorPop
+  colorBtnRef, showColorPop, setShowColorPop,
+  // loading flags
+  notesLoading,
+  loadingMore,
 }) {
   const tagLabel =
     activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
@@ -1250,13 +1236,13 @@ function NotesUI({
                 Export notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { importFileRef.current?.click(); }}
               >
                 Import notes (.json)
               </button>
               <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg:white/10" : "hover:bg-gray-100"}`}
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
@@ -1295,7 +1281,6 @@ function NotesUI({
               value={content}
               onChange={(e) => {}}
               onFocus={() => {
-                // expand and focus title
                 setComposerCollapsed(false);
                 setTimeout(() => titleRef.current?.focus(), 10);
               }}
@@ -1402,7 +1387,7 @@ function NotesUI({
                     </>
                   )}
 
-                  {/* Checklist toggle button (footer-left) */}
+                  {/* Checklist toggle */}
                   <button
                     type="button"
                     onClick={() => setComposerType((t) => (t === "text" ? "checklist" : "text"))}
@@ -1446,7 +1431,7 @@ function NotesUI({
                     </div>
                   </Popover>
 
-                  {/* Add Image (composer) - with border */}
+                  {/* Add Image (composer) */}
                   <input
                     ref={composerFileRef}
                     type="file"
@@ -1490,6 +1475,13 @@ function NotesUI({
 
       {/* Notes lists */}
       <main className="px-4 sm:px-6 md:px-8 lg:px-12 pb-12">
+        {/* Loading indicator for first load */}
+        {notesLoading && (pinned.length + others.length === 0) && (
+          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+            Loading notes…
+          </p>
+        )}
+
         {pinned.length > 0 && (
           <section className="mb-10">
             <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
@@ -1540,14 +1532,21 @@ function NotesUI({
           </section>
         )}
 
-        {filteredEmptyWithSearch && (
+        {filteredEmptyWithSearch && !notesLoading && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No matching notes found.
           </p>
         )}
-        {allEmpty && (
+        {allEmpty && !notesLoading && (
           <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
             No notes yet. Add one to get started!
+          </p>
+        )}
+
+        {/* Loading more indicator (background pagination) */}
+        {loadingMore && (pinned.length + others.length) > 0 && (
+          <p className="text-center text-gray-500 dark:text-gray-400 mt-8">
+            Loading more…
           </p>
         )}
       </main>
@@ -1556,7 +1555,6 @@ function NotesUI({
 }
 
 /** ---------- AdminView ---------- */
-/** ---------- Admin View (replace your existing AdminView with this) ---------- */
 function AdminView({ dark }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1687,6 +1685,40 @@ function AdminView({ dark }) {
   );
 }
 
+/** ---------- Helpers: Edited time ---------- */
+function formatEdited(tsISO) {
+  if (!tsISO) return "";
+  const d = new Date(tsISO);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+
+  const yesterday = (() => {
+    const y = new Date(now);
+    y.setDate(now.getDate() - 1);
+    return (
+      d.getFullYear() === y.getFullYear() &&
+      d.getMonth() === y.getMonth() &&
+      d.getDate() === y.getDate()
+    );
+  })();
+
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (sameDay) return `Today, ${time}`;
+  if (yesterday) return `Yesterday, ${time}`;
+
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const shortMonthDay = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (sameYear) return shortMonthDay;
+
+  const yr = String(d.getFullYear()).slice(-2);
+  return `${shortMonthDay}, '${yr}`;
+}
+
 /** ---------- App ---------- */
 export default function App() {
   const [route, setRoute] = useState(window.location.hash || "#/login");
@@ -1702,6 +1734,12 @@ export default function App() {
   // Notes & search
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState("");
+
+  // Loading flags & pagination cursors
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const nextCursorRef = useRef(null);
+  const PAGELIMIT = 300;
 
   // Tag filter & sidebar
   const [tagFilter, setTagFilter] = useState(null); // null = all, ALL_IMAGES = only notes with images
@@ -1746,6 +1784,9 @@ export default function App() {
   // Modal formatting
   const [showModalFmt, setShowModalFmt] = useState(false);
   const modalFmtBtnRef = useRef(null);
+  // Modal color dropdown
+  const modalColorBtnRef = useRef(null);
+  const [showModalColorPop, setShowModalColorPop] = useState(false);
 
   // Image Viewer state (fullscreen)
   const [imgViewOpen, setImgViewOpen] = useState(false);
@@ -1771,10 +1812,6 @@ export default function App() {
   // Color dropdown (composer)
   const colorBtnRef = useRef(null);
   const [showColorPop, setShowColorPop] = useState(false);
-
-  // Color dropdown (modal)
-  const modalColorBtnRef = useRef(null);
-  const [showModalColorPop, setShowModalColorPop] = useState(false);
 
   // Scrim click tracking to avoid closing when drag starts inside modal
   const scrimClickStartRef = useRef(false);
@@ -1845,14 +1882,76 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, [sidebarOpen]);
 
-  // Load notes
-  const loadNotes = async () => {
+  /** -------- Notes loading (paginated background) -------- */
+  const loadNotesInitial = async () => {
     if (!token) return;
-    const data = await api("/notes", { token });
-    setNotes(data);
+    setNotesLoading(true);
+    setLoadingMore(false);
+    nextCursorRef.current = null;
+
+    try {
+      // Try paginated first
+      const first = await api(`/notes?limit=${PAGELIMIT}`, { token });
+
+      if (Array.isArray(first)) {
+        // Server returned full array (no pagination support)
+        setNotes(first);
+        setNotesLoading(false);
+        return;
+      }
+
+      const firstNotes = Array.isArray(first?.notes) ? first.notes : [];
+      setNotes(firstNotes);
+      const next = first?.nextCursor || first?.cursor || null;
+      nextCursorRef.current = next;
+
+      setNotesLoading(false);
+
+      if (next) {
+        // Load next pages in background
+        setLoadingMore(true);
+        // slight delay to yield to UI
+        setTimeout(fetchMorePages, 150);
+      }
+    } catch (e) {
+      console.error(e);
+      setNotes([]);
+      setNotesLoading(false);
+      setLoadingMore(false);
+      nextCursorRef.current = null;
+    }
   };
+
+  const fetchMorePages = async () => {
+    if (!token) return;
+    let cursor = nextCursorRef.current;
+    if (!cursor) {
+      setLoadingMore(false);
+      return;
+    }
+    try {
+      while (cursor) {
+        // chunked background fetch
+        const res = await api(`/notes?limit=${PAGELIMIT}&cursor=${encodeURIComponent(cursor)}`, { token });
+        const pageNotes = Array.isArray(res?.notes) ? res.notes : [];
+        setNotes((prev) => [...prev, ...pageNotes]);
+
+        cursor = res?.nextCursor || res?.cursor || null;
+        nextCursorRef.current = cursor;
+
+        if (!cursor) break;
+        // small pause between pages
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    } catch (e) {
+      console.error("Background pagination failed:", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
-    if (token) loadNotes().catch(() => {});
+    if (token) loadNotesInitial().catch(() => {});
   }, [token]);
 
   // Lock body scroll on modal & image viewer
@@ -1960,7 +2059,6 @@ export default function App() {
     } else {
       if (!title.trim() && clItems.length === 0) return;
     }
-    const nowIso = new Date().toISOString();
     const newNote = {
       id: uid(),
       type: composerType,
@@ -1972,8 +2070,7 @@ export default function App() {
       color: composerColor,
       pinned: false,
       position: Date.now(),
-      timestamp: nowIso,
-      updated_at: nowIso,
+      timestamp: new Date().toISOString(),
     };
     try {
       const created = await api("/notes", { method: "POST", body: newNote, token });
@@ -2031,7 +2128,7 @@ export default function App() {
       const notesArr = Array.isArray(parsed?.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : []);
       if (!notesArr.length) { alert("No notes found in file."); return; }
       await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
-      await loadNotes();
+      await loadNotesInitial();
       alert(`Imported ${notesArr.length} note(s) successfully.`);
     } catch (e) {
       alert(e.message || "Import failed");
@@ -2122,23 +2219,21 @@ export default function App() {
   };
   const saveModal = async () => {
     if (activeId == null) return;
-    const nowIso = new Date().toISOString();
-    const base = {
-      id: activeId,
-      title: mTitle.trim(),
-      tags: mTagList,
-      images: mImages,
-      color: mColor,
-      pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
-      updated_at: nowIso,
-    };
+    const existing = notes.find((n) => String(n.id) === String(activeId));
     const payload =
       mType === "text"
-        ? { ...base, type: "text", content: mBody, items: [] }
-        : { ...base, type: "checklist", content: "", items: mItems };
+        ? { id: activeId, type: "text", title: mTitle.trim(), content: mBody, items: [], tags: mTagList, images: mImages, color: mColor,
+            pinned: !!existing?.pinned }
+        : { id: activeId, type: "checklist", title: mTitle.trim(), content: "", items: mItems, tags: mTagList, images: mImages, color: mColor,
+            pinned: !!existing?.pinned };
     try {
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
-      setNotes((prev) => prev.map((n) => (String(n.id) === String(activeId) ? { ...n, ...payload } : n)));
+      // optimistic local update + bump timestamp so Edited reads fresh
+      setNotes((prev) => prev.map((n) =>
+        (String(n.id) === String(activeId))
+          ? { ...n, ...payload, timestamp: new Date().toISOString() }
+          : n
+      ));
       closeModal();
     } catch (e) {
       alert(e.message || "Failed to save note");
@@ -2215,7 +2310,7 @@ export default function App() {
       await api("/notes/reorder", { method: "POST", token, body: { pinnedIds: newPinned, otherIds: newOthers } });
     } catch (e) {
       console.error("Reorder failed:", e);
-      loadNotes().catch(() => {});
+      loadNotesInitial().catch(() => {});
     }
     dragGroup.current = null;
   };
@@ -2259,7 +2354,7 @@ export default function App() {
   const pinned = filtered.filter((n) => n.pinned);
   const others = filtered.filter((n) => !n.pinned);
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
-  const allEmpty = notes.length === 0;
+  const allEmpty = notes.length === 0; // note: UI guards with notesLoading for first load
 
   /** -------- Modal link handler: open links in new tab (no auto-enter edit) -------- */
   const onModalBodyClick = (e) => {
@@ -2275,7 +2370,6 @@ export default function App() {
         return;
       }
     }
-    // NO automatic edit-mode toggle
   };
 
   /** -------- Image viewer helpers -------- */
@@ -2395,21 +2489,16 @@ export default function App() {
     });
   }, [open, viewMode, mType, mBody]);
 
-  /** Compute Edited label for active note */
-  const activeNoteObj = useMemo(
+  /** -------- Modal JSX -------- */
+  const activeNote = useMemo(
     () => notes.find((n) => String(n.id) === String(activeId)),
     [notes, activeId]
   );
-  const editedLabel = useMemo(() => {
-    const ts =
-      activeNoteObj?.updated_at ||
-      activeNoteObj?.updatedAt ||
-      activeNoteObj?.edited_at ||
-      activeNoteObj?.timestamp;
-    return formatEditedLabel(ts);
-  }, [activeNoteObj]);
+  const editedText = useMemo(() => {
+    const ts = activeNote?.updated_at || activeNote?.updatedAt || activeNote?.updated || activeNote?.timestamp;
+    return ts ? `Edited: ${formatEdited(ts)}` : "";
+  }, [activeNote]);
 
-  /** -------- Modal JSX -------- */
   const modal = open && (
     <>
       <div
@@ -2419,7 +2508,6 @@ export default function App() {
           scrimClickStartRef.current = (e.target === e.currentTarget);
         }}
         onClick={(e) => {
-          // Close only if press started AND ended on scrim (prevents drag-outside-close)
           if (scrimClickStartRef.current && e.target === e.currentTarget) {
             closeModal();
           }
@@ -2440,7 +2528,7 @@ export default function App() {
               className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
-              {/* Keep single line on desktop; allow wrap on mobile */}
+              {/* Keep one row on sm+; allow wrap only on mobile */}
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <input
                   className="flex-1 min-w-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
@@ -2448,16 +2536,18 @@ export default function App() {
                   onChange={(e) => setMTitle(e.target.value)}
                   placeholder="Title"
                 />
-                <div className="flex items-center gap-2 flex-none ml-auto whitespace-nowrap">
-                  {/* Edited label - show in view mode */}
-                  {editedLabel && viewMode && (
-                    <span className="text-xs opacity-70 mr-1">Edited: {editedLabel}</span>
+                <div className="flex items-center gap-2 ml-auto">
+                  {/* Edited text (view mode or edit mode — always visible) */}
+                  {editedText && (
+                    <span className="text-xs text-gray-700 dark:text-gray-200 opacity-80 whitespace-nowrap">
+                      {editedText}
+                    </span>
                   )}
 
                   {/* View/Edit toggle only for TEXT notes */}
                   {mType === "text" && (
                     <button
-                      className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm whitespace-nowrap"
                       onClick={() => { setViewMode((v) => !v); setShowModalFmt(false); }}
                       title={viewMode ? "Switch to Edit mode" : "Switch to View mode"}
                     >
@@ -2596,7 +2686,7 @@ export default function App() {
                 )
               ) : (
                 <div className="space-y-3">
-                  {/* Add new item row (both modes keep it visible for quick add) */}
+                  {/* Add new item row */}
                   <div className="flex gap-2">
                     <input
                       value={mInput}
@@ -2620,9 +2710,9 @@ export default function App() {
                           key={it.id}
                           item={it}
                           readOnly={viewMode}
-                          disableToggle={false}      /* allow toggle in view mode */
-                          showRemove={true}          /* show delete X in view mode */
-                          size="lg"                  /* bigger checkboxes and X in modal */
+                          disableToggle={false}
+                          showRemove={true}
+                          size="lg"
                           onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
                           onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
                           onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
@@ -2667,7 +2757,7 @@ export default function App() {
 
             {/* Right controls */}
             <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
-              {/* Color dropdown (modal) — same as composer, 2 lines grid */}
+              {/* Color dropdown (modal) */}
               <button
                 ref={modalColorBtnRef}
                 type="button"
@@ -2878,13 +2968,7 @@ export default function App() {
       );
     }
     return (
-      <AdminView
-        token={token}
-        currentUser={currentUser}
-        dark={dark}
-        onToggleDark={toggleDark}
-        onBackToNotes={() => (window.location.hash = "#/notes")}
-      />
+      <AdminView dark={dark} />
     );
   }
 
@@ -2994,6 +3078,9 @@ export default function App() {
         colorBtnRef={colorBtnRef}
         showColorPop={showColorPop}
         setShowColorPop={setShowColorPop}
+        // loading
+        notesLoading={notesLoading}
+        loadingMore={loadingMore}
       />
       {modal}
     </>
