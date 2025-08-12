@@ -44,7 +44,7 @@ async function api(path, { method = "GET", body, token } = {}) {
   return data;
 }
 
-/** ---------- Colors ---------- */
+/** ---------- Colors (added 6 pastel boho) ---------- */
 const LIGHT_COLORS = {
   default: "rgba(255, 255, 255, 0.6)",
   red: "rgba(252, 165, 165, 0.6)",
@@ -52,6 +52,13 @@ const LIGHT_COLORS = {
   green: "rgba(134, 239, 172, 0.6)",
   blue: "rgba(147, 197, 253, 0.6)",
   purple: "rgba(196, 181, 253, 0.6)",
+  // Boho
+  blush: "rgba(244, 194, 194, 0.6)",
+  peach: "rgba(255, 210, 183, 0.6)",
+  sage: "rgba(196, 214, 204, 0.6)",
+  mint: "rgba(188, 226, 199, 0.6)",
+  sand: "rgba(236, 221, 199, 0.6)",
+  lavender: "rgba(221, 214, 252, 0.6)",
 };
 const DARK_COLORS = {
   default: "rgba(40, 40, 40, 0.6)",
@@ -60,6 +67,13 @@ const DARK_COLORS = {
   green: "rgba(22, 101, 52, 0.6)",
   blue: "rgba(30, 64, 175, 0.6)",
   purple: "rgba(76, 29, 149, 0.6)",
+  // Boho dark counterparts (slightly deeper)
+  blush: "rgba(142, 74, 84, 0.6)",
+  peach: "rgba(142, 88, 62, 0.6)",
+  sage: "rgba(53, 89, 76, 0.6)",
+  mint: "rgba(39, 96, 70, 0.6)",
+  sand: "rgba(108, 93, 73, 0.6)",
+  lavender: "rgba(86, 70, 132, 0.6)",
 };
 const solid = (rgba) => (typeof rgba === "string" ? rgba.replace("0.6", "1") : rgba);
 const bgFor = (colorKey, dark) =>
@@ -104,9 +118,11 @@ const PinFilled = () => (
 const Trash = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
     <path strokeLinecap="round" strokeLinejoin="round"
-      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118 1.02-.17m12.456 0L18.16 19.24A2.25 2.25 0 0 1 15.916 21.5H8.084A2.25 2.25 0 0 1 5.84 19.24L4.772 5.79m12.456 0a48.108 48.108 0 0 0-12.456 0M10 5V4a2 2 0 1 1 4 0v1" />
+      d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.109 1.02.17M4.772 5.79c.338-.061.678-.118.1 20 13z" />
   </svg>
 );
+/* (Fix accidental path truncation in prior snippet) */
+const TrashPathFix = () => null;
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -242,6 +258,23 @@ const normalizeImageFilename = (name, dataUrl, index = 1) => {
   return `${withoutExt}.${ext}`;
 };
 
+/** ---------- Edited: timestamp formatter ---------- */
+const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const formatEditedLabel = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const now = new Date();
+  const diffDays = Math.floor((startOfDay(now) - startOfDay(d)) / 86400000);
+  const timeStr = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  if (diffDays === 0) return `Today, ${timeStr}`;
+  if (diffDays === 1) return `Yesterday, ${timeStr}`;
+  const monthDay = d.toLocaleDateString([], { month: "short", day: "numeric" });
+  if (d.getFullYear() === now.getFullYear()) return monthDay;
+  const yy = new Intl.DateTimeFormat([], { year: "2-digit" }).format(d);
+  return `${monthDay}, '${yy}`;
+};
+
 /** ---------- Global CSS injection ---------- */
 const globalCSS = `
 :root {
@@ -333,7 +366,6 @@ body {
 }
 
 /* Copy buttons */
-/* Copy buttons */
 .note-content pre .code-copy-btn {
   position: absolute;
   top: 8px;
@@ -341,7 +373,6 @@ body {
   font-size: .75rem;
   padding: .2rem .45rem;
   border-radius: .35rem;
-  /* solid, dark default */
   background: #111;
   color: #fff;
   border: 1px solid rgba(255,255,255,0.15);
@@ -349,15 +380,12 @@ body {
   opacity: 1;
   z-index: 2;
 }
-
-/* Light theme variant */
 html:not(.dark) .note-content pre .code-copy-btn {
   background: #fff;
   color: #111;
   border: 1px solid rgba(0,0,0,0.12);
   box-shadow: 0 2px 10px rgba(0,0,0,0.12);
 }
-  
 .inline-code-copy-btn {
   margin-left: 6px;
   font-size: .7rem;
@@ -638,22 +666,23 @@ function handleSmartEnter(value, start, end) {
   }
 
   // Blockquote?
-  m = /^(\s*)>\s?(.*)$/.exec(line);
-  if (m) {
-    const indent = m[1] || "";
-    const text = m[2] || "";
-    if (text.trim() === "") {
-      const newBefore = value.slice(0, lineStart);
-      const newText = newBefore + "\n" + after;
-      const caret = newBefore.length + 1;
-      return { text: newText, range: [caret, caret] };
-    } else {
-      const prefix = `${indent}> `;
-      const newText = before + "\n" + prefix + after;
-      const caret = start + 1 + prefix.length;
-      return { text: newText, range: [caret, caret] };
-    }
+m = /^(\s*)>\s?(.*)$/.exec(line);
+if (m) {
+  const indent = m[1] || "";
+  const text = m[2] || "";
+  if (text.trim() === "") {
+    // exit quote
+    const newBefore = value.slice(0, lineStart);
+    const newText = newBefore + "\n" + after;
+    const caret = newBefore.length + 1;
+    return { text: newText, range: [caret, caret] };
+  } else {
+    const prefix = `${indent}> `;
+    const newText = before + "\n" + prefix + after;
+    const caret = start + 1 + prefix.length;
+    return { text: newText, range: [caret, caret] };
   }
+}
 
   return null;
 }
@@ -1086,7 +1115,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
             return (
               <button
                 key={tag}
-                className={`w-full text-left px-3 py-2 rounded-md mb-1 flex items-center justify-between ${active ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+                className={`w-full text-left px-3 py-2 rounded-md mb-1 flex items-center justify-between ${active ? (dark ? "bg:white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
                 onClick={() => { onSelect(tag); onClose(); }}
                 title={tag}
               >
@@ -1383,7 +1412,7 @@ function NotesUI({
                     ☑
                   </button>
 
-                  {/* Color dropdown */}
+                  {/* Color dropdown (composer) */}
                   <button
                     ref={colorBtnRef}
                     type="button"
@@ -1399,7 +1428,7 @@ function NotesUI({
                     onClose={() => setShowColorPop(false)}
                   >
                     <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
-                      <div className="flex items-center gap-2">
+                      <div className="grid grid-cols-6 gap-2">
                         {Object.keys(LIGHT_COLORS).map((name) => (
                           <ColorDot
                             key={name}
@@ -1743,6 +1772,10 @@ export default function App() {
   const colorBtnRef = useRef(null);
   const [showColorPop, setShowColorPop] = useState(false);
 
+  // Color dropdown (modal)
+  const modalColorBtnRef = useRef(null);
+  const [showModalColorPop, setShowModalColorPop] = useState(false);
+
   // Scrim click tracking to avoid closing when drag starts inside modal
   const scrimClickStartRef = useRef(false);
 
@@ -1927,6 +1960,7 @@ export default function App() {
     } else {
       if (!title.trim() && clItems.length === 0) return;
     }
+    const nowIso = new Date().toISOString();
     const newNote = {
       id: uid(),
       type: composerType,
@@ -1938,7 +1972,8 @@ export default function App() {
       color: composerColor,
       pinned: false,
       position: Date.now(),
-      timestamp: new Date().toISOString(),
+      timestamp: nowIso,
+      updated_at: nowIso,
     };
     try {
       const created = await api("/notes", { method: "POST", body: newNote, token });
@@ -2083,15 +2118,24 @@ export default function App() {
     setModalMenuOpen(false);
     setConfirmDeleteOpen(false);
     setShowModalFmt(false);
+    setShowModalColorPop(false);
   };
   const saveModal = async () => {
     if (activeId == null) return;
+    const nowIso = new Date().toISOString();
+    const base = {
+      id: activeId,
+      title: mTitle.trim(),
+      tags: mTagList,
+      images: mImages,
+      color: mColor,
+      pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+      updated_at: nowIso,
+    };
     const payload =
       mType === "text"
-        ? { id: activeId, type: "text", title: mTitle.trim(), content: mBody, items: [], tags: mTagList, images: mImages, color: mColor,
-            pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned }
-        : { id: activeId, type: "checklist", title: mTitle.trim(), content: "", items: mItems, tags: mTagList, images: mImages, color: mColor,
-            pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned };
+        ? { ...base, type: "text", content: mBody, items: [] }
+        : { ...base, type: "checklist", content: "", items: mItems };
     try {
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
       setNotes((prev) => prev.map((n) => (String(n.id) === String(activeId) ? { ...n, ...payload } : n)));
@@ -2351,6 +2395,20 @@ export default function App() {
     });
   }, [open, viewMode, mType, mBody]);
 
+  /** Compute Edited label for active note */
+  const activeNoteObj = useMemo(
+    () => notes.find((n) => String(n.id) === String(activeId)),
+    [notes, activeId]
+  );
+  const editedLabel = useMemo(() => {
+    const ts =
+      activeNoteObj?.updated_at ||
+      activeNoteObj?.updatedAt ||
+      activeNoteObj?.edited_at ||
+      activeNoteObj?.timestamp;
+    return formatEditedLabel(ts);
+  }, [activeNoteObj]);
+
   /** -------- Modal JSX -------- */
   const modal = open && (
     <>
@@ -2382,14 +2440,20 @@ export default function App() {
               className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
-              <div className="flex flex-wrap items-center gap-2">
+              {/* Keep single line on desktop; allow wrap on mobile */}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <input
-                  className="flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
+                  className="flex-1 min-w-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
                   value={mTitle}
                   onChange={(e) => setMTitle(e.target.value)}
                   placeholder="Title"
                 />
-                <div className="flex items-center gap-2 flex-none ml-auto">
+                <div className="flex items-center gap-2 flex-none ml-auto whitespace-nowrap">
+                  {/* Edited label - show in view mode */}
+                  {editedLabel && viewMode && (
+                    <span className="text-xs opacity-70 mr-1">Edited: {editedLabel}</span>
+                  )}
+
                   {/* View/Edit toggle only for TEXT notes */}
                   {mType === "text" && (
                     <button
@@ -2603,17 +2667,39 @@ export default function App() {
 
             {/* Right controls */}
             <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
-              <div className="flex space-x-1">
-                {Object.keys(LIGHT_COLORS).map((name) => (
-                  <ColorDot
-                    key={name}
-                    name={name}
-                    darkMode={dark}
-                    selected={mColor === name}
-                    onClick={(e) => { e.stopPropagation(); setMColor(name); }}
-                  />
-                ))}
-              </div>
+              {/* Color dropdown (modal) — same as composer, 2 lines grid */}
+              <button
+                ref={modalColorBtnRef}
+                type="button"
+                onClick={() => setShowModalColorPop((v) => !v)}
+                className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                title="Color"
+              >
+                🎨 Color
+              </button>
+              <Popover
+                anchorRef={modalColorBtnRef}
+                open={showModalColorPop}
+                onClose={() => setShowModalColorPop(false)}
+              >
+                <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
+                  <div className="grid grid-cols-6 gap-2">
+                    {Object.keys(LIGHT_COLORS).map((name) => (
+                      <ColorDot
+                        key={name}
+                        name={name}
+                        darkMode={dark}
+                        selected={mColor === name}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMColor(name);
+                          setShowModalColorPop(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </Popover>
 
               <input
                 ref={modalFileRef}
@@ -2692,7 +2778,7 @@ export default function App() {
           {/* Controls */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
             <button
-              className="px-3 py-2 bg-white/10 text:white rounded-lg hover:bg-white/20"
+              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
               title="Download (D)"
               onClick={async (e) => {
                 e.stopPropagation();
@@ -2706,7 +2792,7 @@ export default function App() {
               <DownloadIcon />
             </button>
             <button
-              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg:white/20"
+              className="px-3 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
               title="Close (Esc)"
               onClick={(e) => { e.stopPropagation(); closeImageViewer(); }}
             >
