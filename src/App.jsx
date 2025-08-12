@@ -329,9 +329,10 @@ html.dark .note-content pre { background: rgba(255,255,255,0.06); }
 html.dark .note-content code { background: rgba(255,255,255,0.06); }
 
 .note-content pre code {
-  border: none;
-  background: transparent;
+  border: none !important;
+  background: transparent !important; /* remove inner background */
   padding: 0;
+  display: block; /* avoid inline-block artifacts inside pre */
 }
 
 /* Copy buttons */
