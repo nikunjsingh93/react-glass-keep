@@ -28,7 +28,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 * **Collaboration (real-time)** ✅ NEW
 
   * Real-time collaboration for checklists — multiple people can add/tick items together and see updates instantly.
-  * Collaboration on notes — co-edit Markdown notes and watch changes sync live across collaborators.  
+  * Collaboration on notes — co-edit Markdown notes and watch changes sync across collaborators.  
 * **Admin Panel**
 
   * Visit: `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod)
