@@ -3181,7 +3181,8 @@ export default function App() {
 
                   {mItems.length > 0 ? (
                     <div className="space-y-4 md:space-y-2">
-                      {mItems.map((it) => (
+                      {/* Unchecked items */}
+                      {mItems.filter(it => !it.done).map((it) => (
                         <ChecklistRow
                           key={it.id}
                           item={it}
@@ -3194,6 +3195,28 @@ export default function App() {
                           onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
                         />
                       ))}
+                      
+                      {/* Done section */}
+                      {mItems.filter(it => it.done).length > 0 && (
+                        <>
+                          <div className="border-t border-[var(--border-light)] pt-4 mt-4">
+                            <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">Done</h4>
+                            {mItems.filter(it => it.done).map((it) => (
+                              <ChecklistRow
+                                key={it.id}
+                                item={it}
+                                readOnly={viewMode}
+                                disableToggle={false}      /* allow toggle in view mode */
+                                showRemove={true}          /* show delete X in view mode */
+                                size="lg"                  /* bigger checkboxes and X in modal */
+                                onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
+                                onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
+                                onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : <p className="text-sm text-gray-500">No items yet.</p>}
                 </div>
