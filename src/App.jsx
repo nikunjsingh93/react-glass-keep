@@ -891,7 +891,7 @@ function NoteCard({
         </label>
       )}
       {!multiMode && (
-        <div className="absolute top-3 right-3 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-3 right-3 h-8 opacity-0 group-hover:opacity-100 transition-opacity">
           <div
             className="absolute inset-0 rounded-full"
             style={{ backgroundColor: bgFor(n.color, dark) }}
