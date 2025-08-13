@@ -1268,6 +1268,9 @@ function NotesUI({
     onBulkPin,
     onBulkColor,
     onBulkDownloadZip,
+  // view mode
+  listView,
+  onToggleViewMode,
 }) {
     // Multi-select color popover (local UI state)
     const multiColorBtnRef = useRef(null);
@@ -1427,6 +1430,12 @@ function NotesUI({
               >
                 Download secret key (.txt)
               </button>
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                onClick={() => { setHeaderMenuOpen(false); onToggleViewMode?.(); }}
+              >
+                {listView ? "Grid View" : "List View"}
+              </button>
               {/* Theme toggle text item */}
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
@@ -1480,7 +1489,8 @@ function NotesUI({
       </header>
 
       {/* Composer */}
-      <div className="px-4 sm:px-6 md:px-8 lg:px-12 max-w-2xl mx-auto">
+      <div className="px-4 sm:px-6 md:px-8 lg:px-12">
+        <div className="max-w-2xl mx-auto">
         <div
           className="glass-card rounded-xl shadow-lg p-4 mb-8 relative"
           style={{ backgroundColor: bgFor(composerColor, dark) }}
@@ -1683,15 +1693,24 @@ function NotesUI({
           )}
         </div>
       </div>
+      </div>
 
       {/* Notes lists */}
       <main className="px-4 sm:px-6 md:px-8 lg:px-12 pb-12">
         {pinned.length > 0 && (
           <section className="mb-10">
-            <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-              Pinned
-            </h2>
-            <div className="masonry-grid">
+            {listView ? (
+              <div className="max-w-2xl mx-auto">
+                <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                  Pinned
+                </h2>
+              </div>
+            ) : (
+              <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                Pinned
+              </h2>
+            )}
+            <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
               {pinned.map((n) => (
                 <NoteCard
                   key={n.id}
@@ -1717,11 +1736,19 @@ function NotesUI({
         {others.length > 0 && (
           <section>
             {pinned.length > 0 && (
-              <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-                Others
-              </h2>
+              listView ? (
+                <div className="max-w-2xl mx-auto">
+                  <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                    Others
+                  </h2>
+                </div>
+              ) : (
+                <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                  Others
+                </h2>
+              )
             )}
-            <div className="masonry-grid">
+            <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
               {others.map((n) => (
                 <NoteCard
                   key={n.id}
@@ -2014,6 +2041,15 @@ export default function App() {
     const ids = notes.filter((n) => !n.pinned).map((n) => String(n.id));
     setSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
   };
+
+  // -------- View mode: Grid vs List --------
+  const [listView, setListView] = useState(() => {
+    try { return localStorage.getItem("viewMode") === "list"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("viewMode", listView ? "list" : "grid"); } catch {}
+  }, [listView]);
+  const onToggleViewMode = () => setListView((v) => !v);
 
   const onBulkDelete = async () => {
     if (!selectedIds.length) return;
@@ -3470,6 +3506,9 @@ export default function App() {
         onBulkPin={onBulkPin}
         onBulkColor={onBulkColor}
         onBulkDownloadZip={onBulkDownloadZip}
+        // view mode
+        listView={listView}
+        onToggleViewMode={onToggleViewMode}
       />
       {modal}
     </>
