@@ -138,8 +138,15 @@ const Trash = () => (
 );
 const Sun = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 0 018 0z"/>
+    <line x1="12" y1="2" x2="12" y2="4" strokeWidth="2" strokeLinecap="round" />
+    <line x1="12" y1="20" x2="12" y2="22" strokeWidth="2" strokeLinecap="round" />
+    <line x1="20" y1="12" x2="22" y2="12" strokeWidth="2" strokeLinecap="round" />
+    <line x1="2" y1="12" x2="4" y2="12" strokeWidth="2" strokeLinecap="round" />
+    <line x1="17.657" y1="6.343" x2="18.364" y2="5.636" strokeWidth="2" strokeLinecap="round" />
+    <line x1="5.636" y1="18.364" x2="6.343" y2="17.657" strokeWidth="2" strokeLinecap="round" />
+    <line x1="17.657" y1="17.657" x2="18.364" y2="18.364" strokeWidth="2" strokeLinecap="round" />
+    <line x1="5.636" y1="5.636" x2="6.343" y2="6.343" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="12" cy="12" r="4" strokeWidth="2" />
   </svg>
 );
 const Moon = () => (
@@ -1352,13 +1359,6 @@ function NotesUI({
           <span className={`text-sm hidden sm:inline ${dark ? "text-gray-100" : "text-gray-900"}`}>
             {currentUser?.name ? `Hi, ${currentUser.name}` : currentUser?.email}
           </span>
-          <button
-            onClick={toggleDark}
-            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
-            title="Toggle dark mode"
-          >
-            {dark ? <Moon /> : <Sun />}
-          </button>
 
           {/* Header 3-dot menu */}
           <button
@@ -1375,7 +1375,7 @@ function NotesUI({
           {headerMenuOpen && (
             <div
               ref={headerMenuRef}
-              className={`absolute top-12 right-0 min-w=[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+              className={`absolute top-12 right-0 min-w-[200px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -1401,6 +1401,13 @@ function NotesUI({
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
+              </button>
+              {/* Theme toggle text item */}
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                onClick={() => { setHeaderMenuOpen(false); toggleDark?.(); }}
+              >
+                {dark ? "Light Mode" : "Dark Mode"}
               </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
