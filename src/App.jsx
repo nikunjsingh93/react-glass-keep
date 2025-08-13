@@ -542,24 +542,24 @@ function ChecklistRow({
 }) {
   const boxSize =
     size === "lg"
-      ? "h-6 w-6"
+      ? "h-7 w-7 md:h-6 md:w-6"
       : size === "sm"
-      ? "h-3.5 w-3.5"
-      : "h-4 w-4";
+      ? "h-4 w-4 md:h-3.5 md:w-3.5"
+      : "h-5 w-5 md:h-4 md:w-4";
 
   const removeSize =
     size === "lg"
-      ? "w-6 h-6 text-base"
+      ? "w-7 h-7 text-base md:w-6 md:h-6"
       : size === "sm"
-      ? "w-4 h-4 text-xs"
-      : "w-5 h-5 text-sm";
+      ? "w-5 h-5 text-xs md:w-4 md:h-4"
+      : "w-6 h-6 text-sm md:w-5 md:h-5";
 
   const removeVisibility = showRemove
     ? "opacity-80 hover:opacity-100"
     : "opacity-0 group-hover:opacity-100";
 
   return (
-    <div className="flex items-start gap-2 group">
+    <div className="flex items-start gap-3 md:gap-2 group">
       <input
         type="checkbox"
         className={`mt-0.5 ${boxSize} cursor-pointer`}
@@ -3044,7 +3044,7 @@ export default function App() {
                   </div>
                 )
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4 md:space-y-2">
                   {/* Add new item row (both modes keep it visible for quick add) */}
                   <div className="flex gap-2">
                     <input
@@ -3063,7 +3063,7 @@ export default function App() {
                   </div>
 
                   {mItems.length > 0 ? (
-                    <div className="space-y-2">
+                    <div className="space-y-4 md:space-y-2">
                       {mItems.map((it) => (
                         <ChecklistRow
                           key={it.id}
