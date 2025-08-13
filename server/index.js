@@ -349,8 +349,14 @@ function broadcastNoteUpdated(noteId) {
 app.get("/api/events", authFromQueryOrHeader, (req, res) => {
   // SSE headers
   res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
+  // Help Nginx/Proxies not to buffer SSE
+  try { res.setHeader("X-Accel-Buffering", "no"); } catch {}
+  // If served cross-origin (e.g. static site + separate API host), allow EventSource
+  if (req.headers.origin) {
+    try { res.setHeader("Access-Control-Allow-Origin", req.headers.origin); } catch {}
+  }
   res.flushHeaders?.();
 
   // Initial hello
