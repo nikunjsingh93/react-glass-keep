@@ -874,7 +874,7 @@ function NoteCard({
       onDrop={(e) => { if (!multiMode) onDrop(n.id, group, e); }}
       onDragEnd={(e) => { if (!multiMode) onDragEnd(e); }}
       onClick={() => { if (!multiMode) openModal(n.id); }}
-      className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative"
+      className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative min-h-[54px] group"
       style={{ backgroundColor: bgFor(n.color, dark) }}
       data-id={n.id}
       data-group={group}
@@ -891,17 +891,23 @@ function NoteCard({
         </label>
       )}
       {!multiMode && (
-      <button
-        aria-label={n.pinned ? "Unpin note" : "Pin note"}
-        onClick={(e) => { e.stopPropagation(); togglePin(n.id, !n.pinned); }}
-        className="absolute top-3 right-3 rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        title={n.pinned ? "Unpin" : "Pin"}
-      >
-        {n.pinned ? <PinFilled /> : <PinOutline />}
-      </button>
+        <div className="absolute top-3 right-3 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{ backgroundColor: bgFor(n.color, dark) }}
+          />
+          <button
+            aria-label={n.pinned ? "Unpin note" : "Pin note"}
+            onClick={(e) => { e.stopPropagation(); togglePin(n.id, !n.pinned); }}
+            className="relative rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title={n.pinned ? "Unpin" : "Pin"}
+          >
+            {n.pinned ? <PinFilled /> : <PinOutline />}
+          </button>
+        </div>
       )}
 
-      {n.title && <h3 className="font-bold text-lg mb-2 pr-10 break-words">{n.title}</h3>}
+      {n.title && <h3 className="font-bold text-lg mb-2 break-words">{n.title}</h3>}
 
       {mainImg && (
         <div className="mb-3 relative overflow-hidden rounded-lg border border-[var(--border-light)]">
