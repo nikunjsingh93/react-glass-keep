@@ -842,6 +842,7 @@ function NoteCard({
   multiMode = false,
   selected = false,
   onToggleSelect = () => {},
+  disablePin = false,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
 }) {
   const isChecklist = n.type === "checklist";
@@ -898,9 +899,10 @@ function NoteCard({
           />
           <button
             aria-label={n.pinned ? "Unpin note" : "Pin note"}
-            onClick={(e) => { e.stopPropagation(); togglePin(n.id, !n.pinned); }}
+            onClick={(e) => { if (disablePin) return; e.stopPropagation(); togglePin(n.id, !n.pinned); }}
             className="relative rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             title={n.pinned ? "Unpin" : "Pin"}
+            disabled={!!disablePin}
           >
             {n.pinned ? <PinFilled /> : <PinOutline />}
           </button>
@@ -1352,13 +1354,25 @@ function NotesUI({
         </div>
 
         <div className="flex-grow flex justify-center px-4 sm:px-8">
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-full max-w-lg bg-transparent border border-[var(--border-light)] rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="relative w-full max-w-lg">
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full bg-transparent border border-[var(--border-light)] rounded-lg pl-4 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
+                onClick={() => setSearch("")}
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="relative flex items-center gap-3">
@@ -1673,7 +1687,7 @@ function NotesUI({
               Pinned
             </h2>
             <div className="masonry-grid">
-          {pinned.map((n) => (
+              {pinned.map((n) => (
                 <NoteCard
                   key={n.id}
                   n={n}
@@ -1683,6 +1697,7 @@ function NotesUI({
               multiMode={multiMode}
               selected={selectedIds.includes(String(n.id))}
               onToggleSelect={onToggleSelect}
+                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0)}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -1702,7 +1717,7 @@ function NotesUI({
               </h2>
             )}
             <div className="masonry-grid">
-          {others.map((n) => (
+              {others.map((n) => (
                 <NoteCard
                   key={n.id}
                   n={n}
@@ -1712,6 +1727,7 @@ function NotesUI({
               multiMode={multiMode}
               selected={selectedIds.includes(String(n.id))}
               onToggleSelect={onToggleSelect}
+                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0)}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
