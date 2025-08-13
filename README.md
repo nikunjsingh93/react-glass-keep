@@ -7,13 +7,14 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 <img width="1200" height="862" alt="Screenshot 2025-08-13 at 4 21 49 PM" src="https://github.com/user-attachments/assets/cc03dd25-072b-4766-b788-971aeda609f3" />
 
-<img width="1202" height="862" alt="Screenshot 2025-08-13 at 4 22 03 PM" src="https://github.com/user-attachments/assets/ece98567-5086-429a-80be-d4059425ca7d" />
+<img width="1203" height="863" alt="Screenshot 2025-08-13 at 5 55 29 PM" src="https://github.com/user-attachments/assets/a15110b8-0bb4-4387-be3a-3ac4eaeae121" />
 
 **Mobile Screenshots**
 
-<img width="380" height="719" alt="Screenshot 2025-08-13 at 4 23 15 PM" src="https://github.com/user-attachments/assets/1d155319-0a1a-44f5-87ac-793b267b498f" />
+<img width="381" height="718" alt="Screenshot 2025-08-13 at 5 56 17 PM" src="https://github.com/user-attachments/assets/288c8a25-c787-4fc3-aa7d-ee49f8811669" />
 
-<img width="382" height="694" alt="Screenshot 2025-08-13 at 4 25 23 PM" src="https://github.com/user-attachments/assets/618f8375-deed-49ce-87f9-d26ef867a0db" />
+<img width="380" height="719" alt="Screenshot 2025-08-13 at 6 31 54 PM" src="https://github.com/user-attachments/assets/908b1902-d6e6-4d71-9958-1421273eb9d4" />
+
 
 ## ✨ Features
 
@@ -22,6 +23,10 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * Register, Login (username + password), Sign out
   * **Secret recovery key** download + **Sign in with Secret Key**
   * Each user sees **only their notes**
+* **Collaboration (real-time)** ✅ NEW
+
+  * Real-time collaboration for checklists — multiple people can add/tick items together and see updates instantly.
+  * Collaboration on notes — co-edit Markdown notes and watch changes sync live across collaborators.  
 * **Admin Panel**
 
   * Visit: `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod)
