@@ -23,6 +23,19 @@ dist-ssr
 *.sln
 *.sw?
 
+# from repo root
+cat >> .gitignore <<'EOF'
+# SQLite
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Env
+.env
+.env.*
+EOF
+
 
 # SQLite databases (server)
 server/*.sqlite
