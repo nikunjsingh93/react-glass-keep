@@ -460,6 +460,10 @@ html:not(.dark) .note-content pre .code-copy-btn {
 @media (min-width: 768px) { .masonry-grid { column-count: 3; } }
 @media (min-width: 1024px) { .masonry-grid { column-count: 4; } }
 @media (min-width: 1280px) { .masonry-grid { column-count: 5; } }
+
+/* New grid layout to place notes row-wise (left-to-right, top-to-bottom) */
+/* Keep-like masonry using CSS Grid with JS-calculated row spans (preserves horizontal order) */
+ 
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.5); border-radius: 10px; }
@@ -845,6 +849,7 @@ function NoteCard({
   disablePin = false,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
 }) {
+  
   const isChecklist = n.type === "checklist";
   const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
   const MAX_CHARS = 600;
@@ -1939,6 +1944,7 @@ export default function App() {
   const [mColor, setMColor] = useState("default");
   const [viewMode, setViewMode] = useState(true);
   const [mImages, setMImages] = useState([]);
+  const [savingModal, setSavingModal] = useState(false);
   const mBodyRef = useRef(null);
   const modalFileRef = useRef(null);
   const [modalMenuOpen, setModalMenuOpen] = useState(false);
@@ -2551,6 +2557,7 @@ export default function App() {
         : { ...base, type: "checklist", content: "", items: mItems };
 
     try {
+      setSavingModal(true);
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
@@ -2560,6 +2567,8 @@ export default function App() {
       closeModal();
     } catch (e) {
       alert(e.message || "Failed to save note");
+    } finally {
+      setSavingModal(false);
     }
   };
   const deleteModal = async () => {
@@ -2864,7 +2873,7 @@ export default function App() {
         }}
       >
         <div
-          className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative"
+          className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative overflow-hidden"
           style={{ backgroundColor: modalBgFor(mColor, dark) }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
@@ -2877,7 +2886,7 @@ export default function App() {
           >
             {/* Sticky header (kept single line on desktop, wraps on mobile) */}
             <div
-              className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur"
+              className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur rounded-t-xl"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -3174,9 +3183,10 @@ export default function App() {
               {modalHasChanges && (
                 <button
                   onClick={saveModal}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
+                  disabled={savingModal}
+                  className={`px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 whitespace-nowrap ${savingModal ? "bg-indigo-400 text-white cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500"}`}
                 >
-                  Save
+                  {savingModal ? "Saving..." : "Save"}
                 </button>
               )}
               {/* Delete button moved to modal 3-dot menu */}
