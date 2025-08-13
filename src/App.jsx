@@ -1237,7 +1237,7 @@ function NotesUI({
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
   togglePin,
   addImagesToState,
-    onExportAll, onImportAll, onImportGKeep, onDownloadSecretKey, importFileRef, gkeepFileRef, signOut,
+    onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, importFileRef, gkeepFileRef, mdFileRef, signOut,
   filteredEmptyWithSearch, allEmpty,
   headerMenuOpen, setHeaderMenuOpen,
   headerMenuRef, headerBtnRef,
@@ -1426,6 +1426,12 @@ function NotesUI({
               </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                onClick={() => { mdFileRef.current?.click(); }}
+              >
+                Import Notes (.md)
+              </button>
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onDownloadSecretKey?.(); }}
               >
                 Download secret key (.txt)
@@ -1481,6 +1487,20 @@ function NotesUI({
             onChange={async (e) => {
               if (e.target.files && e.target.files.length) {
                 await onImportGKeep?.(e.target.files);
+                e.target.value = "";
+              }
+            }}
+          />
+          {/* Hidden Markdown import input (multiple) */}
+          <input
+            ref={mdFileRef}
+            type="file"
+            accept=".md,text/markdown"
+            multiple
+            className="hidden"
+            onChange={async (e) => {
+              if (e.target.files && e.target.files.length) {
+                await onImportMd?.(e.target.files);
                 e.target.value = "";
               }
             }}
@@ -2001,6 +2021,7 @@ export default function App() {
   const headerBtnRef = useRef(null);
   const importFileRef = useRef(null);
   const gkeepFileRef = useRef(null);
+  const mdFileRef = useRef(null);
 
   // Modal kebab anchor
   const modalMenuBtnRef = useRef(null);
@@ -2493,6 +2514,66 @@ export default function App() {
       alert(`Imported ${notesArr.length} Google Keep note(s).`);
     } catch (e) {
       alert(e.message || "Google Keep import failed");
+    }
+  };
+
+  /** -------- Import Markdown files (multiple) -------- */
+  const importMd = async (fileList) => {
+    try {
+      const files = Array.from(fileList || []);
+      if (!files.length) return;
+      const notesArr = [];
+      
+      for (const file of files) {
+        try {
+          const text = await file.text();
+          const lines = text.split('\n');
+          
+          // Extract title from first line if it starts with #
+          let title = "";
+          let contentStartIndex = 0;
+          
+          if (lines[0] && lines[0].trim().startsWith('#')) {
+            // Remove # symbols and trim
+            title = lines[0].replace(/^#+\s*/, '').trim();
+            contentStartIndex = 1;
+          } else {
+            // Use filename as title (without .md extension)
+            title = file.name.replace(/\.md$/i, '');
+          }
+          
+          // Join remaining lines as content
+          const content = lines.slice(contentStartIndex).join('\n').trim();
+          
+          if (title || content) {
+            notesArr.push({
+              id: uid(),
+              type: "text",
+              title,
+              content,
+              items: [],
+              tags: [],
+              images: [],
+              color: "default",
+              pinned: false,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (e) {
+          console.error(`Failed to process file ${file.name}:`, e);
+        }
+      }
+      
+      if (!notesArr.length) { 
+        alert("No valid markdown files found."); 
+        return; 
+      }
+      
+      await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
+      await loadNotes();
+      alert(`Imported ${notesArr.length} markdown file(s) successfully.`);
+    } catch (e) {
+      alert(e.message || "Markdown import failed");
     }
   };
 
@@ -3469,9 +3550,11 @@ export default function App() {
         onExportAll={exportAll}
         onImportAll={importAll}
         onImportGKeep={importGKeep}
+        onImportMd={importMd}
         onDownloadSecretKey={downloadSecretKey}
         importFileRef={importFileRef}
         gkeepFileRef={gkeepFileRef}
+        mdFileRef={mdFileRef}
         headerMenuOpen={headerMenuOpen}
         setHeaderMenuOpen={setHeaderMenuOpen}
         headerMenuRef={headerMenuRef}
