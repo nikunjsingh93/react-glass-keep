@@ -153,6 +153,9 @@ const getUserById = db.prepare("SELECT * FROM users WHERE id = ?");
 const listNotes = db.prepare(
   `SELECT * FROM notes WHERE user_id = ? ORDER BY pinned DESC, position DESC, timestamp DESC`
 );
+const listNotesPage = db.prepare(
+  `SELECT * FROM notes WHERE user_id = ? ORDER BY pinned DESC, position DESC, timestamp DESC LIMIT ? OFFSET ?`
+);
 const getNote = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?");
 const insertNote = db.prepare(`
   INSERT INTO notes (id,user_id,type,title,content,items_json,tags_json,images_json,color,pinned,position,timestamp)
@@ -258,7 +261,10 @@ app.post("/api/login/secret", (req, res) => {
 
 // ---------- Notes ----------
 app.get("/api/notes", auth, (req, res) => {
-  const rows = listNotes.all(req.user.id);
+  const off = Number(req.query.offset ?? 0);
+  const lim = Number(req.query.limit ?? 0);
+  const usePaging = Number.isFinite(lim) && lim > 0 && Number.isFinite(off) && off >= 0;
+  const rows = usePaging ? listNotesPage.all(req.user.id, lim, off) : listNotes.all(req.user.id);
   res.json(
     rows.map((r) => ({
       id: r.id,

@@ -364,6 +364,14 @@ body {
 /* Make pre relative so copy button can be positioned */
 .note-content pre { position: relative; }
 
+/* Wrapper for code blocks to anchor copy button outside scroll area */
+.code-block-wrapper { position: relative; }
+.code-block-wrapper .code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
 .note-content table { display: block; max-width: 100%; overflow-x: auto; }
 
 /* Default lists (subtle spacing for inline previews) */
@@ -410,10 +418,8 @@ body {
 }
 
 /* Copy buttons */
-.note-content pre .code-copy-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+.note-content pre .code-copy-btn,
+.code-block-wrapper .code-copy-btn {
   font-size: .75rem;
   padding: .2rem .45rem;
   border-radius: .35rem;
@@ -1953,6 +1959,7 @@ export default function App() {
 
   // Loading state for notes
   const [notesLoading, setNotesLoading] = useState(false);
+  // Remove lazy loading state
 
   // -------- Multi-select state --------
   const [multiMode, setMultiMode] = useState(false);
@@ -2113,47 +2120,16 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, [sidebarOpen]);
 
-  // Load notes (batched if supported)
+  // Load notes (single request or paginated fallback)
   const loadNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
     setNotes([]);
-
-    const LIMIT = 300;
-    let usedPagination = false;
     try {
-      // Try paginated endpoint first
-      let offset = 0;
-      let first = true;
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const batch = await api(`/notes?offset=${offset}&limit=${LIMIT}`, { token });
-        if (!Array.isArray(batch) || batch.length === 0) break;
-        usedPagination = true;
-        if (first) {
-          setNotes(batch);
-          first = false;
-        } else {
-          setNotes((prev) => [...prev, ...batch]);
-        }
-        if (batch.length < LIMIT) break;
-        offset += batch.length;
-        // Yield to UI
-        await new Promise((r) => setTimeout(r, 0));
-      }
-      if (!usedPagination) {
-        // Fallback to full fetch
-        const data = await api("/notes", { token });
-        setNotes(Array.isArray(data) ? data : []);
-      }
+      const data = await api("/notes", { token });
+      setNotes(Array.isArray(data) ? data : []);
     } catch {
-      // Fallback on any error
-      try {
-        const data = await api("/notes", { token });
-        setNotes(Array.isArray(data) ? data : []);
-      } catch {
-        setNotes([]);
-      }
+      setNotes([]);
     } finally {
       setNotesLoading(false);
     }
@@ -2161,6 +2137,8 @@ export default function App() {
   useEffect(() => {
     if (token) loadNotes().catch(() => {});
   }, [token]);
+
+  // No infinite scroll
 
   // Lock body scroll on modal & image viewer
   useEffect(() => {
@@ -2390,17 +2368,25 @@ export default function App() {
           const obj = JSON.parse(t);
           if (!obj || typeof obj !== "object") continue;
           const title = String(obj.title || "");
-          const content = String(obj.textContent || "");
+          const hasChecklist = Array.isArray(obj.listContent) && obj.listContent.length > 0;
+          const items = hasChecklist
+            ? obj.listContent.map((it) => ({ id: uid(), text: String(it?.text || ""), done: !!it?.isChecked }))
+            : [];
+          const content = hasChecklist ? "" : String(obj.textContent || "");
           const usec = Number(obj.userEditedTimestampUsec || obj.createdTimestampUsec || 0);
           const ms = Number.isFinite(usec) && usec > 0 ? Math.floor(usec / 1000) : Date.now();
           const timestamp = new Date(ms).toISOString();
+          // Extract labels to tags
+          const tags = Array.isArray(obj.labels)
+            ? obj.labels.map((l) => (typeof l?.name === 'string' ? l.name.trim() : '')).filter(Boolean)
+            : [];
           notesArr.push({
             id: uid(),
-            type: "text",
+            type: hasChecklist ? "checklist" : "text",
             title,
             content,
-            items: [],
-            tags: [],
+            items,
+            tags,
             images: [],
             color: "default",
             pinned: !!obj.isPinned,
@@ -2742,9 +2728,17 @@ export default function App() {
     if (!root) return;
 
     const attach = () => {
-      // Fenced blocks (pre)
+      // Wrap code blocks so the copy button can stay fixed even on horizontal scroll
       root.querySelectorAll("pre").forEach((pre) => {
-        if (pre.querySelector(".code-copy-btn")) return;
+        // Ensure wrapper
+        let wrapper = pre.closest('.code-block-wrapper');
+        if (!wrapper) {
+          wrapper = document.createElement('div');
+          wrapper.className = 'code-block-wrapper';
+          pre.parentNode?.insertBefore(wrapper, pre);
+          wrapper.appendChild(pre);
+        }
+        if (wrapper.querySelector('.code-copy-btn')) return;
         const btn = document.createElement("button");
         btn.className = "code-copy-btn";
         btn.textContent = "Copy";
@@ -2757,7 +2751,7 @@ export default function App() {
           btn.textContent = "Copied";
           setTimeout(() => (btn.textContent = "Copy"), 1200);
         });
-        pre.appendChild(btn);
+        wrapper.appendChild(btn);
       });
 
       // Inline code
