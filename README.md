@@ -13,7 +13,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 <img width="380" height="719" alt="Screenshot 2025-08-13 at 4 23 15 PM" src="https://github.com/user-attachments/assets/1d155319-0a1a-44f5-87ac-793b267b498f" />
 
-<img width="380" height="720" alt="Screenshot 2025-08-13 at 4 23 28 PM" src="https://github.com/user-attachments/assets/b9da4764-0312-4350-bb07-df853e87841e" />
+<img width="382" height="694" alt="Screenshot 2025-08-13 at 4 25 23 PM" src="https://github.com/user-attachments/assets/618f8375-deed-49ce-87f9-d26ef867a0db" />
 
 ## ✨ Features
 
