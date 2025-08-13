@@ -163,7 +163,7 @@ const ImageIcon = () => (
   </svg>
 );
 const CloseIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
   </svg>
 );
@@ -301,7 +301,7 @@ const normalizeImageFilename = (name, dataUrl, index = 1) => {
   return `${withoutExt}.${ext}`;
 };
 
-/** Format “Edited” text */
+/** Format "Edited" text */
 function formatEditedStamp(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -2086,6 +2086,27 @@ export default function App() {
     return ts ? formatEditedStamp(ts) : "";
   }, [activeNoteObj]);
 
+  const modalHasChanges = useMemo(() => {
+    if (!activeNoteObj) return false;
+    if ((mTitle || "") !== (activeNoteObj.title || "")) return true;
+    if ((mColor || "default") !== (activeNoteObj.color || "default")) return true;
+    const tagsA = JSON.stringify(mTagList || []);
+    const tagsB = JSON.stringify(activeNoteObj.tags || []);
+    if (tagsA !== tagsB) return true;
+    const imagesA = JSON.stringify(mImages || []);
+    const imagesB = JSON.stringify(activeNoteObj.images || []);
+    if (imagesA !== imagesB) return true;
+    if ((mType || "text") !== (activeNoteObj.type || "text")) return true;
+    if ((mType || "text") === "text") {
+      if ((mBody || "") !== (activeNoteObj.content || "")) return true;
+    } else {
+      const itemsA = JSON.stringify(mItems || []);
+      const itemsB = JSON.stringify(activeNoteObj.items || []);
+      if (itemsA !== itemsB) return true;
+    }
+    return false;
+  }, [activeNoteObj, mTitle, mColor, mTagList, mImages, mType, mBody, mItems]);
+
   useEffect(() => {
     // Only close header and modal kebab on outside click
     function onDocClick(e) {
@@ -2882,7 +2903,7 @@ export default function App() {
                     <>
                       <button
                         ref={modalFmtBtnRef}
-                        className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="rounded-full p-2.5 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         title="Formatting"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -2924,6 +2945,12 @@ export default function App() {
                       >
                         Download .md
                       </button>
+                      <button
+                        className={`block w-full text-left px-3 py-2 text-sm text-red-600 ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                        onClick={() => { setConfirmDeleteOpen(true); setModalMenuOpen(false); }}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </Popover>
 
@@ -2936,7 +2963,7 @@ export default function App() {
                   </button>
 
                   <button
-                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="rounded-full p-2.5 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     title="Close"
                     onClick={closeModal}
                   >
@@ -3144,19 +3171,15 @@ export default function App() {
                 <ImageIcon />
               </button>
 
-              <button
-                onClick={() => setConfirmDeleteOpen(true)}
-                className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 flex items-center gap-2 whitespace-nowrap"
-                title="Delete"
-              >
-                <Trash /> Delete
-              </button>
-              <button
-                onClick={saveModal}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
-              >
-                Save
-              </button>
+              {modalHasChanges && (
+                <button
+                  onClick={saveModal}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 whitespace-nowrap"
+                >
+                  Save
+                </button>
+              )}
+              {/* Delete button moved to modal 3-dot menu */}
             </div>
           </div>
 
