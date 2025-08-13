@@ -72,7 +72,22 @@ CREATE TABLE IF NOT EXISTS notes (
   pinned INTEGER NOT NULL DEFAULT 0,
   position REAL NOT NULL DEFAULT 0, -- for ordering (higher first)
   timestamp TEXT NOT NULL,
+  updated_at TEXT,             -- for tracking last edit time
+  last_edited_by TEXT,         -- email/name of last editor
+  last_edited_at TEXT,         -- timestamp of last edit
   FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS note_collaborators (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  note_id TEXT NOT NULL,
+  user_id INTEGER NOT NULL,
+  added_by INTEGER NOT NULL,
+  added_at TEXT NOT NULL,
+  FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(added_by) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(note_id, user_id)
 );
 `);
 
@@ -90,6 +105,28 @@ CREATE TABLE IF NOT EXISTS notes (
       }
       if (!names.has("secret_key_created_at")) {
         db.exec(`ALTER TABLE users ADD COLUMN secret_key_created_at TEXT`);
+      }
+    });
+    tx();
+  } catch {
+    // ignore if ALTER not supported or already applied
+  }
+})();
+
+// Notes table migrations
+(function ensureNoteColumns() {
+  try {
+    const cols = db.prepare(`PRAGMA table_info(notes)`).all();
+    const names = new Set(cols.map((c) => c.name));
+    const tx = db.transaction(() => {
+      if (!names.has("updated_at")) {
+        db.exec(`ALTER TABLE notes ADD COLUMN updated_at TEXT`);
+      }
+      if (!names.has("last_edited_by")) {
+        db.exec(`ALTER TABLE notes ADD COLUMN last_edited_by TEXT`);
+      }
+      if (!names.has("last_edited_at")) {
+        db.exec(`ALTER TABLE notes ADD COLUMN last_edited_at TEXT`);
       }
     });
     tx();
@@ -143,7 +180,6 @@ function auth(req, res, next) {
   }
 }
 
-const getUserByEmail = db.prepare("SELECT * FROM users WHERE lower(email)=lower(?)");
 const insertUser = db.prepare(
   "INSERT INTO users (name,email,password_hash,created_at) VALUES (?,?,?,?)"
 );
@@ -157,6 +193,11 @@ const listNotesPage = db.prepare(
   `SELECT * FROM notes WHERE user_id = ? ORDER BY pinned DESC, position DESC, timestamp DESC LIMIT ? OFFSET ?`
 );
 const getNote = db.prepare("SELECT * FROM notes WHERE id = ? AND user_id = ?");
+const getNoteWithCollaboration = db.prepare(`
+  SELECT n.* FROM notes n
+  LEFT JOIN note_collaborators nc ON n.id = nc.note_id AND nc.user_id = ?
+  WHERE n.id = ? AND (n.user_id = ? OR nc.user_id IS NOT NULL)
+`);
 const insertNote = db.prepare(`
   INSERT INTO notes (id,user_id,type,title,content,items_json,tags_json,images_json,color,pinned,position,timestamp)
   VALUES (@id,@user_id,@type,@title,@content,@items_json,@tags_json,@images_json,@color,@pinned,@position,@timestamp)
@@ -166,6 +207,15 @@ const updateNote = db.prepare(`
     type=@type, title=@title, content=@content, items_json=@items_json, tags_json=@tags_json,
     images_json=@images_json, color=@color, pinned=@pinned, position=@position, timestamp=@timestamp
   WHERE id=@id AND user_id=@user_id
+`);
+const updateNoteWithCollaboration = db.prepare(`
+  UPDATE notes SET
+    type=@type, title=@title, content=@content, items_json=@items_json, tags_json=@tags_json,
+    images_json=@images_json, color=@color, pinned=@pinned, position=@position, timestamp=@timestamp
+  WHERE id=@id AND (user_id=@user_id OR EXISTS(
+    SELECT 1 FROM note_collaborators nc 
+    WHERE nc.note_id=@id AND nc.user_id=@user_id
+  ))
 `);
 const patchPartial = db.prepare(`
   UPDATE notes SET title=COALESCE(@title,title),
@@ -178,10 +228,51 @@ const patchPartial = db.prepare(`
                    timestamp=COALESCE(@timestamp,timestamp)
   WHERE id=@id AND user_id=@user_id
 `);
+const patchPartialWithCollaboration = db.prepare(`
+  UPDATE notes SET title=COALESCE(@title,title),
+                   content=COALESCE(@content,content),
+                   items_json=COALESCE(@items_json,items_json),
+                   tags_json=COALESCE(@tags_json,tags_json),
+                   images_json=COALESCE(@images_json,images_json),
+                   color=COALESCE(@color,color),
+                   pinned=COALESCE(@pinned,pinned),
+                   timestamp=COALESCE(@timestamp,timestamp)
+  WHERE id=@id AND (user_id=@user_id OR EXISTS(
+    SELECT 1 FROM note_collaborators nc 
+    WHERE nc.note_id=@id AND nc.user_id=@user_id
+  ))
+`);
 const patchPosition = db.prepare(`
   UPDATE notes SET position=@position, pinned=@pinned WHERE id=@id AND user_id=@user_id
 `);
 const deleteNote = db.prepare("DELETE FROM notes WHERE id = ? AND user_id = ?");
+
+// Collaboration statements
+const getUserByEmail = db.prepare("SELECT * FROM users WHERE lower(email)=lower(?)");
+const getUserByName = db.prepare("SELECT * FROM users WHERE lower(name)=lower(?)");
+const addCollaborator = db.prepare(`
+  INSERT INTO note_collaborators (note_id, user_id, added_by, added_at)
+  VALUES (?, ?, ?, ?)
+`);
+const getNoteCollaborators = db.prepare(`
+  SELECT u.id, u.name, u.email, nc.added_at, nc.added_by
+  FROM note_collaborators nc
+  JOIN users u ON nc.user_id = u.id
+  WHERE nc.note_id = ?
+`);
+const getCollaboratedNotes = db.prepare(`
+  SELECT n.* FROM notes n
+  JOIN note_collaborators nc ON n.id = nc.note_id
+  WHERE nc.user_id = ?
+  ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
+`);
+const updateNoteWithEditor = db.prepare(`
+  UPDATE notes SET 
+    updated_at = ?, 
+    last_edited_by = ?, 
+    last_edited_at = ?
+  WHERE id = ?
+`);
 
 // ---------- Auth ----------
 app.post("/api/register", (req, res) => {
@@ -264,7 +355,30 @@ app.get("/api/notes", auth, (req, res) => {
   const off = Number(req.query.offset ?? 0);
   const lim = Number(req.query.limit ?? 0);
   const usePaging = Number.isFinite(lim) && lim > 0 && Number.isFinite(off) && off >= 0;
-  const rows = usePaging ? listNotesPage.all(req.user.id, lim, off) : listNotes.all(req.user.id);
+  
+  // Get all notes (own + collaborated) in a single query to avoid duplicates
+  const allNotesQuery = db.prepare(`
+    SELECT DISTINCT n.* FROM notes n
+    WHERE n.user_id = ? OR EXISTS(
+      SELECT 1 FROM note_collaborators nc 
+      WHERE nc.note_id = n.id AND nc.user_id = ?
+    )
+    ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
+  `);
+  
+  const allNotesWithPagingQuery = db.prepare(`
+    SELECT DISTINCT n.* FROM notes n
+    WHERE n.user_id = ? OR EXISTS(
+      SELECT 1 FROM note_collaborators nc 
+      WHERE nc.note_id = n.id AND nc.user_id = ?
+    )
+    ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
+    LIMIT ? OFFSET ?
+  `);
+  
+  const rows = usePaging 
+    ? allNotesWithPagingQuery.all(req.user.id, req.user.id, lim, off)
+    : allNotesQuery.all(req.user.id, req.user.id);
   res.json(
     rows.map((r) => ({
       id: r.id,
@@ -278,6 +392,9 @@ app.get("/api/notes", auth, (req, res) => {
       pinned: !!r.pinned,
       position: r.position,
       timestamp: r.timestamp,
+      updated_at: r.updated_at,
+      lastEditedBy: r.last_edited_by,
+      lastEditedAt: r.last_edited_at,
     }))
   );
 });
@@ -316,7 +433,7 @@ app.post("/api/notes", auth, (req, res) => {
 
 app.put("/api/notes/:id", auth, (req, res) => {
   const id = req.params.id;
-  const existing = getNote.get(id, req.user.id);
+  const existing = getNoteWithCollaboration.get(req.user.id, id, req.user.id);
   if (!existing) return res.status(404).json({ error: "Note not found" });
 
   const b = req.body || {};
@@ -334,13 +451,21 @@ app.put("/api/notes/:id", auth, (req, res) => {
     position: typeof b.position === "number" ? b.position : existing.position,
     timestamp: b.timestamp || existing.timestamp,
   };
-  updateNote.run(updated);
+  // Use collaboration-aware update
+  const result = updateNoteWithCollaboration.run(updated);
+  
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Note not found or access denied" });
+  }
+  
+  // Update editor tracking
+  updateNoteWithEditor.run(nowISO(), req.user.email, nowISO(), id);
   res.json({ ok: true });
 });
 
 app.patch("/api/notes/:id", auth, (req, res) => {
   const id = req.params.id;
-  const existing = getNote.get(id, req.user.id);
+  const existing = getNoteWithCollaboration.get(req.user.id, id, req.user.id);
   if (!existing) return res.status(404).json({ error: "Note not found" });
   const p = {
     id,
@@ -354,7 +479,16 @@ app.patch("/api/notes/:id", auth, (req, res) => {
     pinned: typeof req.body.pinned === "boolean" ? (req.body.pinned ? 1 : 0) : null,
     timestamp: req.body.timestamp || null,
   };
-  patchPartial.run(p);
+  // Use collaboration-aware patch
+  const result = patchPartialWithCollaboration.run(p);
+  
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Note not found or access denied" });
+  }
+  
+  // Update editor tracking
+  updateNoteWithEditor.run(nowISO(), req.user.email, nowISO(), id);
+  
   res.json({ ok: true });
 });
 
@@ -388,6 +522,97 @@ app.post("/api/notes/reorder", auth, (req, res) => {
   });
   reorder();
   res.json({ ok: true });
+});
+
+// ---------- Collaboration ----------
+app.post("/api/notes/:id/collaborate", auth, (req, res) => {
+  const noteId = req.params.id;
+  const { username } = req.body || {};
+  
+  if (!username || typeof username !== "string") {
+    return res.status(400).json({ error: "Username is required" });
+  }
+  
+  // Check if note exists and user owns it
+  const note = getNote.get(noteId, req.user.id);
+  if (!note) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+  
+  // Find user to collaborate with (by email or name)
+  const collaborator = getUserByEmail.get(username) || getUserByName.get(username);
+  if (!collaborator) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  
+  // Don't allow self-collaboration
+  if (collaborator.id === req.user.id) {
+    return res.status(400).json({ error: "Cannot collaborate with yourself" });
+  }
+  
+  try {
+    // Add collaborator
+    addCollaborator.run(noteId, collaborator.id, req.user.id, nowISO());
+    
+    // Update note with editor info
+    updateNoteWithEditor.run(nowISO(), req.user.email, nowISO(), noteId);
+    
+    res.json({ 
+      ok: true, 
+      message: `Added ${collaborator.name} as collaborator`,
+      collaborator: {
+        id: collaborator.id,
+        name: collaborator.name,
+        email: collaborator.email
+      }
+    });
+  } catch (e) {
+    if (e.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: "User is already a collaborator" });
+    }
+    return res.status(500).json({ error: "Failed to add collaborator" });
+  }
+});
+
+app.get("/api/notes/:id/collaborators", auth, (req, res) => {
+  const noteId = req.params.id;
+  
+  // Check if note exists and user owns it or is a collaborator
+  const note = getNoteWithCollaboration.get(req.user.id, noteId, req.user.id);
+  if (!note) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+  
+  const collaborators = getNoteCollaborators.all(noteId);
+  res.json(collaborators.map(c => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    added_at: c.added_at,
+    added_by: c.added_by
+  })));
+});
+
+app.get("/api/notes/collaborated", auth, (req, res) => {
+  const rows = getCollaboratedNotes.all(req.user.id);
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      content: r.content,
+      items: JSON.parse(r.items_json || "[]"),
+      tags: JSON.parse(r.tags_json || "[]"),
+      images: JSON.parse(r.images_json || "[]"),
+      color: r.color,
+      pinned: !!r.pinned,
+      position: r.position,
+      timestamp: r.timestamp,
+      updated_at: r.updated_at,
+      lastEditedBy: r.last_edited_by,
+      lastEditedAt: r.last_edited_at,
+    }))
+  );
 });
 
 // Export/Import

@@ -1999,6 +1999,10 @@ export default function App() {
   const [mItems, setMItems] = useState([]);
   const [mInput, setMInput] = useState("");
 
+  // Collaboration modal
+  const [collaborationModalOpen, setCollaborationModalOpen] = useState(false);
+  const [collaboratorUsername, setCollaboratorUsername] = useState("");
+
   // Modal formatting
   const [showModalFmt, setShowModalFmt] = useState(false);
   const modalFmtBtnRef = useRef(null);
@@ -2146,7 +2150,16 @@ export default function App() {
   );
   const editedStamp = useMemo(() => {
     const ts = activeNoteObj?.updated_at || activeNoteObj?.timestamp;
-    return ts ? formatEditedStamp(ts) : "";
+    const baseStamp = ts ? formatEditedStamp(ts) : "";
+    
+    // Add collaborator info if available
+    if (activeNoteObj?.lastEditedBy && activeNoteObj?.lastEditedAt) {
+      const editorName = activeNoteObj.lastEditedBy;
+      const editTime = formatEditedStamp(activeNoteObj.lastEditedAt);
+      return `${editorName}, ${editTime}`;
+    }
+    
+    return baseStamp;
   }, [activeNoteObj]);
 
   const modalHasChanges = useMemo(() => {
@@ -2577,6 +2590,36 @@ export default function App() {
     }
   };
 
+  /** -------- Collaboration actions -------- */
+  const addCollaborator = async (username) => {
+    try {
+      if (!activeId) return;
+      
+      // Add collaborator to the note
+      await api(`/notes/${activeId}/collaborate`, { 
+        method: "POST", 
+        token, 
+        body: { username } 
+      });
+      
+      // Update local note with collaborator info
+      setNotes((prev) => prev.map((n) => 
+        String(n.id) === String(activeId) 
+          ? { 
+              ...n, 
+              collaborators: [...(n.collaborators || []), username],
+              lastEditedBy: currentUser?.email || currentUser?.name,
+              lastEditedAt: new Date().toISOString()
+            }
+          : n
+      ));
+      
+      alert(`Added ${username} as collaborator successfully!`);
+    } catch (e) {
+      alert(e.message || "Failed to add collaborator");
+    }
+  };
+
   /** -------- Secret Key actions -------- */
   const downloadSecretKey = async () => {
     try {
@@ -2679,7 +2722,13 @@ export default function App() {
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
-        (String(n.id) === String(activeId) ? { ...n, ...payload, updated_at: nowIso } : n)
+        (String(n.id) === String(activeId) ? { 
+          ...n, 
+          ...payload, 
+          updated_at: nowIso,
+          lastEditedBy: currentUser?.email || currentUser?.name,
+          lastEditedAt: nowIso
+        } : n)
       ));
       closeModal();
     } catch (e) {
@@ -3014,6 +3063,20 @@ export default function App() {
                   placeholder="Title"
                 />
                 <div className="flex items-center gap-2 flex-none ml-auto">
+                  {/* Collaboration button */}
+                  <button
+                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative"
+                    title="Collaborate"
+                    onClick={() => setCollaborationModalOpen(true)}
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+                    </svg>
+                    <svg className="w-3 h-3 absolute -top-1 -right-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+                    </svg>
+                  </button>
+
                   {/* View/Edit toggle only for TEXT notes */}
                   {mType === "text" && (
                     <button
@@ -3361,6 +3424,53 @@ export default function App() {
                     onClick={async () => { setConfirmDeleteOpen(false); await deleteModal();}}
                   >
                     Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Collaboration Modal */}
+          {collaborationModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setCollaborationModalOpen(false)}
+              />
+              <div
+                className="glass-card rounded-xl shadow-2xl w-[90%] max-w-md p-6 relative"
+                style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-lg font-semibold mb-4">Add Collaborator</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                  Enter the username of the person you want to collaborate with on this note.
+                </p>
+                <input
+                  type="text"
+                  value={collaboratorUsername}
+                  onChange={(e) => setCollaboratorUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-transparent"
+                />
+                <div className="mt-5 flex justify-end gap-3">
+                  <button
+                    className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                    onClick={() => setCollaborationModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    onClick={async () => {
+                      if (collaboratorUsername.trim()) {
+                        await addCollaborator(collaboratorUsername.trim());
+                        setCollaboratorUsername("");
+                        setCollaborationModalOpen(false);
+                      }
+                    }}
+                  >
+                    Add Collaborator
                   </button>
                 </div>
               </div>
