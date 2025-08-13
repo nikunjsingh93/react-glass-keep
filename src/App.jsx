@@ -2262,6 +2262,33 @@ export default function App() {
   };
   useEffect(() => {
     if (token) loadNotes().catch(() => {});
+    if (!token) return;
+    let es;
+    try {
+      const url = new URL(`${window.location.origin}/api/events`);
+      url.searchParams.set("token", token);
+      es = new EventSource(url.toString());
+      es.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data || '{}');
+          if (msg && msg.type === 'note_updated') {
+            // Refresh notes list on any note update relevant to this user
+            loadNotes().catch(() => {});
+          }
+        } catch {}
+      };
+      es.addEventListener('note_updated', (e) => {
+        try {
+          const msg = JSON.parse(e.data || '{}');
+          if (msg && msg.noteId) {
+            loadNotes().catch(() => {});
+          }
+        } catch {}
+      });
+    } catch {}
+    return () => {
+      try { es && es.close(); } catch {}
+    };
   }, [token]);
 
   // No infinite scroll

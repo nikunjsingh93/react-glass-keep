@@ -180,10 +180,32 @@ function auth(req, res, next) {
   }
 }
 
+// Auth that also supports token in query string for EventSource
+function authFromQueryOrHeader(req, res, next) {
+  const h = req.headers.authorization || "";
+  const headerToken = h.startsWith("Bearer ") ? h.slice(7) : null;
+  const queryToken = req.query && typeof req.query.token === "string" ? req.query.token : null;
+  const token = headerToken || queryToken;
+  if (!token) return res.status(401).json({ error: "Missing token" });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = {
+      id: payload.uid,
+      email: payload.email,
+      name: payload.name,
+      is_admin: !!payload.is_admin,
+    };
+    next();
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
 const insertUser = db.prepare(
   "INSERT INTO users (name,email,password_hash,created_at) VALUES (?,?,?,?)"
 );
 const getUserById = db.prepare("SELECT * FROM users WHERE id = ?");
+const getNoteById = db.prepare("SELECT * FROM notes WHERE id = ?");
 
 // Notes statements
 const listNotes = db.prepare(
@@ -273,6 +295,81 @@ const updateNoteWithEditor = db.prepare(`
     last_edited_at = ?
   WHERE id = ?
 `);
+
+// ---------- Realtime (SSE) ----------
+// Map of userId -> Set of response streams
+const sseClients = new Map();
+
+function addSseClient(userId, res) {
+  let set = sseClients.get(userId);
+  if (!set) {
+    set = new Set();
+    sseClients.set(userId, set);
+  }
+  set.add(res);
+}
+
+function removeSseClient(userId, res) {
+  const set = sseClients.get(userId);
+  if (!set) return;
+  set.delete(res);
+  if (set.size === 0) sseClients.delete(userId);
+}
+
+function sendEventToUser(userId, event) {
+  const set = sseClients.get(userId);
+  if (!set || set.size === 0) return;
+  const payload = `data: ${JSON.stringify(event)}\n\n`;
+  for (const res of set) {
+    try {
+      res.write(payload);
+    } catch {}
+  }
+}
+
+function getCollaboratorUserIdsForNote(noteId) {
+  try {
+    const rows = getNoteCollaborators.all(noteId) || [];
+    return rows.map((r) => r.id);
+  } catch {
+    return [];
+  }
+}
+
+function broadcastNoteUpdated(noteId) {
+  try {
+    const note = getNoteById.get(noteId);
+    if (!note) return;
+    const recipientIds = new Set([note.user_id, ...getCollaboratorUserIdsForNote(noteId)]);
+    const evt = { type: "note_updated", noteId };
+    for (const uid of recipientIds) sendEventToUser(uid, evt);
+  } catch {}
+}
+
+app.get("/api/events", authFromQueryOrHeader, (req, res) => {
+  // SSE headers
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  // Initial hello
+  res.write(`event: hello\n`);
+  res.write(`data: {"ok":true}\n\n`);
+
+  addSseClient(req.user.id, res);
+
+  // Keepalive ping
+  const ping = setInterval(() => {
+    try { res.write("event: ping\ndata: {}\n\n"); } catch {}
+  }, 25000);
+
+  req.on("close", () => {
+    clearInterval(ping);
+    removeSseClient(req.user.id, res);
+    try { res.end(); } catch {}
+  });
+});
 
 // ---------- Auth ----------
 app.post("/api/register", (req, res) => {
@@ -458,8 +555,9 @@ app.put("/api/notes/:id", auth, (req, res) => {
     return res.status(404).json({ error: "Note not found or access denied" });
   }
   
-  // Update editor tracking
-  updateNoteWithEditor.run(nowISO(), req.user.email, nowISO(), id);
+  // Update editor tracking (store display name)
+  updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
+  broadcastNoteUpdated(id);
   res.json({ ok: true });
 });
 
@@ -486,8 +584,9 @@ app.patch("/api/notes/:id", auth, (req, res) => {
     return res.status(404).json({ error: "Note not found or access denied" });
   }
   
-  // Update editor tracking
-  updateNoteWithEditor.run(nowISO(), req.user.email, nowISO(), id);
+  // Update editor tracking (store display name)
+  updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
+  broadcastNoteUpdated(id);
   
   res.json({ ok: true });
 });
@@ -555,7 +654,8 @@ app.post("/api/notes/:id/collaborate", auth, (req, res) => {
     addCollaborator.run(noteId, collaborator.id, req.user.id, nowISO());
     
     // Update note with editor info
-    updateNoteWithEditor.run(nowISO(), req.user.email, nowISO(), noteId);
+    updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), noteId);
+    broadcastNoteUpdated(noteId);
     
     res.json({ 
       ok: true, 
