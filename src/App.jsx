@@ -1997,6 +1997,8 @@ export default function App() {
   const [modalMenuOpen, setModalMenuOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [mItems, setMItems] = useState([]);
+  const skipNextItemsAutosave = useRef(false);
+  const prevItemsRef = useRef([]);
   const [mInput, setMInput] = useState("");
 
   // Collaboration modal
@@ -2290,6 +2292,21 @@ export default function App() {
       try { es && es.close(); } catch {}
     };
   }, [token]);
+
+  // Live-sync checklist items in open modal when remote updates arrive
+  useEffect(() => {
+    if (!open || !activeId) return;
+    const n = notes.find((x) => String(x.id) === String(activeId));
+    if (!n) return;
+    if ((mType || n.type) !== "checklist") return;
+    const serverItems = Array.isArray(n.items) ? n.items : [];
+    const prevJson = JSON.stringify(prevItemsRef.current || []);
+    const serverJson = JSON.stringify(serverItems);
+    if (serverJson !== prevJson) {
+      setMItems(serverItems);
+      prevItemsRef.current = serverItems;
+    }
+  }, [notes, open, activeId, mType]);
 
   // No infinite scroll
 
@@ -2711,7 +2728,9 @@ export default function App() {
     setMType(n.type || "text");
     setMTitle(n.title || "");
     setMBody(n.content || "");
+    skipNextItemsAutosave.current = true;
     setMItems(Array.isArray(n.items) ? n.items : []);
+    prevItemsRef.current = Array.isArray(n.items) ? n.items : [];
     setMTagList(Array.isArray(n.tags) ? n.tags : []);
     setMImages(Array.isArray(n.images) ? n.images : []);
     setTagInput("");
@@ -2746,6 +2765,7 @@ export default function App() {
     try {
       setSavingModal(true);
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+      prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
@@ -3257,12 +3277,41 @@ export default function App() {
                     <input
                       value={mInput}
                       onChange={(e) => setMInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } } }}
+                      onKeyDown={async (e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const t = mInput.trim();
+                          if (t) {
+                            const newItems = [...mItems, { id: uid(), text: t, done: false }];
+                            setMItems(newItems);
+                            setMInput("");
+                            try {
+                              if (activeId) {
+                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                prevItemsRef.current = newItems;
+                              }
+                            } catch {}
+                          }
+                        }
+                      }}
                       placeholder="List item… (press Enter to add)"
                       className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
                     />
                     <button
-                      onClick={() => { const t = mInput.trim(); if (t) { setMItems((p)=>[...p,{id:uid(),text:t,done:false}]); setMInput(""); } }}
+                      onClick={async () => { 
+                        const t = mInput.trim();
+                        if (t) { 
+                          const newItems = [...mItems, { id: uid(), text: t, done: false }];
+                          setMItems(newItems);
+                          setMInput("");
+                          try {
+                            if (activeId) {
+                              await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                              prevItemsRef.current = newItems;
+                            }
+                          } catch {}
+                        } 
+                      }}
                       className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                     >
                       Add
@@ -3280,9 +3329,36 @@ export default function App() {
                           disableToggle={false}      /* allow toggle in view mode */
                           showRemove={true}          /* show delete X in view mode */
                           size="lg"                  /* bigger checkboxes and X in modal */
-                          onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
-                          onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
-                          onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
+                          onToggle={async (checked) => {
+                            const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
+                            setMItems(newItems);
+                            try {
+                              if (activeId) {
+                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                prevItemsRef.current = newItems;
+                              }
+                            } catch {}
+                          }}
+                          onChange={async (txt) => {
+                            const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
+                            setMItems(newItems);
+                            try {
+                              if (activeId) {
+                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                prevItemsRef.current = newItems;
+                              }
+                            } catch {}
+                          }}
+                          onRemove={async () => {
+                            const newItems = mItems.filter(p => p.id !== it.id);
+                            setMItems(newItems);
+                            try {
+                              if (activeId) {
+                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                prevItemsRef.current = newItems;
+                              }
+                            } catch {}
+                          }}
                         />
                       ))}
                       
@@ -3299,9 +3375,36 @@ export default function App() {
                                 disableToggle={false}      /* allow toggle in view mode */
                                 showRemove={true}          /* show delete X in view mode */
                                 size="lg"                  /* bigger checkboxes and X in modal */
-                                onToggle={(checked) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, done: checked } : p))}
-                                onChange={(txt) => setMItems((prev) => prev.map(p => p.id === it.id ? { ...p, text: txt } : p))}
-                                onRemove={() => setMItems((prev) => prev.filter(p => p.id !== it.id))}
+                                onToggle={async (checked) => {
+                                  const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
+                                  setMItems(newItems);
+                                  try {
+                                    if (activeId) {
+                                      await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                      prevItemsRef.current = newItems;
+                                    }
+                                  } catch {}
+                                }}
+                                onChange={async (txt) => {
+                                  const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
+                                  setMItems(newItems);
+                                  try {
+                                    if (activeId) {
+                                      await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                      prevItemsRef.current = newItems;
+                                    }
+                                  } catch {}
+                                }}
+                                onRemove={async () => {
+                                  const newItems = mItems.filter(p => p.id !== it.id);
+                                  setMItems(newItems);
+                                  try {
+                                    if (activeId) {
+                                      await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                      prevItemsRef.current = newItems;
+                                    }
+                                  } catch {}
+                                }}
                               />
                             ))}
                           </div>
