@@ -173,7 +173,7 @@ docker run -d \
 
 - App & API: http://localhost:8080  
 - **Admin Panel (Docker/prod):** http://localhost:8080/#/admin  
-  *(Make sure `ADMIN_EMAILS` matches the username/email exactly as stored in the DB.)*
+  *(Make sure `ADMIN_EMAILS` matches the username exactly when creating the admin account)*
 
 ### docker-compose.yml
 
