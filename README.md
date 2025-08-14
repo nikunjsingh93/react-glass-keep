@@ -62,7 +62,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * **View / Edit** toggle button
   * Pin, more (⋮) menu (**Download .md**), Close
   * Footer: tags chip editor, color palette, image add, **Delete (confirm dialog)**, **Save**
-  * Click anywhere in body (view mode) to switch to edit
+  * Click edit button in body to switch to edit mode
   * Dense list rendering in view mode (minimal spacing)
 * **PWA**
 
@@ -254,7 +254,7 @@ docker compose up -d
 
   * Click a card to open the modal.
   * Modal header has **View / Edit** toggle, **Pin**, **⋮ (Download .md)**, and **Close**.
-  * Click anywhere in the body (view mode) to switch to edit mode.
+  * Click edit button in the body to switch to edit mode.
 
 * **Images**
 
