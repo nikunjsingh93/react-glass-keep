@@ -418,6 +418,11 @@ app.get("/api/events", authFromQueryOrHeader, (req, res) => {
 
 // ---------- Auth ----------
 app.post("/api/register", (req, res) => {
+  // Check if new account creation is allowed
+  if (!adminSettings.allowNewAccounts) {
+    return res.status(403).json({ error: "New account creation is currently disabled." });
+  }
+  
   const { name, email, password } = req.body || {};
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required." });
@@ -885,6 +890,32 @@ function adminOnly(req, res, next) {
   next();
 }
 
+// Admin settings storage (in-memory for now, could be moved to DB)
+let adminSettings = {
+  allowNewAccounts: true
+};
+
+// Get admin settings
+app.get("/api/admin/settings", auth, adminOnly, (_req, res) => {
+  res.json(adminSettings);
+});
+
+// Update admin settings
+app.patch("/api/admin/settings", auth, adminOnly, (req, res) => {
+  const { allowNewAccounts } = req.body || {};
+  
+  if (typeof allowNewAccounts === 'boolean') {
+    adminSettings.allowNewAccounts = allowNewAccounts;
+  }
+  
+  res.json(adminSettings);
+});
+
+// Check if new account creation is allowed (public endpoint)
+app.get("/api/admin/allow-registration", (_req, res) => {
+  res.json({ allowNewAccounts: adminSettings.allowNewAccounts });
+});
+
 // Include a rough storage usage estimate (bytes) for each user
 // This sums the LENGTH() of relevant TEXT columns across a user's notes.
 // It’s an approximation (UTF-8 chars ≈ bytes, and data-URL images are strings).
@@ -940,6 +971,37 @@ app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
 
   deleteUserStmt.run(id);
   res.json({ ok: true });
+});
+
+// Create user from admin panel
+app.post("/api/admin/users", auth, adminOnly, (req, res) => {
+  const { name, email, password, is_admin } = req.body || {};
+  
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "Name, email, and password are required." });
+  }
+  
+  if (getUserByEmail.get(email)) {
+    return res.status(409).json({ error: "Email already registered." });
+  }
+  
+  const hash = bcrypt.hashSync(password, 10);
+  const info = insertUser.run(name.trim(), email.trim(), hash, nowISO());
+  
+  // Set admin status if specified
+  if (is_admin) {
+    const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE id=?");
+    mkAdmin.run(info.lastInsertRowid);
+  }
+  
+  const user = getUserById.get(info.lastInsertRowid);
+  res.status(201).json({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    is_admin: !!user.is_admin,
+    created_at: user.created_at,
+  });
 });
 
 // ---------- Health ----------

@@ -989,7 +989,7 @@ function AuthShell({ title, dark, onToggleDark, children }) {
 }
 
 /** ---------- Login / Register / Secret Login ---------- */
-function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret }) {
+function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret, allowRegistration }) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
@@ -1031,9 +1031,11 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret }) {
       </form>
 
       <div className="mt-4 text-sm flex justify-between items-center">
-        <button className="text-indigo-600 hover:underline" onClick={goRegister}>
-          Create account
-        </button>
+        {allowRegistration && (
+          <button className="text-indigo-600 hover:underline" onClick={goRegister}>
+            Create account
+          </button>
+        )}
         <button className="text-indigo-600 hover:underline" onClick={goSecret}>
           Forgot username/password?
         </button>
@@ -1228,6 +1230,178 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
   );
 }
 
+/** ---------- Admin Panel ---------- */
+function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm, setNewUserForm, updateAdminSettings, createUser, deleteUser, currentUser }) {
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  console.log("AdminPanel render:", { open, adminSettings, allUsers: allUsers?.length });
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newUserForm.name || !newUserForm.email || !newUserForm.password) {
+      alert("Please fill in all required fields");
+      return;
+    }
+    
+    setIsCreatingUser(true);
+    try {
+      await createUser(newUserForm);
+      alert("User created successfully!");
+    } catch (e) {
+      // Error already handled in createUser function
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        />
+      )}
+      <div
+        className={`fixed top-0 right-0 z-50 h-full w-96 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+        style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)", borderLeft: "1px solid var(--border-light)" }}
+        aria-hidden={!open}
+      >
+        <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
+          <h3 className="text-lg font-semibold">Admin Panel</h3>
+          <button
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={onClose}
+            title="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        
+        <div className="p-4 overflow-y-auto h-[calc(100%-64px)]">
+          {/* Settings Section */}
+          <div className="mb-8">
+            <h4 className="text-md font-semibold mb-4">Settings</h4>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Allow New Account Creation</span>
+                <button
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    adminSettings.allowNewAccounts 
+                      ? 'bg-indigo-600' 
+                      : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                  onClick={() => updateAdminSettings({ allowNewAccounts: !adminSettings.allowNewAccounts })}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      adminSettings.allowNewAccounts ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Create User Section */}
+          <div className="mb-8">
+            <h4 className="text-md font-semibold mb-4">Create New User</h4>
+            <form onSubmit={handleCreateUser} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Name"
+                value={newUserForm.name}
+                onChange={(e) => setNewUserForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={newUserForm.email}
+                onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_admin"
+                  checked={newUserForm.is_admin}
+                  onChange={(e) => setNewUserForm(prev => ({ ...prev, is_admin: e.target.checked }))}
+                  className="mr-2"
+                />
+                <label htmlFor="is_admin" className="text-sm">Make admin</label>
+              </div>
+              <button
+                type="submit"
+                disabled={isCreatingUser}
+                className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {isCreatingUser ? "Creating..." : "Create User"}
+              </button>
+            </form>
+          </div>
+
+          {/* Users List Section */}
+          <div>
+            <h4 className="text-md font-semibold mb-4">All Users ({allUsers.length})</h4>
+            <div className="space-y-3">
+              {allUsers.map((user) => (
+                <div key={user.id} className="p-3 border border-[var(--border-light)] rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-sm text-gray-500">{user.email}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {user.is_admin && (
+                        <span className="px-2 py-1 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 rounded">
+                          Admin
+                        </span>
+                      )}
+                      {user.id !== currentUser?.id && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete ${user.name}?`)) {
+                              deleteUser(user.id);
+                            }
+                          }}
+                          className="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div>Notes: {user.notes}</div>
+                    <div>Storage: {formatBytes(user.storage_bytes)}</div>
+                    <div>Joined: {new Date(user.created_at).toLocaleDateString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /** ---------- NotesUI (presentational) ---------- */
 function NotesUI({
   currentUser, dark, toggleDark,
@@ -1283,6 +1457,8 @@ function NotesUI({
   sseConnected,
   loadNotes,
   loadArchivedNotes,
+  // Admin panel
+  openAdminPanel,
 }) {
     // Multi-select color popover (local UI state)
     const multiColorBtnRef = useRef(null);
@@ -1470,6 +1646,14 @@ function NotesUI({
               >
                 Multi select
               </button>
+              {currentUser?.is_admin && (
+                <button
+                  className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                  onClick={() => { setHeaderMenuOpen(false); openAdminPanel?.(); }}
+                >
+                  Admin Panel
+                </button>
+              )}
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
                 onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
@@ -2163,6 +2347,13 @@ export default function App() {
   // SSE connection status
   const [sseConnected, setSseConnected] = useState(false);
 
+  // Admin panel state
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [adminSettings, setAdminSettings] = useState({ allowNewAccounts: true });
+  const [allUsers, setAllUsers] = useState([]);
+  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', is_admin: false });
+  const [allowRegistration, setAllowRegistration] = useState(true);
+
   // Derived: Active note + edited text
   const activeNoteObj = useMemo(
     () => notes.find((x) => String(x.id) === String(activeId)),
@@ -2313,6 +2504,11 @@ export default function App() {
       loadNotes().catch(() => {});
     }
   }, [token, tagFilter]);
+
+  // Check registration setting on app load
+  useEffect(() => {
+    checkRegistrationSetting();
+  }, []);
   
   useEffect(() => {
     if (token) loadNotes().catch(() => {});
@@ -2723,6 +2919,84 @@ export default function App() {
       }
     } catch (e) {
       alert(e.message || "Failed to archive note");
+    }
+  };
+
+  /** -------- Admin Panel Functions -------- */
+  const loadAdminSettings = async () => {
+    try {
+      console.log("Loading admin settings...");
+      const settings = await api("/admin/settings", { token });
+      console.log("Admin settings loaded:", settings);
+      setAdminSettings(settings);
+    } catch (e) {
+      console.error("Failed to load admin settings:", e);
+    }
+  };
+
+  const updateAdminSettings = async (newSettings) => {
+    try {
+      const settings = await api("/admin/settings", { method: "PATCH", token, body: newSettings });
+      setAdminSettings(settings);
+    } catch (e) {
+      alert(e.message || "Failed to update admin settings");
+    }
+  };
+
+  const loadAllUsers = async () => {
+    try {
+      console.log("Loading all users...");
+      const users = await api("/admin/users", { token });
+      console.log("Users loaded:", users);
+      setAllUsers(users);
+    } catch (e) {
+      console.error("Failed to load users:", e);
+    }
+  };
+
+  const createUser = async (userData) => {
+    try {
+      const newUser = await api("/admin/users", { method: "POST", token, body: userData });
+      setAllUsers(prev => [newUser, ...prev]);
+      setNewUserForm({ name: '', email: '', password: '', is_admin: false });
+      return newUser;
+    } catch (e) {
+      alert(e.message || "Failed to create user");
+      throw e;
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      await api(`/admin/users/${userId}`, { method: "DELETE", token });
+      setAllUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (e) {
+      alert(e.message || "Failed to delete user");
+    }
+  };
+
+  const openAdminPanel = async () => {
+    console.log("Opening admin panel...");
+    setAdminPanelOpen(true);
+    try {
+      await Promise.all([
+        loadAdminSettings(),
+        loadAllUsers()
+      ]);
+      console.log("Admin panel data loaded successfully");
+    } catch (error) {
+      console.error("Error loading admin panel data:", error);
+    }
+  };
+
+  // Check if registration is allowed
+  const checkRegistrationSetting = async () => {
+    try {
+      const response = await api("/admin/allow-registration");
+      setAllowRegistration(response.allowNewAccounts);
+    } catch (e) {
+      console.error("Failed to check registration setting:", e);
+      setAllowRegistration(true); // Default to true if check fails
     }
   };
 
@@ -4009,6 +4283,7 @@ export default function App() {
         onLogin={signIn}
         goRegister={() => navigate("#/register")}
         goSecret={() => navigate("#/login-secret")}
+        allowRegistration={allowRegistration}
       />
     );
   }
@@ -4023,6 +4298,22 @@ export default function App() {
         activeTag={tagFilter}
         onSelect={(tag) => setTagFilter(tag)}
         dark={dark}
+      />
+
+      {/* Admin Panel */}
+      {console.log("Rendering AdminPanel with:", { adminPanelOpen, adminSettings, allUsers: allUsers?.length })}
+      <AdminPanel
+        open={adminPanelOpen}
+        onClose={() => setAdminPanelOpen(false)}
+        dark={dark}
+        adminSettings={adminSettings}
+        allUsers={allUsers}
+        newUserForm={newUserForm}
+        setNewUserForm={setNewUserForm}
+        updateAdminSettings={updateAdminSettings}
+        createUser={createUser}
+        deleteUser={deleteUser}
+        currentUser={currentUser}
       />
 
       <NotesUI
@@ -4112,6 +4403,8 @@ export default function App() {
         sseConnected={sseConnected}
         loadNotes={loadNotes}
         loadArchivedNotes={loadArchivedNotes}
+        // Admin panel
+        openAdminPanel={openAdminPanel}
       />
       {modal}
     </>
