@@ -1420,19 +1420,7 @@ function NotesUI({
               className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { 
-                  setHeaderMenuOpen(false); 
-                  if (tagFilter === 'ARCHIVED') {
-                    loadArchivedNotes?.();
-                  } else {
-                    loadNotes?.();
-                  }
-                }}
-              >
-                Refresh notes
-              </button>
+
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onExportAll?.(); }}
