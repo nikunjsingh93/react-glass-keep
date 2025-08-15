@@ -1456,6 +1456,7 @@ function NotesUI({
   // SSE connection status
   sseConnected,
   isOnline,
+  pendingOperations,
   loadNotes,
   loadArchivedNotes,
   // Admin panel
@@ -1555,6 +1556,13 @@ function NotesUI({
           {!isOnline && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/10 text-orange-700 dark:text-orange-300 border border-orange-600/20">
               Offline
+            </span>
+          )}
+          
+          {/* Pending sync indicator */}
+          {isOnline && pendingOperations > 0 && (
+            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300 border border-blue-600/20">
+              Syncing...
             </span>
           )}
         </div>
@@ -2355,6 +2363,7 @@ export default function App() {
   // SSE connection status
   const [sseConnected, setSseConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingOperations, setPendingOperations] = useState(0);
 
   // Admin panel state
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
@@ -2490,6 +2499,77 @@ export default function App() {
     }
   };
 
+  // Offline queue functionality
+  const OFFLINE_QUEUE_KEY = `glass-keep-offline-queue-${token?.user?.id || 'anonymous'}`;
+  
+  const addToOfflineQueue = (operation) => {
+    try {
+      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+      queue.push({
+        ...operation,
+        id: uid(),
+        timestamp: Date.now()
+      });
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+      setPendingOperations(queue.length);
+      console.log('Added to offline queue:', operation);
+    } catch (error) {
+      console.error('Error adding to offline queue:', error);
+    }
+  };
+
+  const processOfflineQueue = async () => {
+    if (!isOnline || !token) return;
+    
+    try {
+      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+      if (queue.length === 0) return;
+
+      console.log('Processing offline queue:', queue.length, 'operations');
+      
+      for (const operation of queue) {
+        try {
+          switch (operation.type) {
+            case 'CREATE_NOTE':
+              await api('/notes', { method: 'POST', body: operation.data, token });
+              break;
+            case 'UPDATE_NOTE':
+              await api(`/notes/${operation.noteId}`, { method: 'PUT', body: operation.data, token });
+              break;
+            case 'DELETE_NOTE':
+              await api(`/notes/${operation.noteId}`, { method: 'DELETE', token });
+              break;
+            case 'TOGGLE_PIN':
+              await api(`/notes/${operation.noteId}`, { method: 'PATCH', body: { pinned: operation.pinned }, token });
+              break;
+            case 'ARCHIVE_NOTE':
+              await api(`/notes/${operation.noteId}/archive`, { method: 'POST', body: { archived: operation.archived }, token });
+              break;
+          }
+          console.log('Processed offline operation:', operation.type, operation.noteId || operation.data?.id);
+        } catch (error) {
+          console.error('Failed to process offline operation:', operation, error);
+          // Keep failed operations in queue for retry
+          continue;
+        }
+      }
+      
+      // Clear the queue after successful processing
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+      setPendingOperations(0);
+      console.log('Offline queue processed successfully');
+      
+      // Refresh notes to show updated data
+      if (tagFilter === 'ARCHIVED') {
+        await loadArchivedNotes();
+      } else {
+        await loadNotes();
+      }
+    } catch (error) {
+      console.error('Error processing offline queue:', error);
+    }
+  };
+
   // Load notes with offline caching
   const loadNotes = async () => {
     if (!token) return;
@@ -2604,7 +2684,16 @@ export default function App() {
   }, []);
   
   useEffect(() => {
-    if (token) loadNotes().catch(() => {});
+    if (token) {
+      loadNotes().catch(() => {});
+      // Initialize pending operations count
+      try {
+        const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+        setPendingOperations(queue.length);
+      } catch (error) {
+        console.error('Error initializing pending operations count:', error);
+      }
+    }
     if (!token) return;
     
     let es;
@@ -2719,6 +2808,8 @@ export default function App() {
       if (es && es.readyState === EventSource.CLOSED) {
         connectSSE();
       }
+      // Process any pending offline operations
+      processOfflineQueue();
     };
     
     const handleOffline = () => {
@@ -2986,11 +3077,22 @@ export default function App() {
       timestamp: nowIso,
       updated_at: nowIso,
     };
+    
     try {
-      const created = await api("/notes", { method: "POST", body: newNote, token });
-      setNotes((prev) => [created, ...prev]);
-      // Invalidate cache to ensure fresh data on next load
-      invalidateNotesCache();
+      if (isOnline) {
+        // Online: try to save to server
+        const created = await api("/notes", { method: "POST", body: newNote, token });
+        setNotes((prev) => [created, ...prev]);
+        invalidateNotesCache();
+      } else {
+        // Offline: add to local state and queue for later sync
+        setNotes((prev) => [newNote, ...prev]);
+        addToOfflineQueue({
+          type: 'CREATE_NOTE',
+          data: newNote
+        });
+      }
+      
       // reset composer (also collapse back to single input)
       setTitle("");
       setContent("");
@@ -3003,7 +3105,28 @@ export default function App() {
       setComposerCollapsed(true);
       if (contentRef.current) contentRef.current.style.height = "auto";
     } catch (e) {
-      alert(e.message || "Failed to add note");
+      if (isOnline) {
+        alert(e.message || "Failed to add note");
+      } else {
+        // Offline: still add to local state and queue
+        setNotes((prev) => [newNote, ...prev]);
+        addToOfflineQueue({
+          type: 'CREATE_NOTE',
+          data: newNote
+        });
+        
+        // reset composer
+        setTitle("");
+        setContent("");
+        setTags("");
+        setComposerImages([]);
+        setComposerColor("default");
+        setClItems([]);
+        setClInput("");
+        setComposerType("text");
+        setComposerCollapsed(true);
+        if (contentRef.current) contentRef.current.style.height = "auto";
+      }
     }
   };
 
@@ -3017,30 +3140,62 @@ export default function App() {
   /** -------- Archive/Unarchive note -------- */
   const handleArchiveNote = async (noteId, archived) => {
     try {
-      await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
-      
-      // Invalidate both caches since archiving affects both regular and archived notes
-      invalidateNotesCache();
-      invalidateArchivedNotesCache();
-      
-      // Reload appropriate notes based on current view
-      if (tagFilter === 'ARCHIVED') {
-        if (!archived) {
-          // If unarchiving from archived view, switch back to regular view
-          setTagFilter(null);
-          await loadNotes();
+      if (isOnline) {
+        // Online: try to update server
+        await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
+        
+        // Invalidate both caches since archiving affects both regular and archived notes
+        invalidateNotesCache();
+        invalidateArchivedNotesCache();
+        
+        // Reload appropriate notes based on current view
+        if (tagFilter === 'ARCHIVED') {
+          if (!archived) {
+            // If unarchiving from archived view, switch back to regular view
+            setTagFilter(null);
+            await loadNotes();
+          } else {
+            await loadArchivedNotes();
+          }
         } else {
-          await loadArchivedNotes();
+          await loadNotes();
         }
       } else {
-        await loadNotes();
+        // Offline: queue for later sync and update local state
+        addToOfflineQueue({
+          type: 'ARCHIVE_NOTE',
+          noteId: noteId,
+          archived: archived
+        });
+        
+        // Update local state immediately
+        setNotes((prev) => prev.map((n) => 
+          String(n.id) === String(noteId) ? { ...n, archived: archived } : n
+        ));
       }
       
       if (archived) {
         closeModal();
       }
     } catch (e) {
-      alert(e.message || "Failed to archive note");
+      if (isOnline) {
+        alert(e.message || "Failed to archive note");
+      } else {
+        // Offline: still queue and update local state
+        addToOfflineQueue({
+          type: 'ARCHIVE_NOTE',
+          noteId: noteId,
+          archived: archived
+        });
+        
+        setNotes((prev) => prev.map((n) => 
+          String(n.id) === String(noteId) ? { ...n, archived: archived } : n
+        ));
+        
+        if (archived) {
+          closeModal();
+        }
+      }
     }
   };
 
@@ -3398,7 +3553,20 @@ export default function App() {
 
     try {
       setSavingModal(true);
-      await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+      
+      if (isOnline) {
+        // Online: try to save to server
+        await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+        invalidateNotesCache();
+      } else {
+        // Offline: queue for later sync
+        addToOfflineQueue({
+          type: 'UPDATE_NOTE',
+          noteId: activeId,
+          data: payload
+        });
+      }
+      
       prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
@@ -3411,11 +3579,30 @@ export default function App() {
           lastEditedAt: nowIso
         } : n)
       ));
-      // Invalidate cache to ensure fresh data on next load
-      invalidateNotesCache();
       closeModal();
     } catch (e) {
-      alert(e.message || "Failed to save note");
+      if (isOnline) {
+        alert(e.message || "Failed to save note");
+      } else {
+        // Offline: still update local state and queue
+        addToOfflineQueue({
+          type: 'UPDATE_NOTE',
+          noteId: activeId,
+          data: payload
+        });
+        
+        const nowIso = new Date().toISOString();
+        setNotes((prev) => prev.map((n) =>
+          (String(n.id) === String(activeId) ? { 
+            ...n, 
+            ...payload, 
+            updated_at: nowIso,
+            lastEditedBy: currentUser?.email || currentUser?.name,
+            lastEditedAt: nowIso
+          } : n)
+        ));
+        closeModal();
+      }
     } finally {
       setSavingModal(false);
     }
@@ -3423,23 +3610,62 @@ export default function App() {
   const deleteModal = async () => {
     if (activeId == null) return;
     try {
-      await api(`/notes/${activeId}`, { method: "DELETE", token });
+      if (isOnline) {
+        // Online: try to delete from server
+        await api(`/notes/${activeId}`, { method: "DELETE", token });
+        invalidateNotesCache();
+      } else {
+        // Offline: queue for later sync
+        addToOfflineQueue({
+          type: 'DELETE_NOTE',
+          noteId: activeId
+        });
+      }
+      
       setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
-      // Invalidate cache to ensure fresh data on next load
-      invalidateNotesCache();
       closeModal();
     } catch (e) {
-      alert(e.message || "Delete failed");
+      if (isOnline) {
+        alert(e.message || "Delete failed");
+      } else {
+        // Offline: still remove from local state and queue
+        addToOfflineQueue({
+          type: 'DELETE_NOTE',
+          noteId: activeId
+        });
+        setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
+        closeModal();
+      }
     }
   };
   const togglePin = async (id, toPinned) => {
     try {
-      await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
+      if (isOnline) {
+        // Online: try to update server
+        await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
+        invalidateNotesCache();
+      } else {
+        // Offline: queue for later sync
+        addToOfflineQueue({
+          type: 'TOGGLE_PIN',
+          noteId: id,
+          pinned: !!toPinned
+        });
+      }
+      
       setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
-      // Invalidate cache to ensure fresh data on next load
-      invalidateNotesCache();
     } catch (e) {
-      alert(e.message || "Failed to toggle pin");
+      if (isOnline) {
+        alert(e.message || "Failed to toggle pin");
+      } else {
+        // Offline: still update local state and queue
+        addToOfflineQueue({
+          type: 'TOGGLE_PIN',
+          noteId: id,
+          pinned: !!toPinned
+        });
+        setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
+      }
     }
   };
 
@@ -4530,6 +4756,7 @@ export default function App() {
         // SSE connection status
         sseConnected={sseConnected}
         isOnline={isOnline}
+        pendingOperations={pendingOperations}
         loadNotes={loadNotes}
         loadArchivedNotes={loadArchivedNotes}
         // Admin panel
