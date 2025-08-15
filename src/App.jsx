@@ -2531,9 +2531,44 @@ export default function App() {
         el.style.height = MIN + "px";
         el.style.height = Math.max(el.scrollHeight, MIN) + "px";
         
-        // Restore scroll position
-        if (modalScrollEl) {
-          modalScrollEl.scrollTop = scrollTop;
+        // Auto-scroll to keep cursor visible
+        const cursorPosition = el.selectionStart;
+        if (cursorPosition !== null) {
+          // Calculate cursor position relative to textarea
+          const textBeforeCursor = el.value.substring(0, cursorPosition);
+          const lines = textBeforeCursor.split('\n');
+          const currentLine = lines.length;
+          
+          // Create a temporary element to measure line height
+          const tempEl = document.createElement('div');
+          tempEl.style.cssText = window.getComputedStyle(el).cssText;
+          tempEl.style.height = 'auto';
+          tempEl.style.position = 'absolute';
+          tempEl.style.visibility = 'hidden';
+          tempEl.style.whiteSpace = 'pre-wrap';
+          tempEl.textContent = textBeforeCursor;
+          document.body.appendChild(tempEl);
+          
+          const lineHeight = tempEl.offsetHeight / lines.length || 20;
+          document.body.removeChild(tempEl);
+          
+          // Calculate desired scroll position
+          const cursorTop = (currentLine - 1) * lineHeight;
+          const textareaTop = el.offsetTop;
+          const modalScrollTop = modalScrollEl?.scrollTop || 0;
+          const modalHeight = modalScrollEl?.clientHeight || 0;
+          
+          // Keep cursor visible with some padding
+          const desiredScrollTop = Math.max(0, modalScrollTop + textareaTop + cursorTop - modalHeight / 2);
+          
+          if (modalScrollEl) {
+            modalScrollEl.scrollTop = desiredScrollTop;
+          }
+        } else {
+          // Fallback: restore original scroll position
+          if (modalScrollEl) {
+            modalScrollEl.scrollTop = scrollTop;
+          }
         }
       }, 10); // Small delay to batch rapid changes
     };
@@ -2672,7 +2707,13 @@ export default function App() {
       
       // Reload appropriate notes based on current view
       if (tagFilter === 'ARCHIVED') {
-        await loadArchivedNotes();
+        if (!archived) {
+          // If unarchiving from archived view, switch back to regular view
+          setTagFilter(null);
+          await loadNotes();
+        } else {
+          await loadArchivedNotes();
+        }
       } else {
         await loadNotes();
       }
@@ -3422,7 +3463,7 @@ export default function App() {
             </div>
 
             {/* Content area */}
-            <div className="p-6" onClick={onModalBodyClick}>
+            <div className="p-6 pb-12" onClick={onModalBodyClick}>
               {/* Images */}
               {mImages.length > 0 && (
                 <div className="mb-5 flex gap-3 overflow-x-auto">
