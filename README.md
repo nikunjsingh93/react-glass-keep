@@ -31,7 +31,8 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * Collaboration on notes — co-edit Markdown notes and watch changes sync across collaborators.  
 * **Admin Panel**
 
-  * Visit: `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod)
+  * New Admin Panel Sidebar in 3 dots Dropdown with many features like Add new uesr, Toggle new account creation ✅ NEW
+  * (OLD WAY) Visit: `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod) to view full list and delete only
   * View **all users** with: Name, Email/Username, **Is Admin**, **Notes count**, **Storage used**, Created at
   * **Delete user** (also deletes their notes; protected against deleting the last admin)
 * **Notes**
@@ -132,9 +133,8 @@ setx ADMIN_EMAILS "your-admin-username"
 npm run dev
 ```
 
-- Frontend (Vite): http://localhost:5173  
-- **Admin Panel (dev):** http://localhost:5173/#/admin  
-- API (Express): http://localhost:8080  
+- Frontend (Vite): http://localhost:5173
+- Docker: http://localhost:8080  
   *(Vite dev server proxies `/api` → `http://localhost:8080`.)*
 
 **Promote an existing user to admin (optional):**
