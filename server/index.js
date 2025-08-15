@@ -128,6 +128,9 @@ CREATE TABLE IF NOT EXISTS note_collaborators (
       if (!names.has("last_edited_at")) {
         db.exec(`ALTER TABLE notes ADD COLUMN last_edited_at TEXT`);
       }
+      if (!names.has("archived")) {
+        db.exec(`ALTER TABLE notes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`);
+      }
     });
     tx();
   } catch {
@@ -228,7 +231,10 @@ const getNoteById = db.prepare("SELECT * FROM notes WHERE id = ?");
 
 // Notes statements
 const listNotes = db.prepare(
-  `SELECT * FROM notes WHERE user_id = ? ORDER BY pinned DESC, position DESC, timestamp DESC`
+  `SELECT * FROM notes WHERE user_id = ? AND archived = 0 ORDER BY pinned DESC, position DESC, timestamp DESC`
+);
+const listArchivedNotes = db.prepare(
+  `SELECT * FROM notes WHERE user_id = ? AND archived = 1 ORDER BY timestamp DESC`
 );
 const listNotesPage = db.prepare(
   `SELECT * FROM notes WHERE user_id = ? ORDER BY pinned DESC, position DESC, timestamp DESC LIMIT ? OFFSET ?`
@@ -240,8 +246,8 @@ const getNoteWithCollaboration = db.prepare(`
   WHERE n.id = ? AND (n.user_id = ? OR nc.user_id IS NOT NULL)
 `);
 const insertNote = db.prepare(`
-  INSERT INTO notes (id,user_id,type,title,content,items_json,tags_json,images_json,color,pinned,position,timestamp)
-  VALUES (@id,@user_id,@type,@title,@content,@items_json,@tags_json,@images_json,@color,@pinned,@position,@timestamp)
+  INSERT INTO notes (id,user_id,type,title,content,items_json,tags_json,images_json,color,pinned,position,timestamp,archived)
+  VALUES (@id,@user_id,@type,@title,@content,@items_json,@tags_json,@images_json,@color,@pinned,@position,@timestamp,0)
 `);
 const updateNote = db.prepare(`
   UPDATE notes SET
@@ -499,19 +505,19 @@ app.get("/api/notes", auth, (req, res) => {
   // Get all notes (own + collaborated) in a single query to avoid duplicates
   const allNotesQuery = db.prepare(`
     SELECT DISTINCT n.* FROM notes n
-    WHERE n.user_id = ? OR EXISTS(
+    WHERE (n.user_id = ? OR EXISTS(
       SELECT 1 FROM note_collaborators nc 
       WHERE nc.note_id = n.id AND nc.user_id = ?
-    )
+    )) AND n.archived = 0
     ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
   `);
   
   const allNotesWithPagingQuery = db.prepare(`
     SELECT DISTINCT n.* FROM notes n
-    WHERE n.user_id = ? OR EXISTS(
+    WHERE (n.user_id = ? OR EXISTS(
       SELECT 1 FROM note_collaborators nc 
       WHERE nc.note_id = n.id AND nc.user_id = ?
-    )
+    )) AND n.archived = 0
     ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
     LIMIT ? OFFSET ?
   `);
@@ -535,6 +541,7 @@ app.get("/api/notes", auth, (req, res) => {
       updated_at: r.updated_at,
       lastEditedBy: r.last_edited_by,
       lastEditedAt: r.last_edited_at,
+      archived: !!r.archived,
     }))
   );
 });
@@ -754,6 +761,59 @@ app.get("/api/notes/collaborated", auth, (req, res) => {
       updated_at: r.updated_at,
       lastEditedBy: r.last_edited_by,
       lastEditedAt: r.last_edited_at,
+    }))
+  );
+});
+
+// Archive/Unarchive notes
+app.post("/api/notes/:id/archive", auth, (req, res) => {
+  const id = req.params.id;
+  const { archived } = req.body || {};
+  
+  // Check if note exists and user owns it
+  const existing = getNote.get(id, req.user.id);
+  if (!existing) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+  
+  // Update archived status
+  const updateArchived = db.prepare(`
+    UPDATE notes SET archived = ? WHERE id = ? AND user_id = ?
+  `);
+  
+  const result = updateArchived.run(archived ? 1 : 0, id, req.user.id);
+  
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Note not found or access denied" });
+  }
+  
+  // Update editor tracking
+  updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
+  broadcastNoteUpdated(id);
+  
+  res.json({ ok: true });
+});
+
+// Get archived notes
+app.get("/api/notes/archived", auth, (req, res) => {
+  const rows = listArchivedNotes.all(req.user.id);
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      content: r.content,
+      items: JSON.parse(r.items_json || "[]"),
+      tags: JSON.parse(r.tags_json || "[]"),
+      images: JSON.parse(r.images_json || "[]"),
+      color: r.color,
+      pinned: !!r.pinned,
+      position: r.position,
+      timestamp: r.timestamp,
+      updated_at: r.updated_at,
+      lastEditedBy: r.last_edited_by,
+      lastEditedAt: r.last_edited_at,
+      archived: !!r.archived,
     }))
   );
 });

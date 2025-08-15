@@ -1195,6 +1195,14 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
             All Images
           </button>
 
+          {/* Archived Notes */}
+          <button
+            className={`w-full text-left px-3 py-2 rounded-md mb-2 ${activeTag === 'ARCHIVED' ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
+            onClick={() => { onSelect('ARCHIVED'); onClose(); }}
+          >
+            Archived Notes
+          </button>
+
           {/* User tags */}
           {tagsWithCounts.map(({ tag, count }) => {
             const active = typeof activeTag === "string" && activeTag !== ALL_IMAGES &&
@@ -1274,12 +1282,15 @@ function NotesUI({
   // SSE connection status
   sseConnected,
   loadNotes,
+  loadArchivedNotes,
 }) {
     // Multi-select color popover (local UI state)
     const multiColorBtnRef = useRef(null);
     const [showMultiColorPop, setShowMultiColorPop] = useState(false);
   const tagLabel =
-    activeTagFilter === ALL_IMAGES ? "All Images" : activeTagFilter;
+    activeTagFilter === ALL_IMAGES ? "All Images" : 
+    activeTagFilter === 'ARCHIVED' ? "Archived Notes" : 
+    activeTagFilter;
 
   return (
     <div className="min-h-screen">
@@ -1359,7 +1370,7 @@ function NotesUI({
           <h1 className="hidden sm:block text-2xl sm:text-3xl font-bold">Glass Keep</h1>
           {activeTagFilter && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 border border-indigo-600/20">
-              {tagLabel === "All Images" ? tagLabel : `Tag: ${tagLabel}`}
+              {tagLabel === "All Images" || tagLabel === "Archived Notes" ? tagLabel : `Tag: ${tagLabel}`}
             </span>
           )}
         </div>
@@ -1411,7 +1422,14 @@ function NotesUI({
             >
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); loadNotes?.(); }}
+                onClick={() => { 
+                  setHeaderMenuOpen(false); 
+                  if (tagFilter === 'ARCHIVED') {
+                    loadArchivedNotes?.();
+                  } else {
+                    loadNotes?.();
+                  }
+                }}
               >
                 Refresh notes
               </button>
@@ -2267,13 +2285,47 @@ export default function App() {
     setNotes([]);
     try {
       const data = await api("/notes", { token });
+      console.log("Regular notes loaded:", data);
       setNotes(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (error) {
+      console.error("Error loading regular notes:", error);
       setNotes([]);
     } finally {
       setNotesLoading(false);
     }
   };
+
+  // Load archived notes
+  const loadArchivedNotes = async () => {
+    if (!token) return;
+    setNotesLoading(true);
+    setNotes([]);
+    try {
+      const data = await api("/notes/archived", { token });
+      console.log("Archived notes loaded:", data);
+      setNotes(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error loading archived notes:", error);
+      setNotes([]);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (!token) return;
+    
+    console.log("Tag filter changed to:", tagFilter);
+    
+    // Load appropriate notes based on tag filter
+    if (tagFilter === 'ARCHIVED') {
+      console.log("Loading archived notes...");
+      loadArchivedNotes().catch(() => {});
+    } else {
+      console.log("Loading regular notes...");
+      loadNotes().catch(() => {});
+    }
+  }, [token, tagFilter]);
+  
   useEffect(() => {
     if (token) loadNotes().catch(() => {});
     if (!token) return;
@@ -2302,7 +2354,11 @@ export default function App() {
             const msg = JSON.parse(e.data || '{}');
             if (msg && msg.type === 'note_updated') {
               // Refresh notes list on any note update relevant to this user
-              loadNotes().catch(() => {});
+              if (tagFilter === 'ARCHIVED') {
+                loadArchivedNotes().catch(() => {});
+              } else {
+                loadNotes().catch(() => {});
+              }
             }
           } catch {}
         };
@@ -2311,7 +2367,11 @@ export default function App() {
           try {
             const msg = JSON.parse(e.data || '{}');
             if (msg && msg.noteId) {
-              loadNotes().catch(() => {});
+              if (tagFilter === 'ARCHIVED') {
+                loadArchivedNotes().catch(() => {});
+              } else {
+                loadNotes().catch(() => {});
+              }
             }
           } catch {}
         });
@@ -2343,7 +2403,11 @@ export default function App() {
       pollInterval = setInterval(() => {
         // Only poll if SSE is not connected
         if (!es || es.readyState === EventSource.CLOSED) {
-          loadNotes().catch(() => {});
+          if (tagFilter === 'ARCHIVED') {
+            loadArchivedNotes().catch(() => {});
+          } else {
+            loadNotes().catch(() => {});
+          }
         }
       }, 30000); // Poll every 30 seconds as fallback
     };
@@ -2359,7 +2423,11 @@ export default function App() {
           connectSSE();
         }
         // Also refresh notes when page becomes visible
-        loadNotes().catch(() => {});
+        if (tagFilter === 'ARCHIVED') {
+          loadArchivedNotes().catch(() => {});
+        } else {
+          loadNotes().catch(() => {});
+        }
       }
     };
     
@@ -2607,6 +2675,26 @@ export default function App() {
     const md = mdForDownload(note);
     const fname = sanitizeFilename(note.title || `note-${note.id}`) + ".md";
     downloadText(fname, md);
+  };
+
+  /** -------- Archive/Unarchive note -------- */
+  const handleArchiveNote = async (noteId, archived) => {
+    try {
+      await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
+      
+      // Reload appropriate notes based on current view
+      if (tagFilter === 'ARCHIVED') {
+        await loadArchivedNotes();
+      } else {
+        await loadNotes();
+      }
+      
+      if (archived) {
+        closeModal();
+      }
+    } catch (e) {
+      alert(e.message || "Failed to archive note");
+    }
   };
 
   /** -------- Export / Import All -------- */
@@ -3000,11 +3088,14 @@ export default function App() {
   /** -------- Derived lists (search + tag filter) -------- */
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    const tag = tagFilter === ALL_IMAGES ? null : (tagFilter?.toLowerCase() || null);
+    const tag = tagFilter === ALL_IMAGES ? null : (tagFilter === 'ARCHIVED' ? null : (tagFilter?.toLowerCase() || null));
 
     return notes.filter((n) => {
       if (tagFilter === ALL_IMAGES) {
         if (!(n.images && n.images.length)) return false;
+      } else if (tagFilter === 'ARCHIVED') {
+        // In archived view, show all notes (they're already filtered by the backend)
+        // Just apply search filter
       } else if (tag && !(n.tags || []).some((t) => String(t).toLowerCase() === tag)) {
         return false;
       }
@@ -3019,7 +3110,7 @@ export default function App() {
   }, [notes, search, tagFilter]);
   const pinned = filtered.filter((n) => n.pinned);
   const others = filtered.filter((n) => !n.pinned);
-  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || tagFilter);
+  const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || (tagFilter && tagFilter !== 'ARCHIVED'));
   const allEmpty = notes.length === 0;
 
   /** -------- Modal link handler: open links in new tab (no auto-enter edit) -------- */
@@ -3301,6 +3392,18 @@ export default function App() {
                         onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
                       >
                         Download .md
+                      </button>
+                      <button
+                        className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                        onClick={() => { 
+                          const note = notes.find(nn => String(nn.id) === String(activeId));
+                          if (note) {
+                            handleArchiveNote(activeId, !note.archived);
+                            setModalMenuOpen(false);
+                          }
+                        }}
+                      >
+                        {activeNoteObj?.archived ? "Unarchive" : "Archive"}
                       </button>
                       <button
                         className={`block w-full text-left px-3 py-2 text-sm text-red-600 ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
@@ -3979,6 +4082,7 @@ export default function App() {
         // SSE connection status
         sseConnected={sseConnected}
         loadNotes={loadNotes}
+        loadArchivedNotes={loadArchivedNotes}
       />
       {modal}
     </>
