@@ -2353,17 +2353,38 @@ export default function App() {
     contentRef.current.style.height = contentRef.current.scrollHeight + "px";
   }, [content, composerType]);
 
-  // Auto-resize modal textarea
-  const resizeModalTextarea = () => {
-    const el = mBodyRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const MIN = 160;
-    el.style.height = Math.max(el.scrollHeight, MIN) + "px";
-  };
+  // Auto-resize modal textarea with debouncing
+  const resizeModalTextarea = useMemo(() => {
+    let timeoutId = null;
+    return () => {
+      const el = mBodyRef.current;
+      if (!el) return;
+      
+      // Clear previous timeout
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      
+      // Debounce the resize to prevent excessive updates
+      timeoutId = setTimeout(() => {
+        const modalScrollEl = modalScrollRef.current;
+        const scrollTop = modalScrollEl?.scrollTop || 0;
+        
+        // Set a minimum height to prevent layout shifts
+        const MIN = 160;
+        el.style.height = MIN + "px";
+        el.style.height = Math.max(el.scrollHeight, MIN) + "px";
+        
+        // Restore scroll position
+        if (modalScrollEl) {
+          modalScrollEl.scrollTop = scrollTop;
+        }
+      }, 10); // Small delay to batch rapid changes
+    };
+  }, []);
   useEffect(() => {
     if (!open || mType !== "text") return;
-    if (!viewMode) requestAnimationFrame(resizeModalTextarea);
+    if (!viewMode) resizeModalTextarea();
   }, [open, viewMode, mBody, mType]);
 
   // Ensure modal formatting menu hides when switching to view mode or non-text
@@ -3243,12 +3264,12 @@ export default function App() {
                     dangerouslySetInnerHTML={{ __html: marked.parse(mBody || "") }}
                   />
                 ) : (
-                  <div className="relative">
+                  <div className="relative min-h-[160px]">
                     <textarea
                       ref={mBodyRef}
-                      className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden"
+                      className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px]"
                       value={mBody}
-                      onChange={(e) => { setMBody(e.target.value); requestAnimationFrame(resizeModalTextarea); }}
+                      onChange={(e) => { setMBody(e.target.value); resizeModalTextarea(); }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
                           const el = mBodyRef.current;
