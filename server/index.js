@@ -140,9 +140,28 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
+
+// Function to promote user to admin if they're in the admin list
+function promoteToAdminIfNeeded(email) {
+  if (ADMIN_EMAILS.length && ADMIN_EMAILS.includes(email.toLowerCase())) {
+    const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE lower(email)=?");
+    mkAdmin.run(email.toLowerCase());
+    console.log(`Promoted user ${email} to admin`);
+    return true;
+  }
+  return false;
+}
+
+// Promote existing users to admin on startup
 if (ADMIN_EMAILS.length) {
+  console.log(`Admin emails configured: ${ADMIN_EMAILS.join(', ')}`);
   const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE lower(email)=?");
-  for (const e of ADMIN_EMAILS) mkAdmin.run(e);
+  for (const e of ADMIN_EMAILS) {
+    const result = mkAdmin.run(e);
+    if (result.changes > 0) {
+      console.log(`Promoted existing user ${e} to admin`);
+    }
+  }
 }
 
 // ---------- Helpers ----------
@@ -387,6 +406,10 @@ app.post("/api/register", (req, res) => {
 
   const hash = bcrypt.hashSync(password, 10);
   const info = insertUser.run(name?.trim() || "User", email.trim(), hash, nowISO());
+  
+  // Check if this user should be promoted to admin
+  const promoted = promoteToAdminIfNeeded(email.trim());
+  
   const user = getUserById.get(info.lastInsertRowid);
   const token = signToken(user);
   res.json({
