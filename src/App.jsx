@@ -1455,6 +1455,7 @@ function NotesUI({
   onToggleViewMode,
   // SSE connection status
   sseConnected,
+  isOnline,
   loadNotes,
   loadArchivedNotes,
   // Admin panel
@@ -1547,6 +1548,13 @@ function NotesUI({
           {activeTagFilter && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 border border-indigo-600/20">
               {tagLabel === "All Images" || tagLabel === "Archived Notes" ? tagLabel : `Tag: ${tagLabel}`}
+            </span>
+          )}
+          
+          {/* Offline indicator */}
+          {!isOnline && (
+            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/10 text-orange-700 dark:text-orange-300 border border-orange-600/20">
+              Offline
             </span>
           )}
         </div>
@@ -2346,6 +2354,7 @@ export default function App() {
   
   // SSE connection status
   const [sseConnected, setSseConnected] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Admin panel state
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
@@ -2457,35 +2466,119 @@ export default function App() {
     return () => document.removeEventListener("keydown", onKey);
   }, [sidebarOpen]);
 
-  // Load notes (single request or paginated fallback)
+  // Cache keys for localStorage
+  const NOTES_CACHE_KEY = `glass-keep-notes-${token?.user?.id || 'anonymous'}`;
+  const ARCHIVED_NOTES_CACHE_KEY = `glass-keep-archived-${token?.user?.id || 'anonymous'}`;
+  const CACHE_TIMESTAMP_KEY = `glass-keep-cache-timestamp-${token?.user?.id || 'anonymous'}`;
+
+  // Cache invalidation functions
+  const invalidateNotesCache = () => {
+    try {
+      localStorage.removeItem(NOTES_CACHE_KEY);
+      localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+    } catch (error) {
+      console.error("Error invalidating notes cache:", error);
+    }
+  };
+
+  const invalidateArchivedNotesCache = () => {
+    try {
+      localStorage.removeItem(ARCHIVED_NOTES_CACHE_KEY);
+      localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+    } catch (error) {
+      console.error("Error invalidating archived notes cache:", error);
+    }
+  };
+
+  // Load notes with offline caching
   const loadNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
-    setNotes([]);
+    
+    // Try to load from cache first
+    try {
+      const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
+      const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+      const now = Date.now();
+      
+      // Use cache if it's less than 5 minutes old
+      if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
+        const cachedNotes = JSON.parse(cachedData);
+        console.log("Loading notes from cache:", cachedNotes.length);
+        setNotes(cachedNotes);
+        setNotesLoading(false);
+      }
+    } catch (error) {
+      console.error("Error loading from cache:", error);
+    }
+    
+    // Always try to fetch fresh data
     try {
       const data = await api("/notes", { token });
-      console.log("Regular notes loaded:", data);
-      setNotes(Array.isArray(data) ? data : []);
+      console.log("Regular notes loaded from server:", data);
+      const notesArray = Array.isArray(data) ? data : [];
+      setNotes(notesArray);
+      
+      // Cache the fresh data
+      try {
+        localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify(notesArray));
+        localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+      } catch (error) {
+        console.error("Error caching notes:", error);
+      }
     } catch (error) {
-      console.error("Error loading regular notes:", error);
-      setNotes([]);
+      console.error("Error loading regular notes from server:", error);
+      // If server fails and we don't have cached data, show empty
+      if (!localStorage.getItem(NOTES_CACHE_KEY)) {
+        setNotes([]);
+      }
     } finally {
       setNotesLoading(false);
     }
   };
 
-  // Load archived notes
+  // Load archived notes with offline caching
   const loadArchivedNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
-    setNotes([]);
+    
+    // Try to load from cache first
+    try {
+      const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
+      const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+      const now = Date.now();
+      
+      // Use cache if it's less than 5 minutes old
+      if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
+        const cachedNotes = JSON.parse(cachedData);
+        console.log("Loading archived notes from cache:", cachedNotes.length);
+        setNotes(cachedNotes);
+        setNotesLoading(false);
+      }
+    } catch (error) {
+      console.error("Error loading archived from cache:", error);
+    }
+    
+    // Always try to fetch fresh data
     try {
       const data = await api("/notes/archived", { token });
-      console.log("Archived notes loaded:", data);
-      setNotes(Array.isArray(data) ? data : []);
+      console.log("Archived notes loaded from server:", data);
+      const notesArray = Array.isArray(data) ? data : [];
+      setNotes(notesArray);
+      
+      // Cache the fresh data
+      try {
+        localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(notesArray));
+        localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+      } catch (error) {
+        console.error("Error caching archived notes:", error);
+      }
     } catch (error) {
-      console.error("Error loading archived notes:", error);
-      setNotes([]);
+      console.error("Error loading archived notes from server:", error);
+      // If server fails and we don't have cached data, show empty
+      if (!localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY)) {
+        setNotes([]);
+      }
     } finally {
       setNotesLoading(false);
     }
@@ -2599,6 +2692,8 @@ export default function App() {
     // Start polling after a delay
     const pollTimeout = setTimeout(startPolling, 10000);
     
+
+    
     // Handle page visibility changes (PWA background/foreground)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -2619,12 +2714,21 @@ export default function App() {
     
     // Handle online/offline events
     const handleOnline = () => {
+      console.log("App went online");
+      setIsOnline(true);
       if (es && es.readyState === EventSource.CLOSED) {
         connectSSE();
       }
     };
     
+    const handleOffline = () => {
+      console.log("App went offline");
+      setIsOnline(false);
+      setSseConnected(false);
+    };
+    
     window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     
     return () => {
       setSseConnected(false);
@@ -2642,6 +2746,7 @@ export default function App() {
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, [token]);
 
@@ -2816,6 +2921,17 @@ export default function App() {
     setAuth(null);
     setSession(null);
     setNotes([]);
+    // Clear all cached data for this user
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.includes('glass-keep-')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (error) {
+      console.error("Error clearing cache on sign out:", error);
+    }
     navigate("#/login");
   };
   const signIn = async (email, password) => {
@@ -2873,6 +2989,8 @@ export default function App() {
     try {
       const created = await api("/notes", { method: "POST", body: newNote, token });
       setNotes((prev) => [created, ...prev]);
+      // Invalidate cache to ensure fresh data on next load
+      invalidateNotesCache();
       // reset composer (also collapse back to single input)
       setTitle("");
       setContent("");
@@ -2900,6 +3018,10 @@ export default function App() {
   const handleArchiveNote = async (noteId, archived) => {
     try {
       await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
+      
+      // Invalidate both caches since archiving affects both regular and archived notes
+      invalidateNotesCache();
+      invalidateArchivedNotesCache();
       
       // Reload appropriate notes based on current view
       if (tagFilter === 'ARCHIVED') {
@@ -3289,6 +3411,8 @@ export default function App() {
           lastEditedAt: nowIso
         } : n)
       ));
+      // Invalidate cache to ensure fresh data on next load
+      invalidateNotesCache();
       closeModal();
     } catch (e) {
       alert(e.message || "Failed to save note");
@@ -3301,6 +3425,8 @@ export default function App() {
     try {
       await api(`/notes/${activeId}`, { method: "DELETE", token });
       setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
+      // Invalidate cache to ensure fresh data on next load
+      invalidateNotesCache();
       closeModal();
     } catch (e) {
       alert(e.message || "Delete failed");
@@ -3310,6 +3436,8 @@ export default function App() {
     try {
       await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
       setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
+      // Invalidate cache to ensure fresh data on next load
+      invalidateNotesCache();
     } catch (e) {
       alert(e.message || "Failed to toggle pin");
     }
@@ -4401,6 +4529,7 @@ export default function App() {
         onToggleViewMode={onToggleViewMode}
         // SSE connection status
         sseConnected={sseConnected}
+        isOnline={isOnline}
         loadNotes={loadNotes}
         loadArchivedNotes={loadArchivedNotes}
         // Admin panel
