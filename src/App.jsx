@@ -1323,8 +1323,8 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
                 className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
               <input
-                type="email"
-                placeholder="Email"
+                type="text"
+                placeholder="Username"
                 value={newUserForm.email}
                 onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))}
                 className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500"
