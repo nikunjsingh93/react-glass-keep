@@ -2501,6 +2501,38 @@ export default function App() {
 
   // Offline queue functionality
   const OFFLINE_QUEUE_KEY = `glass-keep-offline-queue-${token?.user?.id || 'anonymous'}`;
+  const OFFLINE_NOTES_KEY = `glass-keep-offline-notes-${token?.user?.id || 'anonymous'}`;
+  
+  const getOfflineNotes = () => {
+    try {
+      return JSON.parse(localStorage.getItem(OFFLINE_NOTES_KEY) || '[]');
+    } catch (error) {
+      console.error('Error getting offline notes:', error);
+      return [];
+    }
+  };
+
+  const addOfflineNote = (note) => {
+    try {
+      const offlineNotes = getOfflineNotes();
+      offlineNotes.push(note);
+      localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(offlineNotes));
+      console.log('Added offline note:', note.id);
+    } catch (error) {
+      console.error('Error adding offline note:', error);
+    }
+  };
+
+  const removeOfflineNote = (noteId) => {
+    try {
+      const offlineNotes = getOfflineNotes();
+      const filteredNotes = offlineNotes.filter(note => String(note.id) !== String(noteId));
+      localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(filteredNotes));
+      console.log('Removed offline note:', noteId);
+    } catch (error) {
+      console.error('Error removing offline note:', error);
+    }
+  };
   
   const addToOfflineQueue = (operation) => {
     try {
@@ -2532,6 +2564,8 @@ export default function App() {
           switch (operation.type) {
             case 'CREATE_NOTE':
               await api('/notes', { method: 'POST', body: operation.data, token });
+              // Remove from offline notes after successful sync
+              removeOfflineNote(operation.data.id);
               break;
             case 'UPDATE_NOTE':
               await api(`/notes/${operation.noteId}`, { method: 'PUT', body: operation.data, token });
@@ -2597,20 +2631,35 @@ export default function App() {
       const data = await api("/notes", { token });
       console.log("Regular notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
-      setNotes(notesArray);
       
-      // Cache the fresh data
+      // Merge with any offline-created notes
+      const offlineNotes = getOfflineNotes();
+      const mergedNotes = [...notesArray, ...offlineNotes];
+      
+      setNotes(mergedNotes);
+      
+      // Cache the merged data
       try {
-        localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify(notesArray));
+        localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify(mergedNotes));
         localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
       } catch (error) {
         console.error("Error caching notes:", error);
       }
     } catch (error) {
       console.error("Error loading regular notes from server:", error);
-      // If server fails and we don't have cached data, show empty
-      if (!localStorage.getItem(NOTES_CACHE_KEY)) {
-        setNotes([]);
+      // If server fails, load from cache and include offline notes
+      try {
+        const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
+        const offlineNotes = getOfflineNotes();
+        if (cachedData) {
+          const cachedNotes = JSON.parse(cachedData);
+          setNotes([...cachedNotes, ...offlineNotes]);
+        } else {
+          setNotes(offlineNotes);
+        }
+      } catch (cacheError) {
+        console.error("Error loading from cache:", cacheError);
+        setNotes(getOfflineNotes());
       }
     } finally {
       setNotesLoading(false);
@@ -2644,20 +2693,35 @@ export default function App() {
       const data = await api("/notes/archived", { token });
       console.log("Archived notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
-      setNotes(notesArray);
       
-      // Cache the fresh data
+      // Merge with any offline-archived notes
+      const offlineNotes = getOfflineNotes().filter(note => note.archived);
+      const mergedNotes = [...notesArray, ...offlineNotes];
+      
+      setNotes(mergedNotes);
+      
+      // Cache the merged data
       try {
-        localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(notesArray));
+        localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(mergedNotes));
         localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
       } catch (error) {
         console.error("Error caching archived notes:", error);
       }
     } catch (error) {
       console.error("Error loading archived notes from server:", error);
-      // If server fails and we don't have cached data, show empty
-      if (!localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY)) {
-        setNotes([]);
+      // If server fails, load from cache and include offline archived notes
+      try {
+        const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
+        const offlineNotes = getOfflineNotes().filter(note => note.archived);
+        if (cachedData) {
+          const cachedNotes = JSON.parse(cachedData);
+          setNotes([...cachedNotes, ...offlineNotes]);
+        } else {
+          setNotes(offlineNotes);
+        }
+      } catch (cacheError) {
+        console.error("Error loading from cache:", cacheError);
+        setNotes(getOfflineNotes().filter(note => note.archived));
       }
     } finally {
       setNotesLoading(false);
@@ -3085,8 +3149,9 @@ export default function App() {
         setNotes((prev) => [created, ...prev]);
         invalidateNotesCache();
       } else {
-        // Offline: add to local state and queue for later sync
+        // Offline: add to local state, store offline, and queue for later sync
         setNotes((prev) => [newNote, ...prev]);
+        addOfflineNote(newNote);
         addToOfflineQueue({
           type: 'CREATE_NOTE',
           data: newNote
@@ -3108,8 +3173,9 @@ export default function App() {
       if (isOnline) {
         alert(e.message || "Failed to add note");
       } else {
-        // Offline: still add to local state and queue
+        // Offline: still add to local state, store offline, and queue
         setNotes((prev) => [newNote, ...prev]);
+        addOfflineNote(newNote);
         addToOfflineQueue({
           type: 'CREATE_NOTE',
           data: newNote
