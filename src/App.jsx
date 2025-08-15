@@ -1271,6 +1271,9 @@ function NotesUI({
   // view mode
   listView,
   onToggleViewMode,
+  // SSE connection status
+  sseConnected,
+  loadNotes,
 }) {
     // Multi-select color popover (local UI state)
     const multiColorBtnRef = useRef(null);
@@ -1406,6 +1409,12 @@ function NotesUI({
               className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
               onClick={(e) => e.stopPropagation()}
             >
+              <button
+                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                onClick={() => { setHeaderMenuOpen(false); loadNotes?.(); }}
+              >
+                Refresh notes
+              </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                 onClick={() => { onExportAll?.(); }}
@@ -2144,6 +2153,9 @@ export default function App() {
   // NEW: modal scroll container ref + state to place Edited at bottom when not scrollable
   const modalScrollRef = useRef(null);
   const [modalScrollable, setModalScrollable] = useState(false);
+  
+  // SSE connection status
+  const [sseConnected, setSseConnected] = useState(false);
 
   // Derived: Active note + edited text
   const activeNoteObj = useMemo(
@@ -2265,31 +2277,119 @@ export default function App() {
   useEffect(() => {
     if (token) loadNotes().catch(() => {});
     if (!token) return;
+    
     let es;
-    try {
-      const url = new URL(`${window.location.origin}/api/events`);
-      url.searchParams.set("token", token);
-      es = new EventSource(url.toString());
-      es.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data || '{}');
-          if (msg && msg.type === 'note_updated') {
-            // Refresh notes list on any note update relevant to this user
-            loadNotes().catch(() => {});
+    let reconnectTimeout;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const baseReconnectDelay = 1000;
+    
+    const connectSSE = () => {
+      try {
+        const url = new URL(`${window.location.origin}/api/events`);
+        url.searchParams.set("token", token);
+        url.searchParams.set("_t", Date.now()); // Cache buster for PWA
+        es = new EventSource(url.toString());
+        
+        es.onopen = () => {
+          console.log("SSE connected");
+          setSseConnected(true);
+          reconnectAttempts = 0;
+        };
+        
+        es.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data || '{}');
+            if (msg && msg.type === 'note_updated') {
+              // Refresh notes list on any note update relevant to this user
+              loadNotes().catch(() => {});
+            }
+          } catch {}
+        };
+        
+        es.addEventListener('note_updated', (e) => {
+          try {
+            const msg = JSON.parse(e.data || '{}');
+            if (msg && msg.noteId) {
+              loadNotes().catch(() => {});
+            }
+          } catch {}
+        });
+        
+        es.onerror = (error) => {
+          console.log("SSE error, attempting reconnect...", error);
+          setSseConnected(false);
+          es.close();
+          
+          if (reconnectAttempts < maxReconnectAttempts) {
+            const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
+            reconnectTimeout = setTimeout(() => {
+              reconnectAttempts++;
+              connectSSE();
+            }, delay);
           }
-        } catch {}
-      };
-      es.addEventListener('note_updated', (e) => {
-        try {
-          const msg = JSON.parse(e.data || '{}');
-          if (msg && msg.noteId) {
-            loadNotes().catch(() => {});
-          }
-        } catch {}
-      });
-    } catch {}
+        };
+        
+      } catch (error) {
+        console.error("Failed to create EventSource:", error);
+      }
+    };
+    
+    connectSSE();
+    
+    // Fallback polling mechanism in case SSE fails
+    let pollInterval;
+    const startPolling = () => {
+      pollInterval = setInterval(() => {
+        // Only poll if SSE is not connected
+        if (!es || es.readyState === EventSource.CLOSED) {
+          loadNotes().catch(() => {});
+        }
+      }, 30000); // Poll every 30 seconds as fallback
+    };
+    
+    // Start polling after a delay
+    const pollTimeout = setTimeout(startPolling, 10000);
+    
+    // Handle page visibility changes (PWA background/foreground)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Page became visible, reconnect if needed
+        if (es && es.readyState === EventSource.CLOSED) {
+          connectSSE();
+        }
+        // Also refresh notes when page becomes visible
+        loadNotes().catch(() => {});
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Handle online/offline events
+    const handleOnline = () => {
+      if (es && es.readyState === EventSource.CLOSED) {
+        connectSSE();
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    
     return () => {
-      try { es && es.close(); } catch {}
+      setSseConnected(false);
+      try { 
+        if (es) es.close(); 
+      } catch {}
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (pollTimeout) {
+        clearTimeout(pollTimeout);
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
     };
   }, [token]);
 
@@ -3876,6 +3976,9 @@ export default function App() {
         // view mode
         listView={listView}
         onToggleViewMode={onToggleViewMode}
+        // SSE connection status
+        sseConnected={sseConnected}
+        loadNotes={loadNotes}
       />
       {modal}
     </>

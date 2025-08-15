@@ -339,10 +339,18 @@ function sendEventToUser(userId, event) {
   const set = sseClients.get(userId);
   if (!set || set.size === 0) return;
   const payload = `data: ${JSON.stringify(event)}\n\n`;
+  const toRemove = [];
   for (const res of set) {
     try {
       res.write(payload);
-    } catch {}
+    } catch (error) {
+      // Remove dead connections
+      toRemove.push(res);
+    }
+  }
+  // Clean up dead connections
+  for (const res of toRemove) {
+    removeSseClient(userId, res);
   }
 }
 
@@ -386,7 +394,13 @@ app.get("/api/events", authFromQueryOrHeader, (req, res) => {
 
   // Keepalive ping
   const ping = setInterval(() => {
-    try { res.write("event: ping\ndata: {}\n\n"); } catch {}
+    try { 
+      res.write("event: ping\ndata: {}\n\n"); 
+    } catch (error) {
+      clearInterval(ping);
+      removeSseClient(req.user.id, res);
+      try { res.end(); } catch {}
+    }
   }, 25000);
 
   req.on("close", () => {
