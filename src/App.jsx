@@ -1389,7 +1389,7 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
                   </div>
                   <div className="text-xs text-gray-500 space-y-1">
                     <div>Notes: {user.notes}</div>
-                    <div>Storage: {formatBytes(user.storage_bytes)}</div>
+                    <div>Storage: {formatBytes(user.storage_bytes ?? 0)}</div>
                     <div>Joined: {new Date(user.created_at).toLocaleDateString()}</div>
                   </div>
                 </div>
@@ -1456,7 +1456,6 @@ function NotesUI({
   // SSE connection status
   sseConnected,
   isOnline,
-  pendingOperations,
   loadNotes,
   loadArchivedNotes,
   // Admin panel
@@ -1556,13 +1555,6 @@ function NotesUI({
           {!isOnline && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/10 text-orange-700 dark:text-orange-300 border border-orange-600/20">
               Offline
-            </span>
-          )}
-          
-          {/* Pending sync indicator */}
-          {isOnline && pendingOperations > 0 && (
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300 border border-blue-600/20">
-              Syncing...
             </span>
           )}
         </div>
@@ -1726,24 +1718,35 @@ function NotesUI({
       {/* Composer */}
       <div className="px-4 sm:px-6 md:px-8 lg:px-12">
         <div className="max-w-2xl mx-auto">
-        <div
-          className="glass-card rounded-xl shadow-lg p-4 mb-8 relative"
-          style={{ backgroundColor: bgFor(composerColor, dark) }}
-        >
-          {/* Collapsed single input */}
-          {composerCollapsed ? (
-            <input
-              value={content}
-              onChange={(e) => {}}
-              onFocus={() => {
-                // expand and focus title
-                setComposerCollapsed(false);
-                setTimeout(() => titleRef.current?.focus(), 10);
-              }}
-              placeholder="Write a note..."
-              className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
-            />
-          ) : (
+        {!isOnline ? (
+          <div className="glass-card rounded-xl shadow-lg p-6 mb-8 text-center">
+            <div className="text-orange-600 dark:text-orange-400 mb-2">
+              <svg className="w-8 h-8 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold mb-2">You're offline</h3>
+            <p className="text-gray-600 dark:text-gray-400">Please go back online to add notes.</p>
+          </div>
+        ) : (
+          <div
+            className="glass-card rounded-xl shadow-lg p-4 mb-8 relative"
+            style={{ backgroundColor: bgFor(composerColor, dark) }}
+          >
+            {/* Collapsed single input */}
+            {composerCollapsed ? (
+              <input
+                value={content}
+                onChange={(e) => {}}
+                onFocus={() => {
+                  // expand and focus title
+                  setComposerCollapsed(false);
+                  setTimeout(() => titleRef.current?.focus(), 10);
+                }}
+                placeholder="Write a note..."
+                className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
+              />
+            ) : (
             <>
               {/* Title */}
               <input
@@ -1751,7 +1754,10 @@ function NotesUI({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Title"
-                className="w-full bg-transparent text-lg font-semibold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-2 p-2"
+                disabled={!isOnline}
+                className={`w-full bg-transparent text-lg font-semibold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-2 p-2 ${
+                  !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
 
               {/* Body or Checklist */}
@@ -1762,7 +1768,10 @@ function NotesUI({
                   onChange={(e) => setContent(e.target.value)}
                   onKeyDown={onComposerKeyDown}
                   placeholder="Write a note..."
-                  className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2"
+                  disabled={!isOnline}
+                  className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2 ${
+                    !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                   rows={1}
                 />
               ) : (
@@ -1773,11 +1782,19 @@ function NotesUI({
                       onChange={(e) => setClInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addComposerItem(); } }}
                       placeholder="List item… (press Enter to add)"
-                      className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
+                      disabled={!isOnline}
+                      className={`flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)] ${
+                        !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     />
                     <button
                       onClick={addComposerItem}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 whitespace-nowrap"
+                      disabled={!isOnline}
+                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap ${
+                        isOnline 
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                          : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      }`}
                     >
                       Add
                     </button>
@@ -1817,7 +1834,10 @@ function NotesUI({
                   onChange={(e) => setTags(e.target.value)}
                   type="text"
                   placeholder="Add tags (comma-separated)"
-                  className="w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
+                  disabled={!isOnline}
+                  className={`w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 ${
+                    !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 />
 
                 <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none relative">
@@ -1918,7 +1938,12 @@ function NotesUI({
                   {/* Add Note */}
                   <button
                     onClick={addNote}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap flex-shrink-0"
+                    disabled={!isOnline}
+                    className={`px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap flex-shrink-0 ${
+                      isOnline 
+                        ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                        : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    }`}
                   >
                     Add Note
                   </button>
@@ -1927,6 +1952,7 @@ function NotesUI({
             </>
           )}
         </div>
+        )}
         </div>
       </div>
 
@@ -2363,7 +2389,6 @@ export default function App() {
   // SSE connection status
   const [sseConnected, setSseConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingOperations, setPendingOperations] = useState(0);
 
   // Admin panel state
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
@@ -2499,13 +2524,6 @@ export default function App() {
     }
   };
 
-  // Offline queue functionality
-  const OFFLINE_QUEUE_KEY = `glass-keep-offline-queue-${currentUser?.id || 'anonymous'}`;
-const processingQueueRef = useRef(false);
-  const OFFLINE_NOTES_KEY = `glass-keep-offline-notes-${currentUser?.id || 'anonymous'}`;
-
-  
-  // ---- Offline helpers: merge + read from all possible buckets ----
   const uniqueById = (arr) => {
     const m = new Map();
     for (const n of Array.isArray(arr) ? arr : []) {
@@ -2513,20 +2531,6 @@ const processingQueueRef = useRef(false);
       m.set(String(n.id), n);
     }
     return Array.from(m.values());
-  };
-  const getAllOfflineNotes = () => {
-    try {
-      const k1 = OFFLINE_NOTES_KEY;
-      const kAnon = `glass-keep-offline-notes-anonymous`;
-      const raw1 = localStorage.getItem(k1);
-      const raw2 = localStorage.getItem(kAnon);
-      const a1 = raw1 ? JSON.parse(raw1) : [];
-      const a2 = raw2 ? JSON.parse(raw2) : [];
-      return uniqueById([...(Array.isArray(a1) ? a1 : []), ...(Array.isArray(a2) ? a2 : [])]);
-    } catch (e) {
-      console.error('Error getting offline notes (all buckets):', e);
-      return [];
-    }
   };
   const persistNotesCache = (notes) => {
     try {
@@ -2558,343 +2562,73 @@ const processingQueueRef = useRef(false);
       return Array.isArray(arr) ? arr : [];
     }
   };
-// --- One-time migration: move any previously stored 'anonymous' buckets to the logged-in user's scope ---
-  useEffect(() => {
-    try {
-      if (!currentUser?.id) return;
-      const suffixOld = 'anonymous';
-      const suffixNew = String(currentUser.id);
-      const pairs = [
-        [`glass-keep-notes-${suffixOld}`, `glass-keep-notes-${suffixNew}`],
-        [`glass-keep-archived-${suffixOld}`, `glass-keep-archived-${suffixNew}`],
-        [`glass-keep-cache-timestamp-${suffixOld}`, `glass-keep-cache-timestamp-${suffixNew}`],
-        [`glass-keep-offline-queue-${suffixOld}`, `glass-keep-offline-queue-${suffixNew}`],
-        [`glass-keep-offline-notes-${suffixOld}`, `glass-keep-offline-notes-${suffixNew}`],
-      ];
-      let migrated = 0;
-      for (const [oldKey,newKey] of pairs) {
-        const oldVal = localStorage.getItem(oldKey);
-        if (oldVal && !localStorage.getItem(newKey)) {
-          localStorage.setItem(newKey, oldVal);
-          localStorage.removeItem(oldKey);
-          migrated++;
-        }
-      }
-      if (migrated) {
-        console.log('[Offline] Migrated', migrated, 'localStorage bucket(s) from anonymous to user-scoped keys');
-        try {
-          const queue = JSON.parse(localStorage.getItem(`glass-keep-offline-queue-${suffixNew}`) || '[]');
-          setPendingOperations(queue.length);
-        } catch (e) {}
-      }
-    } catch (e) {
-      console.error('Migration error', e);
-    }
-  },
-  // Kick off offline queue sync on startup or whenever we come online
-  useEffect(() => {
-    if (!token) return;
-    try {
-      const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-      if (isOnline && q.length > 0) {
-        console.log('Found', q.length, 'pending offline operations on startup; processing...');
-        processOfflineQueue().catch((e) => console.error('processOfflineQueue failed on startup', e));
-      }
-    } catch (e) {
-      // ignore JSON errors
-    }
-  }, [token, isOnline]),
- [currentUser?.id]);
 
-  
-  const getOfflineNotes = () => {
-    try {
-      return JSON.parse(localStorage.getItem(OFFLINE_NOTES_KEY) || '[]');
-    } catch (error) {
-      console.error('Error getting offline notes:', error);
-      return [];
-    }
-  };
 
-  const addOfflineNote = (note) => {
-    try {
-      const offlineNotes = getOfflineNotes();
-      offlineNotes.push(note);
-      localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(offlineNotes));
-      // Also drop it into the visible cache immediately so refresh while offline preserves it
-      try {
-        const cachedRaw = localStorage.getItem(NOTES_CACHE_KEY);
-        const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
-        persistNotesCache(uniqueById([note, ...(Array.isArray(cached) ? cached : [])]));
-      } catch (e) {}
-      console.log('Added offline note:', note.id);
-    } catch (error) {
-      console.error('Error adding offline note:', error);
-    }
-  };
 
-  // Upsert any note into offline storage (used for offline edits/changes)
-  const upsertOfflineNote = (note) => {
-    try {
-      if (!note || !note.id) return;
-      const offlineNotes = getOfflineNotes();
-      const idx = offlineNotes.findIndex((n) => String(n.id) === String(note.id));
-      if (idx >= 0) offlineNotes[idx] = { ...offlineNotes[idx], ...note };
-      else offlineNotes.push(note);
-      localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(offlineNotes));
-      // keep cache in sync so refresh shows the change
-      try {
-        const cachedRaw = localStorage.getItem(NOTES_CACHE_KEY);
-        const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
-        persistNotesCache(uniqueById([note, ...(Array.isArray(cached) ? cached : [])]));
-      } catch {}
-    } catch (error) {
-      console.error('Error upserting offline note:', error);
-    }
-  };
 
-  const removeOfflineNote = (noteId) => {
-    try {
-      const offlineNotes = getOfflineNotes();
-      const filteredNotes = offlineNotes.filter(note => String(note.id) !== String(noteId));
-      localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(filteredNotes));
-      console.log('Removed offline note:', noteId);
-    } catch (error) {
-      console.error('Error removing offline note:', error);
-    }
-  };
-  
-  const addToOfflineQueue = (operation) => {
-    try {
-      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-      queue.push({
-        ...operation,
-        id: uid(),
-        timestamp: Date.now()
-      });
-      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
-      setPendingOperations(queue.length);
-      console.log('Added to offline queue:', operation);
-    } catch (error) {
-      console.error('Error adding to offline queue:', error);
-    }
-  };
-
-  
-  const processOfflineQueue = async () => {
-  if (processingQueueRef.current) {
-    console.log('processOfflineQueue: already running, skipping');
-    return;
-  }
-  if (!isOnline || !token) return;
-  processingQueueRef.current = true;
-  try {      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-      if (queue.length === 0) return;
-
-      console.log('Processing offline queue:', queue.length, 'operations');
-
-      // Map temporary IDs -> server IDs during this run
-      const idMap = {};
-      const remaining = [];
-
-      // Helper to map IDs on an operation (non-mutating)
-      const mapOperationIds = (op) => {
-        const next = { ...op };
-        if (next.noteId && idMap[next.noteId]) {
-          next.noteId = idMap[next.noteId];
-        }
-        if (next.data && next.data.id && idMap[next.data.id]) {
-          next.data = { ...next.data, id: idMap[next.data.id] };
-        }
-        return next;
-      };
-
-      for (const rawOp of queue) {
-        // Apply any known mappings before attempting the op
-        let operation = mapOperationIds(rawOp);
-
-        try {
-          switch (operation.type) {
-            case 'CREATE_NOTE': {
-              const tempId = operation.data?.id;
-              // Send to server and capture the created note (with server id)
-              const created = await api('/notes', { method: 'POST', body: operation.data, token });
-              if (tempId && created?.id && String(created.id) !== String(tempId)) {
-                // Record mapping for subsequent operations
-                idMap[tempId] = String(created.id);
-                // Remove offline temp note
-                removeOfflineNote(tempId);
-              }
-              break;
-            }
-            case 'UPDATE_NOTE': {
-              const id = operation.noteId;
-              await api(`/notes/${id}`, { method: 'PUT', body: operation.data, token });
-              break;
-            }
-            case 'DELETE_NOTE': {
-              const id = operation.noteId;
-              await api(`/notes/${id}`, { method: 'DELETE', token });
-              break;
-            }
-            case 'TOGGLE_PIN': {
-              const id = operation.noteId;
-              await api(`/notes/${id}`, { method: 'PATCH', body: { pinned: operation.pinned }, token });
-              break;
-            }
-            case 'ARCHIVE_NOTE': {
-              const id = operation.noteId;
-              await api(`/notes/${id}/archive`, { method: 'POST', body: { archived: operation.archived }, token });
-              break;
-            }
-            default:
-              console.warn('Unknown offline op type:', operation.type);
-              break;
-          }
-          console.log('Processed offline operation:', operation.type, operation.noteId || operation.data?.id);
-        } catch (error) {
-          console.error('Failed to process offline operation:', operation, error);
-          // Keep failed operation (with any applied id mappings) for retry
-          remaining.push(operation);
-        }
-      }
-
-      // Update the queue with only the remaining failed operations
-      if (remaining.length > 0) {
-        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
-        setPendingOperations(remaining.length);
-        console.log('Some offline ops failed; kept in queue:', remaining.length);
-      } else {
-        localStorage.removeItem(OFFLINE_QUEUE_KEY);
-        setPendingOperations(0);
-        console.log('Offline queue processed successfully');
-      }
-
-      // Refresh notes to show updated data
-      if (tagFilter === 'ARCHIVED') {
-        await loadArchivedNotes();
-      } else {
-        await loadNotes();
-      }
-    } catch (error) {
-      console.error('Error processing offline queue:', error);
-    }
-  
-  processingQueueRef.current = false;
-};
-;
-
-  // Load notes with offline caching
+  // Load notes
   const loadNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
     
-    // Try to load from cache first
-    try {
-      const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
-      const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-      const now = Date.now();
-      
-      // Use cache if it's less than 5 minutes old
-      if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
-        const cachedNotes = JSON.parse(cachedData);
-        console.log("Loading notes from cache:", cachedNotes.length);
-        const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-        setNotes(sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...cachedNotes])));
-        setNotesLoading(false);
-      }
-    } catch (error) {
-      console.error("Error loading from cache:", error);
-    }
-    
-    // Always try to fetch fresh data
     try {
       const data = await api("/notes", { token });
-      console.log("Regular notes loaded from server:", data);
+      console.log("Notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
-// Merge with any offline-created notes
-const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-const mergedNotes = sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...notesArray]));
-setNotes(mergedNotes);
-// Cache the merged data
-persistNotesCache(mergedNotes)
+      setNotes(sortNotesByRecency(notesArray));
+      persistNotesCache(notesArray);
     } catch (error) {
-      console.error("Error loading regular notes from server:", error);
-      // If server fails, load from cache and include offline notes
+      console.error("Error loading notes from server:", error);
+      // Try to load from cache as fallback
       try {
         const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
-        const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes(sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
+          setNotes(sortNotesByRecency(cachedNotes));
         } else {
-          setNotes(sortNotesByRecency(offlineNotes));
+          setNotes([]);
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
-        setNotes(getOfflineNotes());
+        setNotes([]);
       }
     } finally {
       setNotesLoading(false);
     }
   };
 
-  // Load archived notes with offline caching
+  // Load archived notes
   const loadArchivedNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
     
-    // Try to load from cache first
-    try {
-      const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
-      const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-      const now = Date.now();
-      
-      // Use cache if it's less than 5 minutes old
-      if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
-        const cachedNotes = JSON.parse(cachedData);
-        console.log("Loading archived notes from cache:", cachedNotes.length);
-        const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
-        setNotes(sortNotesByRecency(uniqueById([...(offlineArchived||[]), ...cachedNotes])));
-        setNotesLoading(false);
-      }
-    } catch (error) {
-      console.error("Error loading archived from cache:", error);
-    }
-    
-    // Always try to fetch fresh data
     try {
       const data = await api("/notes/archived", { token });
       console.log("Archived notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
+      setNotes(sortNotesByRecency(notesArray));
       
-      // Merge with any offline-archived notes
-      const offlineNotes = getOfflineNotes().filter(note => note.archived);
-      const mergedNotes = sortNotesByRecency([...(Array.isArray(notesArray)?notesArray:[]), ...(Array.isArray(offlineNotes)?offlineNotes:[])]);
-      setNotes(mergedNotes);
-      
-      // Cache the merged data
+      // Cache the data
       try {
-        localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(mergedNotes));
+        localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(notesArray));
         localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
       } catch (error) {
         console.error("Error caching archived notes:", error);
       }
     } catch (error) {
       console.error("Error loading archived notes from server:", error);
-      // If server fails, load from cache and include offline notes
+      // Try to load from cache as fallback
       try {
         const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
-        const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes(sortNotesByRecency(uniqueById([...(offlineArchived||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
+          setNotes(sortNotesByRecency(cachedNotes));
         } else {
-          setNotes(sortNotesByRecency(offlineArchived));
+          setNotes([]);
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
-        setNotes(getOfflineNotes().filter(note => note.archived));
+        setNotes([]);
       }
     } finally {
       setNotesLoading(false);
@@ -2923,13 +2657,6 @@ persistNotesCache(mergedNotes)
   useEffect(() => {
     if (token) {
       loadNotes().catch(() => {});
-      // Initialize pending operations count
-      try {
-        const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-        setPendingOperations(queue.length);
-      } catch (error) {
-        console.error('Error initializing pending operations count:', error);
-      }
     }
     if (!token) return;
     
@@ -3042,17 +2769,11 @@ persistNotesCache(mergedNotes)
     const handleOnline = () => {
       console.log("App went online");
       setIsOnline(true);
-      if (es && es.readyState === EventSource.CLOSED) {
-        connectSSE();
-      }
-      // Process any pending offline operations
-      processOfflineQueue();
     };
     
     const handleOffline = () => {
       console.log("App went offline");
       setIsOnline(false);
-      setSseConnected(false);
     };
     
     window.addEventListener('online', handleOnline);
@@ -3316,59 +3037,23 @@ persistNotesCache(mergedNotes)
     };
     
     try {
-      if (isOnline) {
-        // Online: try to save to server
       const created = await api("/notes", { method: "POST", body: newNote, token });
-        setNotes((prev) => sortNotesByRecency([created, ...(Array.isArray(prev)?prev:[])]));
-        invalidateNotesCache();
-        // Reset composer after successful online add
-        setTitle(""); setContent(""); setTags(""); setComposerImages([]); setComposerColor("default");
-        setClItems([]); setClInput(""); setComposerType("text"); setComposerCollapsed(true);
-        if (contentRef.current) contentRef.current.style.height = "auto";
-      } else {
-        // Offline: add to local state, store offline, and queue for later sync
-        setNotes((prev) => sortNotesByRecency([newNote, ...(Array.isArray(prev)?prev:[])]));
-        addOfflineNote(newNote);
-        addToOfflineQueue({
-          type: 'CREATE_NOTE',
-          data: newNote
-        });
-        // Also refresh the cached notes immediately
-        try {
-          const cachedRaw = localStorage.getItem(NOTES_CACHE_KEY);
-          const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
-          persistNotesCache(uniqueById([newNote, ...(Array.isArray(cached) ? cached : [])]));
-        } catch (e) {}
-        
-        // reset composer
-        setTitle(""); setContent(""); setTags(""); setComposerImages([]); setComposerColor("default");
-        setClItems([]); setClInput(""); setComposerType("text"); setComposerCollapsed(true);
-        if (contentRef.current) contentRef.current.style.height = "auto";
-      }
-    } catch (e) {
-      if (isOnline) {
-        alert(e.message || "Failed to add note");
-      } else {
-        // Offline: still add to local state, store offline, and queue
-        setNotes((prev) => [newNote, ...prev]);
-        addOfflineNote(newNote);
-        addToOfflineQueue({
-          type: 'CREATE_NOTE',
-          data: newNote
-        });
-        
-        // reset composer
-      setTitle("");
-      setContent("");
-      setTags("");
-      setComposerImages([]);
+      setNotes((prev) => sortNotesByRecency([created, ...(Array.isArray(prev)?prev:[])]));
+      invalidateNotesCache();
+      
+      // Reset composer after successful add
+      setTitle(""); 
+      setContent(""); 
+      setTags(""); 
+      setComposerImages([]); 
       setComposerColor("default");
-      setClItems([]);
-      setClInput("");
-      setComposerType("text");
+      setClItems([]); 
+      setClInput(""); 
+      setComposerType("text"); 
       setComposerCollapsed(true);
       if (contentRef.current) contentRef.current.style.height = "auto";
-      }
+    } catch (e) {
+      alert(e.message || "Failed to add note");
     }
   };
 
@@ -3382,62 +3067,30 @@ persistNotesCache(mergedNotes)
   /** -------- Archive/Unarchive note -------- */
   const handleArchiveNote = async (noteId, archived) => {
     try {
-      if (isOnline) {
-        // Online: try to update server
-        await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
-        
-        // Invalidate both caches since archiving affects both regular and archived notes
-        invalidateNotesCache();
-        invalidateArchivedNotesCache();
-        
-        // Reload appropriate notes based on current view
-        if (tagFilter === 'ARCHIVED') {
-          if (!archived) {
-            // If unarchiving from archived view, switch back to regular view
-            setTagFilter(null);
-            await loadNotes();
-          } else {
-            await loadArchivedNotes();
-          }
-        } else {
+      await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
+      
+      // Invalidate both caches since archiving affects both regular and archived notes
+      invalidateNotesCache();
+      invalidateArchivedNotesCache();
+      
+      // Reload appropriate notes based on current view
+      if (tagFilter === 'ARCHIVED') {
+        if (!archived) {
+          // If unarchiving from archived view, switch back to regular view
+          setTagFilter(null);
           await loadNotes();
+        } else {
+          await loadArchivedNotes();
         }
       } else {
-        // Offline: queue for later sync and update local state
-        addToOfflineQueue({
-          type: 'ARCHIVE_NOTE',
-          noteId: noteId,
-          archived: archived
-        });
-        
-        // Update local state immediately
-        setNotes((prev) => prev.map((n) => 
-          String(n.id) === String(noteId) ? { ...n, archived: archived } : n
-        ));
+        await loadNotes();
       }
       
       if (archived) {
         closeModal();
       }
     } catch (e) {
-      if (isOnline) {
-        alert(e.message || "Failed to archive note");
-      } else {
-        // Offline: still queue and update local state
-        addToOfflineQueue({
-          type: 'ARCHIVE_NOTE',
-          noteId: noteId,
-          archived: archived
-        });
-        
-        setNotes((prev) => prev.map((n) => 
-          String(n.id) === String(noteId) ? { ...n, archived: archived } : n
-        ));
-        
-        if (archived) {
-          closeModal();
-        }
-      }
+      alert(e.message || "Failed to archive note");
     }
   };
 
@@ -3796,15 +3449,8 @@ persistNotesCache(mergedNotes)
     try {
       setSavingModal(true);
       
-      if (isOnline) {
-        // Online: try to save to server
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
-        invalidateNotesCache();
-      } else {
-        // Offline: queue for later sync and persist locally so refresh shows it
-        addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: payload });
-        upsertOfflineNote({ ...payload, id: activeId, updated_at: new Date().toISOString() });
-      }
+      invalidateNotesCache();
       
       prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
       // Also update updated_at locally so the Edited stamp updates immediately
@@ -3820,25 +3466,7 @@ persistNotesCache(mergedNotes)
       ));
       closeModal();
     } catch (e) {
-      if (isOnline) {
       alert(e.message || "Failed to save note");
-      } else {
-        // Offline: still update local state and queue; also persist locally
-        addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: payload });
-        upsertOfflineNote({ ...payload, id: activeId, updated_at: nowIso });
-        
-        const nowIso = new Date().toISOString();
-        setNotes((prev) => prev.map((n) =>
-          (String(n.id) === String(activeId) ? { 
-            ...n, 
-            ...payload, 
-            updated_at: nowIso,
-            lastEditedBy: currentUser?.email || currentUser?.name,
-            lastEditedAt: nowIso
-          } : n)
-        ));
-        closeModal();
-      }
     } finally {
       setSavingModal(false);
     }
@@ -3846,62 +3474,23 @@ persistNotesCache(mergedNotes)
   const deleteModal = async () => {
     if (activeId == null) return;
     try {
-      if (isOnline) {
-        // Online: try to delete from server
       await api(`/notes/${activeId}`, { method: "DELETE", token });
-        invalidateNotesCache();
-      } else {
-        // Offline: queue for later sync
-        addToOfflineQueue({
-          type: 'DELETE_NOTE',
-          noteId: activeId
-        });
-      }
+      invalidateNotesCache();
       
       setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
       closeModal();
     } catch (e) {
-      if (isOnline) {
       alert(e.message || "Delete failed");
-      } else {
-        // Offline: still remove from local state and queue
-        addToOfflineQueue({
-          type: 'DELETE_NOTE',
-          noteId: activeId
-        });
-        setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
-        closeModal();
-      }
     }
   };
   const togglePin = async (id, toPinned) => {
     try {
-      if (isOnline) {
-        // Online: try to update server
       await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
-        invalidateNotesCache();
-      } else {
-        // Offline: queue for later sync
-        addToOfflineQueue({
-          type: 'TOGGLE_PIN',
-          noteId: id,
-          pinned: !!toPinned
-        });
-      }
+      invalidateNotesCache();
       
       setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
     } catch (e) {
-      if (isOnline) {
       alert(e.message || "Failed to toggle pin");
-      } else {
-        // Offline: still update local state and queue
-        addToOfflineQueue({
-          type: 'TOGGLE_PIN',
-          noteId: id,
-          pinned: !!toPinned
-        });
-        setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
-      }
     }
   };
 
@@ -4209,28 +3798,33 @@ persistNotesCache(mergedNotes)
             >
               <div className="flex flex-wrap items-center gap-2">
                 <input
-                  className="flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2"
+                  className={`flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2 ${
+                    !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                   value={mTitle}
-                  onChange={(e) => setMTitle(e.target.value)}
+                  onChange={(e) => { if (isOnline) setMTitle(e.target.value) }}
                   placeholder="Title"
+                  disabled={!isOnline}
                 />
                 <div className="flex items-center gap-2 flex-none ml-auto">
-                  {/* Collaboration button */}
-                  <button
-                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative"
-                    title="Collaborate"
-                    onClick={() => setCollaborationModalOpen(true)}
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
-                    </svg>
-                    <svg className="w-3 h-3 absolute -top-1 -right-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
-                    </svg>
-                  </button>
+                  {/* Collaboration button - hidden when offline */}
+                  {isOnline && (
+                    <button
+                      className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative"
+                      title="Collaborate"
+                      onClick={() => setCollaborationModalOpen(true)}
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+                      </svg>
+                      <svg className="w-3 h-3 absolute -top-1 -right-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+                      </svg>
+                    </button>
+                  )}
 
-                  {/* View/Edit toggle only for TEXT notes */}
-                  {mType === "text" && (
+                  {/* View/Edit toggle only for TEXT notes - hidden when offline */}
+                  {isOnline && mType === "text" && (
                     <button
                       className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
                       onClick={() => { setViewMode((v) => !v); setShowModalFmt(false); }}
@@ -4240,7 +3834,7 @@ persistNotesCache(mergedNotes)
                     </button>
                   )}
 
-                  {mType === "text" && !viewMode && (
+                  {isOnline && mType === "text" && !viewMode && (
                     <>
                       <button
                         ref={modalFmtBtnRef}
@@ -4263,57 +3857,65 @@ persistNotesCache(mergedNotes)
                     </>
                   )}
 
-                  <button
-                    ref={modalMenuBtnRef}
-                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    title="More options"
-                    onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
-                  >
-                    <Kebab />
-                  </button>
-                  <Popover
-                    anchorRef={modalMenuBtnRef}
-                    open={modalMenuOpen}
-                    onClose={() => setModalMenuOpen(false)}
-                  >
-                    <div
-                      className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                  {/* 3-dots menu - hidden when offline */}
+                  {isOnline && (
+                    <>
                       <button
-                        className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                        onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
+                        ref={modalMenuBtnRef}
+                        className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        title="More options"
+                        onClick={(e) => { e.stopPropagation(); setModalMenuOpen((v) => !v); }}
                       >
-                        Download .md
+                        <Kebab />
                       </button>
-                      <button
-                        className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                        onClick={() => { 
-                          const note = notes.find(nn => String(nn.id) === String(activeId));
-                          if (note) {
-                            handleArchiveNote(activeId, !note.archived);
-                            setModalMenuOpen(false);
-                          }
-                        }}
+                      <Popover
+                        anchorRef={modalMenuBtnRef}
+                        open={modalMenuOpen}
+                        onClose={() => setModalMenuOpen(false)}
                       >
-                        {activeNoteObj?.archived ? "Unarchive" : "Archive"}
-                      </button>
-                      <button
-                        className={`block w-full text-left px-3 py-2 text-sm text-red-600 ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                        onClick={() => { setConfirmDeleteOpen(true); setModalMenuOpen(false); }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </Popover>
+                        <div
+                          className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                            onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
+                          >
+                            Download .md
+                          </button>
+                          <button
+                            className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                            onClick={() => { 
+                              const note = notes.find(nn => String(nn.id) === String(activeId));
+                              if (note) {
+                                handleArchiveNote(activeId, !note.archived);
+                                setModalMenuOpen(false);
+                              }
+                            }}
+                          >
+                            {activeNoteObj?.archived ? "Unarchive" : "Archive"}
+                          </button>
+                          <button
+                            className={`block w-full text-left px-3 py-2 text-sm text-red-600 ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                            onClick={() => { setConfirmDeleteOpen(true); setModalMenuOpen(false); }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </Popover>
+                    </>
+                  )}
 
-                  <button
-                    className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    title="Pin/unpin"
-                    onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
-                  >
-                    {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
-                  </button>
+                  {/* Pin button - hidden when offline */}
+                  {isOnline && (
+                    <button
+                      className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      title="Pin/unpin"
+                      onClick={() => activeId != null && togglePin(activeId, !(notes.find((n) => String(n.id) === String(activeId))?.pinned))}
+                    >
+                      {(notes.find((n) => String(n.id) === String(activeId))?.pinned) ? <PinFilled /> : <PinOutline />}
+                    </button>
+                  )}
 
                   <button
                     className="rounded-full p-2.5 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -4339,13 +3941,15 @@ persistNotesCache(mergedNotes)
                         className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)] cursor-zoom-in"
                         onClick={(e) => { e.stopPropagation(); openImageViewer(idx); }}
                       />
-                      <button
-                        title="Remove image"
-                        className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
-                        onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
-                      >
-                        ×
-                      </button>
+                      {isOnline && (
+                        <button
+                          title="Remove image"
+                          className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                          onClick={() => setMImages((prev) => prev.filter((x) => x.id !== im.id))}
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -4363,10 +3967,13 @@ persistNotesCache(mergedNotes)
                   <div className="relative min-h-[160px]">
                     <textarea
                       ref={mBodyRef}
-                      className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px]"
+                      className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px] ${
+                        !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                       value={mBody}
-                      onChange={(e) => { setMBody(e.target.value); resizeModalTextarea(); }}
+                      onChange={(e) => { if (isOnline) { setMBody(e.target.value); resizeModalTextarea(); } }}
                       onKeyDown={(e) => {
+                        if (!isOnline) return;
                         if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
                           const el = mBodyRef.current;
                           const value = mBody;
@@ -4384,21 +3991,44 @@ persistNotesCache(mergedNotes)
                         }
                       }}
                       placeholder="Write your note…"
+                      disabled={!isOnline}
                     />
                   </div>
                 )
               ) : (
                 <div className="space-y-4 md:space-y-2">
-                  {/* Add new item row (both modes keep it visible for quick add) */}
-                  <div className="flex gap-2">
-                    <input
-                      value={mInput}
-                      onChange={(e) => setMInput(e.target.value)}
-                      onKeyDown={async (e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
+                  {/* Add new item row - hidden when offline */}
+                  {isOnline && (
+                    <div className="flex gap-2">
+                      <input
+                        value={mInput}
+                        onChange={(e) => setMInput(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            const t = mInput.trim();
+                            if (t) {
+                              const newItems = [...mItems, { id: uid(), text: t, done: false }];
+                              setMItems(newItems);
+                              setMInput("");
+                                                              try {
+                                    if (activeId) {
+                                      await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                      prevItemsRef.current = newItems;
+                                    }
+                                  } catch (e) {
+                                    // Handle error silently
+                                  }
+                            }
+                          }
+                        }}
+                        placeholder="List item… (press Enter to add)"
+                        className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
+                      />
+                      <button
+                        onClick={async () => { 
                           const t = mInput.trim();
-                          if (t) {
+                          if (t) { 
                             const newItems = [...mItems, { id: uid(), text: t, done: false }];
                             setMItems(newItems);
                             setMInput("");
@@ -4407,39 +4037,15 @@ persistNotesCache(mergedNotes)
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch (e) {
-                              if (activeId) {
-                                addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: { items: newItems, type: 'checklist', content: '' } });
-                                upsertOfflineNote({ id: activeId, items: newItems, type: 'checklist', content: '', updated_at: new Date().toISOString() });
-                                prevItemsRef.current = newItems;
-                              }
-                            }
-                          }
-                        }
-                      }}
-                      placeholder="List item… (press Enter to add)"
-                      className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
-                    />
-                    <button
-                      onClick={async () => { 
-                        const t = mInput.trim();
-                        if (t) { 
-                          const newItems = [...mItems, { id: uid(), text: t, done: false }];
-                          setMItems(newItems);
-                          setMInput("");
-                          try {
-                            if (activeId) {
-                              await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                              prevItemsRef.current = newItems;
-                            }
-                          } catch (e) {}
-                        } 
-                      }}
-                      className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                    >
-                      Add
-                    </button>
-                  </div>
+                            } catch (e) {}
+                          } 
+                        }}
+                        className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
 
                   {mItems.length > 0 ? (
                     <div className="space-y-4 md:space-y-2">
@@ -4448,27 +4054,25 @@ persistNotesCache(mergedNotes)
                         <ChecklistRow
                           key={it.id}
                           item={it}
-                          readOnly={viewMode}
-                          disableToggle={false}      /* allow toggle in view mode */
-                          showRemove={true}          /* show delete X in view mode */
+                          readOnly={!isOnline || viewMode}
+                          disableToggle={!isOnline}      /* disable toggle when offline */
+                          showRemove={isOnline && true}  /* show delete X only when online */
                           size="lg"                  /* bigger checkboxes and X in modal */
                           onToggle={async (checked) => {
+                            if (!isOnline) return;
                             const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
                             setMItems(newItems);
-                            try {
-                              if (activeId) {
-                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                prevItemsRef.current = newItems;
-                              }
-                            } catch (e) {
-                              if (activeId) {
-                                addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: { items: newItems, type: 'checklist', content: '' } });
-                                upsertOfflineNote({ id: activeId, items: newItems, type: 'checklist', content: '', updated_at: new Date().toISOString() });
-                                prevItemsRef.current = newItems;
-                              }
+                                                      try {
+                            if (activeId) {
+                              await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                              prevItemsRef.current = newItems;
                             }
+                          } catch (e) {
+                            // Handle error silently
+                          }
                           }}
                           onChange={async (txt) => {
+                            if (!isOnline) return;
                             const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
                             setMItems(newItems);
                             try {
@@ -4479,6 +4083,7 @@ persistNotesCache(mergedNotes)
                             } catch (e) {}
                           }}
                           onRemove={async () => {
+                            if (!isOnline) return;
                             const newItems = mItems.filter(p => p.id !== it.id);
                             setMItems(newItems);
                             try {
@@ -4500,11 +4105,12 @@ persistNotesCache(mergedNotes)
                               <ChecklistRow
                                 key={it.id}
                                 item={it}
-                                readOnly={viewMode}
-                                disableToggle={false}      /* allow toggle in view mode */
-                                showRemove={true}          /* show delete X in view mode */
+                                readOnly={!isOnline || viewMode}
+                                disableToggle={!isOnline}      /* disable toggle when offline */
+                                showRemove={isOnline && true}  /* show delete X only when online */
                                 size="lg"                  /* bigger checkboxes and X in modal */
                                 onToggle={async (checked) => {
+                                  if (!isOnline) return;
                                   const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
                                   setMItems(newItems);
                                   try {
@@ -4515,6 +4121,7 @@ persistNotesCache(mergedNotes)
                                   } catch (e) {}
                                 }}
                                 onChange={async (txt) => {
+                                  if (!isOnline) return;
                                   const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
                                   setMItems(newItems);
                                   try {
@@ -4525,6 +4132,7 @@ persistNotesCache(mergedNotes)
                                   } catch (e) {}
                                 }}
                                 onRemove={async () => {
+                                  if (!isOnline) return;
                                   const newItems = mItems.filter(p => p.id !== it.id);
                                   setMItems(newItems);
                                   try {
@@ -4570,79 +4178,95 @@ persistNotesCache(mergedNotes)
                   className="bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-xs font-medium px-2.5 py-0.5 rounded-full inline-flex items-center gap-1"
                 >
                   {tag}
-                  <button
-                    className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
-                    title="Remove tag"
-                    onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
-                  >
-                    ×
-                  </button>
+                  {/* Tag removal button - hidden when offline */}
+                  {isOnline && (
+                    <button
+                      className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
+                      title="Remove tag"
+                      onClick={() => setMTagList((prev) => prev.filter((t) => t !== tag))}
+                    >
+                      ×
+                    </button>
+                  )}
                 </span>
               ))}
-              <input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                onBlur={handleTagBlur}
-                onPaste={handleTagPaste}
-                placeholder={mTagList.length ? "Add tag" : "Add tags"}
-                className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
-              />
+              {/* Tag input - hidden when offline */}
+              {isOnline && (
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={handleTagBlur}
+                  onPaste={handleTagPaste}
+                  placeholder={mTagList.length ? "Add tag" : "Add tags"}
+                  className="bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none min-w-[8ch] flex-1"
+                />
+              )}
             </div>
 
             {/* Right controls */}
             <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
-              {/* Color dropdown (modal) */}
-              <button
-                ref={modalColorBtnRef}
-                type="button"
-                onClick={() => setShowModalColorPop((v) => !v)}
-                className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
-                title="Color"
-              >
-                🎨 Color
-              </button>
-              <Popover
-                anchorRef={modalColorBtnRef}
-                open={showModalColorPop}
-                onClose={() => setShowModalColorPop(false)}
-              >
-                <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
-                  <div className="grid grid-cols-6 gap-2">
-                    {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
-                      <ColorDot
-                        key={name}
-                        name={name}
-                        darkMode={dark}
-                        selected={mColor === name}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMColor(name);
-                          setShowModalColorPop(false);
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </Popover>
+              {/* Color dropdown (modal) - hidden when offline */}
+              {isOnline && (
+                <>
+                  <button
+                    ref={modalColorBtnRef}
+                    type="button"
+                    onClick={() => setShowModalColorPop((v) => !v)}
+                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                    title="Color"
+                  >
+                    🎨 Color
+                  </button>
+                  <Popover
+                    anchorRef={modalColorBtnRef}
+                    open={showModalColorPop}
+                    onClose={() => setShowModalColorPop(false)}
+                  >
+                    <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
+                      <div className="grid grid-cols-6 gap-2">
+                        {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
+                          <ColorDot
+                            key={name}
+                            name={name}
+                            darkMode={dark}
+                            selected={mColor === name}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMColor(name);
+                              setShowModalColorPop(false);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </Popover>
+                </>
+              )}
 
-              <input
-                ref={modalFileRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={async (e) => { const f = e.target.files; if (f && f.length) { await addImagesToState(f, setMImages); } e.target.value = ""; }}
-              />
-              <button
-                onClick={() => modalFileRef.current?.click()}
-                className="p-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
-                title="Add images"
-              >
-                <ImageIcon />
-              </button>
+              {/* Add images - hidden when offline */}
+              {isOnline && (
+                <>
+                  <input
+                    ref={modalFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => { const f = e.target.files; if (f && f.length) { await addImagesToState(f, setMImages); } e.target.value = ""; }}
+                  />
+                  <button
+                    onClick={() => modalFileRef.current?.click()}
+                    className="p-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                    title="Add images"
+                  >
+                    <ImageIcon />
+                  </button>
+                </>
+              )}
 
-              {modalHasChanges && (
+              {/* Save button - hidden when offline */}
+              {isOnline && modalHasChanges && (
                 <button
                   onClick={saveModal}
                   disabled={savingModal}
@@ -5004,7 +4628,6 @@ persistNotesCache(mergedNotes)
         // SSE connection status
         sseConnected={sseConnected}
         isOnline={isOnline}
-        pendingOperations={pendingOperations}
         loadNotes={loadNotes}
         loadArchivedNotes={loadArchivedNotes}
         // Admin panel
