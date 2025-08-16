@@ -68,7 +68,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 * **PWA**
 
   * Installable on desktop & mobile
-  * Offline caching of the built app shell
+
 * **Bulk actions (multi-select)** ✅ NEW
 
   * Select multiple notes at once to Download, Pin/Unpin, Delete, or Change Color.
