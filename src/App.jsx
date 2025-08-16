@@ -2536,6 +2536,22 @@ const processingQueueRef = useRef(false);
       console.error('Error caching notes:', e);
     }
   };
+  // Consistent ordering: pinned first, then by updated_at/timestamp (newest first)
+  const sortNotesByRecency = (arr) => {
+    try {
+      const list = Array.isArray(arr) ? arr.slice() : [];
+      return list.sort((a, b) => {
+        const ap = a?.pinned ? 1 : 0;
+        const bp = b?.pinned ? 1 : 0;
+        if (ap !== bp) return bp - ap; // pinned first
+        const at = new Date(a?.updated_at || a?.timestamp || 0).getTime();
+        const bt = new Date(b?.updated_at || b?.timestamp || 0).getTime();
+        return bt - at; // newest first
+      });
+    } catch {
+      return Array.isArray(arr) ? arr : [];
+    }
+  };
 // --- One-time migration: move any previously stored 'anonymous' buckets to the logged-in user's scope ---
   useEffect(() => {
     try {
@@ -2758,7 +2774,7 @@ const processingQueueRef = useRef(false);
         const cachedNotes = JSON.parse(cachedData);
         console.log("Loading notes from cache:", cachedNotes.length);
         const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-        setNotes(uniqueById([...(offlineNotes||[]), ...cachedNotes]));
+        setNotes(sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...cachedNotes])));
         setNotesLoading(false);
       }
     } catch (error) {
@@ -2772,7 +2788,7 @@ const processingQueueRef = useRef(false);
       const notesArray = Array.isArray(data) ? data : [];
 // Merge with any offline-created notes
 const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-const mergedNotes = uniqueById([...(offlineNotes||[]), ...notesArray]);
+const mergedNotes = sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...notesArray]));
 setNotes(mergedNotes);
 // Cache the merged data
 persistNotesCache(mergedNotes)
@@ -2784,9 +2800,9 @@ persistNotesCache(mergedNotes)
         const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes(uniqueById([...(offlineNotes||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])]));
+          setNotes(sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
         } else {
-          setNotes(offlineNotes);
+          setNotes(sortNotesByRecency(offlineNotes));
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
@@ -2813,7 +2829,7 @@ persistNotesCache(mergedNotes)
         const cachedNotes = JSON.parse(cachedData);
         console.log("Loading archived notes from cache:", cachedNotes.length);
         const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
-        setNotes(uniqueById([...(offlineArchived||[]), ...cachedNotes]));
+        setNotes(sortNotesByRecency(uniqueById([...(offlineArchived||[]), ...cachedNotes])));
         setNotesLoading(false);
       }
     } catch (error) {
@@ -2828,8 +2844,7 @@ persistNotesCache(mergedNotes)
       
       // Merge with any offline-archived notes
       const offlineNotes = getOfflineNotes().filter(note => note.archived);
-      const mergedNotes = [...notesArray, ...offlineNotes];
-      
+      const mergedNotes = sortNotesByRecency([...(Array.isArray(notesArray)?notesArray:[]), ...(Array.isArray(offlineNotes)?offlineNotes:[])]);
       setNotes(mergedNotes);
       
       // Cache the merged data
@@ -2847,9 +2862,9 @@ persistNotesCache(mergedNotes)
         const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes(uniqueById([...(offlineArchived||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])]));
+          setNotes(sortNotesByRecency(uniqueById([...(offlineArchived||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
         } else {
-          setNotes(offlineArchived);
+          setNotes(sortNotesByRecency(offlineArchived));
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
@@ -3277,12 +3292,16 @@ persistNotesCache(mergedNotes)
     try {
       if (isOnline) {
         // Online: try to save to server
-      const created = await api("/notes", { method: "POST", body: newNote, token });
-      setNotes((prev) => [created, ...prev]);
+        const created = await api("/notes", { method: "POST", body: newNote, token });
+        setNotes((prev) => sortNotesByRecency([created, ...(Array.isArray(prev)?prev:[])]));
         invalidateNotesCache();
+        // Reset composer after successful online add
+        setTitle(""); setContent(""); setTags(""); setComposerImages([]); setComposerColor("default");
+        setClItems([]); setClInput(""); setComposerType("text"); setComposerCollapsed(true);
+        if (contentRef.current) contentRef.current.style.height = "auto";
       } else {
         // Offline: add to local state, store offline, and queue for later sync
-        setNotes((prev) => [newNote, ...(Array.isArray(prev)?prev:[])]);
+        setNotes((prev) => sortNotesByRecency([newNote, ...(Array.isArray(prev)?prev:[])]));
         addOfflineNote(newNote);
         addToOfflineQueue({
           type: 'CREATE_NOTE',
