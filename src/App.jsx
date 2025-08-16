@@ -2680,42 +2680,6 @@ const processingQueueRef = useRef(false);
     }
   };
 
-  // Collect note IDs that have a pending DELETE operation in the offline queue
-  const getPendingDeletedNoteIdSet = () => {
-    const ids = new Set();
-    try {
-      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-      for (const op of Array.isArray(queue) ? queue : []) {
-        if (op?.type === 'DELETE_NOTE') {
-          if (op?.noteId) ids.add(String(op.noteId));
-        }
-      }
-    } catch {}
-    return ids;
-  };
-
-  // Remove queued ops for a specific note (e.g., cancel a queued CREATE when deleting before sync)
-  const removeQueuedOpsForNote = (noteId) => {
-    try {
-      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
-      const filtered = queue.filter((op) => {
-        const opNoteId = op.noteId ? String(op.noteId) : null;
-        const opDataId = op.data?.id ? String(op.data.id) : null;
-        const target = String(noteId);
-        // Drop any ops that target this note
-        if (opNoteId === target) return false;
-        if (opDataId === target) return false;
-        return true;
-      });
-      if (filtered.length !== queue.length) {
-        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
-        setPendingOperations(filtered.length);
-      }
-    } catch (error) {
-      console.error('Error removing queued ops for note:', error);
-    }
-  };
-
   
   const processOfflineQueue = async () => {
   if (processingQueueRef.current) {
@@ -2771,9 +2735,6 @@ const processingQueueRef = useRef(false);
             case 'DELETE_NOTE': {
               const id = operation.noteId;
               await api(`/notes/${id}`, { method: 'DELETE', token });
-              // If a queued CREATE exists for this temp id, ensure local offline note and op are removed
-              removeOfflineNote(id);
-              removeQueuedOpsForNote(id);
               break;
             }
             case 'TOGGLE_PIN': {
@@ -2828,13 +2789,7 @@ const processingQueueRef = useRef(false);
     if (!token) return;
     setNotesLoading(true);
     
-    // Always surface offline notes first (so offline-added notes appear even before cache/server)
-    try {
-      const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-      setNotes(sortNotesByRecency(uniqueById(offlineNotes)));
-    } catch {}
-    
-    // Try to load from cache next
+    // Try to load from cache first
     try {
       const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
       const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
@@ -2859,10 +2814,7 @@ const processingQueueRef = useRef(false);
       const notesArray = Array.isArray(data) ? data : [];
 // Merge with any offline-created notes
 const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-// Exclude any offline notes that were deleted while online before reload (queue contains DELETE)
-const pendingDeletedIds = getPendingDeletedNoteIdSet();
-const effectiveOffline = offlineNotes.filter(n => !pendingDeletedIds.has(String(n.id)));
-const mergedNotes = sortNotesByRecency(uniqueById([...(effectiveOffline||[]), ...notesArray]));
+const mergedNotes = sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...notesArray]));
 setNotes(mergedNotes);
 // Cache the merged data
 persistNotesCache(mergedNotes)
@@ -2872,13 +2824,11 @@ persistNotesCache(mergedNotes)
       try {
         const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
         const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
-        const pendingDeletedIds = getPendingDeletedNoteIdSet();
-        const effectiveOffline = offlineNotes.filter(n => !pendingDeletedIds.has(String(n.id)));
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes(sortNotesByRecency(uniqueById([...(effectiveOffline||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
+          setNotes(sortNotesByRecency(uniqueById([...(offlineNotes||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
         } else {
-          setNotes(sortNotesByRecency(effectiveOffline));
+          setNotes(sortNotesByRecency(offlineNotes));
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
@@ -2894,13 +2844,7 @@ persistNotesCache(mergedNotes)
     if (!token) return;
     setNotesLoading(true);
     
-    // Always surface offline archived notes first as well
-    try {
-      const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
-      if (offlineArchived.length) setNotes(sortNotesByRecency(uniqueById(offlineArchived)));
-    } catch {}
-    
-    // Try to load from cache next
+    // Try to load from cache first
     try {
       const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
       const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
@@ -2926,9 +2870,7 @@ persistNotesCache(mergedNotes)
       
       // Merge with any offline-archived notes
       const offlineNotes = getOfflineNotes().filter(note => note.archived);
-      const pendingDeletedIds = getPendingDeletedNoteIdSet();
-      const effectiveOffline = offlineNotes.filter(n => !pendingDeletedIds.has(String(n.id)));
-      const mergedNotes = sortNotesByRecency([...(Array.isArray(notesArray)?notesArray:[]), ...(Array.isArray(effectiveOffline)?effectiveOffline:[])]);
+      const mergedNotes = sortNotesByRecency([...(Array.isArray(notesArray)?notesArray:[]), ...(Array.isArray(offlineNotes)?offlineNotes:[])]);
       setNotes(mergedNotes);
       
       // Cache the merged data
@@ -2944,13 +2886,11 @@ persistNotesCache(mergedNotes)
       try {
         const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
         const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
-        const pendingDeletedIds = getPendingDeletedNoteIdSet();
-        const effectiveOffline = offlineArchived.filter(n => !pendingDeletedIds.has(String(n.id)));
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes(sortNotesByRecency(uniqueById([...(effectiveOffline||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
+          setNotes(sortNotesByRecency(uniqueById([...(offlineArchived||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])])));
         } else {
-          setNotes(sortNotesByRecency(effectiveOffline));
+          setNotes(sortNotesByRecency(offlineArchived));
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
@@ -3908,17 +3848,14 @@ persistNotesCache(mergedNotes)
     try {
       if (isOnline) {
         // Online: try to delete from server
-        await api(`/notes/${activeId}`, { method: "DELETE", token });
+      await api(`/notes/${activeId}`, { method: "DELETE", token });
         invalidateNotesCache();
-        // Ensure any local offline remnants are removed so refresh won't resurrect
-        removeOfflineNote(activeId);
-        removeQueuedOpsForNote(activeId);
       } else {
         // Offline: queue for later sync
-        addToOfflineQueue({ type: 'DELETE_NOTE', noteId: activeId });
-        // If this note was created offline, clear it from offline storage and remove any queued CREATE
-        removeOfflineNote(activeId);
-        removeQueuedOpsForNote(activeId);
+        addToOfflineQueue({
+          type: 'DELETE_NOTE',
+          noteId: activeId
+        });
       }
       
       setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
@@ -3928,9 +3865,10 @@ persistNotesCache(mergedNotes)
       alert(e.message || "Delete failed");
       } else {
         // Offline: still remove from local state and queue
-        addToOfflineQueue({ type: 'DELETE_NOTE', noteId: activeId });
-        removeOfflineNote(activeId);
-        removeQueuedOpsForNote(activeId);
+        addToOfflineQueue({
+          type: 'DELETE_NOTE',
+          noteId: activeId
+        });
         setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
         closeModal();
       }
