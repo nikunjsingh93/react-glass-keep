@@ -2536,7 +2536,8 @@ const processingQueueRef = useRef(false);
       console.error('Error caching notes:', e);
     }
   };
-  // Consistent ordering: pinned first, then by updated_at/timestamp (newest first)
+  // Consistent ordering: pinned first, then by position (server-persisted DnD),
+  // fallback to updated_at/timestamp when position is missing
   const sortNotesByRecency = (arr) => {
     try {
       const list = Array.isArray(arr) ? arr.slice() : [];
@@ -2544,9 +2545,14 @@ const processingQueueRef = useRef(false);
         const ap = a?.pinned ? 1 : 0;
         const bp = b?.pinned ? 1 : 0;
         if (ap !== bp) return bp - ap; // pinned first
+        const apos = Number.isFinite(+a?.position) ? +a.position : null;
+        const bpos = Number.isFinite(+b?.position) ? +b.position : null;
+        if (apos != null && bpos != null && !Number.isNaN(apos) && !Number.isNaN(bpos)) {
+          return bpos - apos; // higher position first (most recent/top)
+        }
         const at = new Date(a?.updated_at || a?.timestamp || 0).getTime();
         const bt = new Date(b?.updated_at || b?.timestamp || 0).getTime();
-        return bt - at; // newest first
+        return bt - at; // fallback newest first
       });
     } catch {
       return Array.isArray(arr) ? arr : [];
