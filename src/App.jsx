@@ -13,7 +13,7 @@ const AUTH_KEY = "glass-keep-auth";
 const getAuth = () => {
   try {
     return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
-  } catch {
+  } catch (e) {
     return null;
   }
 };
@@ -33,7 +33,7 @@ async function api(path, { method = "GET", body, token } = {}) {
   let data = null;
   try {
     data = await res.json();
-  } catch {
+  } catch (e) {
     data = null;
   }
   if (!res.ok) {
@@ -211,7 +211,7 @@ const mdToPlain = (md) => {
     tmp.innerHTML = html;
     const text = tmp.textContent || tmp.innerText || "";
     return text.replace(/\n{3,}/g, "\n\n");
-  } catch {
+  } catch (e) {
     return md || "";
   }
 };
@@ -1032,9 +1032,9 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret, allowReg
 
       <div className="mt-4 text-sm flex justify-between items-center">
         {allowRegistration && (
-          <button className="text-indigo-600 hover:underline" onClick={goRegister}>
-            Create account
-          </button>
+        <button className="text-indigo-600 hover:underline" onClick={goRegister}>
+          Create account
+        </button>
         )}
         <button className="text-indigo-600 hover:underline" onClick={goSecret}>
           Forgot username/password?
@@ -1901,7 +1901,7 @@ function NotesUI({
                         try {
                           const src = await fileToCompressedDataURL(f);
                           results.push({ id: uid(), src, name: f.name });
-                        } catch {}
+                        } catch (e) {}
                       }
                       if (results.length) setComposerImages((prev) => [...prev, ...results]);
                       e.target.value = "";
@@ -1927,7 +1927,7 @@ function NotesUI({
             </>
           )}
         </div>
-      </div>
+        </div>
       </div>
 
       {/* Notes lists */}
@@ -1936,9 +1936,9 @@ function NotesUI({
           <section className="mb-10">
             {listView ? (
               <div className="max-w-2xl mx-auto">
-                <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-                  Pinned
-                </h2>
+            <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+              Pinned
+            </h2>
               </div>
             ) : (
               <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
@@ -1973,9 +1973,9 @@ function NotesUI({
             {pinned.length > 0 && (
               listView ? (
                 <div className="max-w-2xl mx-auto">
-                  <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-                    Others
-                  </h2>
+              <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                Others
+              </h2>
                 </div>
               ) : (
                 <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
@@ -2286,10 +2286,10 @@ export default function App() {
 
   // -------- View mode: Grid vs List --------
   const [listView, setListView] = useState(() => {
-    try { return localStorage.getItem("viewMode") === "list"; } catch { return false; }
+    try { return localStorage.getItem("viewMode") === "list"; } catch (e) { return false; }
   });
   useEffect(() => {
-    try { localStorage.setItem("viewMode", listView ? "list" : "grid"); } catch {}
+    try { localStorage.setItem("viewMode", listView ? "list" : "grid"); } catch (e) {}
   }, [listView]);
   const onToggleViewMode = () => setListView((v) => !v);
 
@@ -2476,9 +2476,9 @@ export default function App() {
   }, [sidebarOpen]);
 
   // Cache keys for localStorage
-  const NOTES_CACHE_KEY = `glass-keep-notes-${token?.user?.id || 'anonymous'}`;
-  const ARCHIVED_NOTES_CACHE_KEY = `glass-keep-archived-${token?.user?.id || 'anonymous'}`;
-  const CACHE_TIMESTAMP_KEY = `glass-keep-cache-timestamp-${token?.user?.id || 'anonymous'}`;
+  const NOTES_CACHE_KEY = `glass-keep-notes-${currentUser?.id || 'anonymous'}`;
+  const ARCHIVED_NOTES_CACHE_KEY = `glass-keep-archived-${currentUser?.id || 'anonymous'}`;
+  const CACHE_TIMESTAMP_KEY = `glass-keep-cache-timestamp-${currentUser?.id || 'anonymous'}`;
 
   // Cache invalidation functions
   const invalidateNotesCache = () => {
@@ -2500,8 +2500,90 @@ export default function App() {
   };
 
   // Offline queue functionality
-  const OFFLINE_QUEUE_KEY = `glass-keep-offline-queue-${token?.user?.id || 'anonymous'}`;
-  const OFFLINE_NOTES_KEY = `glass-keep-offline-notes-${token?.user?.id || 'anonymous'}`;
+  const OFFLINE_QUEUE_KEY = `glass-keep-offline-queue-${currentUser?.id || 'anonymous'}`;
+const processingQueueRef = useRef(false);
+  const OFFLINE_NOTES_KEY = `glass-keep-offline-notes-${currentUser?.id || 'anonymous'}`;
+
+  
+  // ---- Offline helpers: merge + read from all possible buckets ----
+  const uniqueById = (arr) => {
+    const m = new Map();
+    for (const n of Array.isArray(arr) ? arr : []) {
+      if (!n) continue;
+      m.set(String(n.id), n);
+    }
+    return Array.from(m.values());
+  };
+  const getAllOfflineNotes = () => {
+    try {
+      const k1 = OFFLINE_NOTES_KEY;
+      const kAnon = `glass-keep-offline-notes-anonymous`;
+      const raw1 = localStorage.getItem(k1);
+      const raw2 = localStorage.getItem(kAnon);
+      const a1 = raw1 ? JSON.parse(raw1) : [];
+      const a2 = raw2 ? JSON.parse(raw2) : [];
+      return uniqueById([...(Array.isArray(a1) ? a1 : []), ...(Array.isArray(a2) ? a2 : [])]);
+    } catch (e) {
+      console.error('Error getting offline notes (all buckets):', e);
+      return [];
+    }
+  };
+  const persistNotesCache = (notes) => {
+    try {
+      localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify(Array.isArray(notes) ? notes : []));
+      localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+    } catch (e) {
+      console.error('Error caching notes:', e);
+    }
+  };
+// --- One-time migration: move any previously stored 'anonymous' buckets to the logged-in user's scope ---
+  useEffect(() => {
+    try {
+      if (!currentUser?.id) return;
+      const suffixOld = 'anonymous';
+      const suffixNew = String(currentUser.id);
+      const pairs = [
+        [`glass-keep-notes-${suffixOld}`, `glass-keep-notes-${suffixNew}`],
+        [`glass-keep-archived-${suffixOld}`, `glass-keep-archived-${suffixNew}`],
+        [`glass-keep-cache-timestamp-${suffixOld}`, `glass-keep-cache-timestamp-${suffixNew}`],
+        [`glass-keep-offline-queue-${suffixOld}`, `glass-keep-offline-queue-${suffixNew}`],
+        [`glass-keep-offline-notes-${suffixOld}`, `glass-keep-offline-notes-${suffixNew}`],
+      ];
+      let migrated = 0;
+      for (const [oldKey,newKey] of pairs) {
+        const oldVal = localStorage.getItem(oldKey);
+        if (oldVal && !localStorage.getItem(newKey)) {
+          localStorage.setItem(newKey, oldVal);
+          localStorage.removeItem(oldKey);
+          migrated++;
+        }
+      }
+      if (migrated) {
+        console.log('[Offline] Migrated', migrated, 'localStorage bucket(s) from anonymous to user-scoped keys');
+        try {
+          const queue = JSON.parse(localStorage.getItem(`glass-keep-offline-queue-${suffixNew}`) || '[]');
+          setPendingOperations(queue.length);
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.error('Migration error', e);
+    }
+  },
+  // Kick off offline queue sync on startup or whenever we come online
+  useEffect(() => {
+    if (!token) return;
+    try {
+      const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+      if (isOnline && q.length > 0) {
+        console.log('Found', q.length, 'pending offline operations on startup; processing...');
+        processOfflineQueue().catch((e) => console.error('processOfflineQueue failed on startup', e));
+      }
+    } catch (e) {
+      // ignore JSON errors
+    }
+  }, [token, isOnline]),
+ [currentUser?.id]);
+
   
   const getOfflineNotes = () => {
     try {
@@ -2517,6 +2599,12 @@ export default function App() {
       const offlineNotes = getOfflineNotes();
       offlineNotes.push(note);
       localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(offlineNotes));
+      // Also drop it into the visible cache immediately so refresh while offline preserves it
+      try {
+        const cachedRaw = localStorage.getItem(NOTES_CACHE_KEY);
+        const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
+        persistNotesCache(uniqueById([note, ...(Array.isArray(cached) ? cached : [])]));
+      } catch (e) {}
       console.log('Added offline note:', note.id);
     } catch (error) {
       console.error('Error adding offline note:', error);
@@ -2550,49 +2638,96 @@ export default function App() {
     }
   };
 
+  
   const processOfflineQueue = async () => {
-    if (!isOnline || !token) return;
-    
-    try {
-      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  if (processingQueueRef.current) {
+    console.log('processOfflineQueue: already running, skipping');
+    return;
+  }
+  if (!isOnline || !token) return;
+  processingQueueRef.current = true;
+  try {      const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
       if (queue.length === 0) return;
 
       console.log('Processing offline queue:', queue.length, 'operations');
-      
-      for (const operation of queue) {
+
+      // Map temporary IDs -> server IDs during this run
+      const idMap = {};
+      const remaining = [];
+
+      // Helper to map IDs on an operation (non-mutating)
+      const mapOperationIds = (op) => {
+        const next = { ...op };
+        if (next.noteId && idMap[next.noteId]) {
+          next.noteId = idMap[next.noteId];
+        }
+        if (next.data && next.data.id && idMap[next.data.id]) {
+          next.data = { ...next.data, id: idMap[next.data.id] };
+        }
+        return next;
+      };
+
+      for (const rawOp of queue) {
+        // Apply any known mappings before attempting the op
+        let operation = mapOperationIds(rawOp);
+
         try {
           switch (operation.type) {
-            case 'CREATE_NOTE':
-              await api('/notes', { method: 'POST', body: operation.data, token });
-              // Remove from offline notes after successful sync
-              removeOfflineNote(operation.data.id);
+            case 'CREATE_NOTE': {
+              const tempId = operation.data?.id;
+              // Send to server and capture the created note (with server id)
+              const created = await api('/notes', { method: 'POST', body: operation.data, token });
+              if (tempId && created?.id && String(created.id) !== String(tempId)) {
+                // Record mapping for subsequent operations
+                idMap[tempId] = String(created.id);
+                // Remove offline temp note
+                removeOfflineNote(tempId);
+              }
               break;
-            case 'UPDATE_NOTE':
-              await api(`/notes/${operation.noteId}`, { method: 'PUT', body: operation.data, token });
+            }
+            case 'UPDATE_NOTE': {
+              const id = operation.noteId;
+              await api(`/notes/${id}`, { method: 'PUT', body: operation.data, token });
               break;
-            case 'DELETE_NOTE':
-              await api(`/notes/${operation.noteId}`, { method: 'DELETE', token });
+            }
+            case 'DELETE_NOTE': {
+              const id = operation.noteId;
+              await api(`/notes/${id}`, { method: 'DELETE', token });
               break;
-            case 'TOGGLE_PIN':
-              await api(`/notes/${operation.noteId}`, { method: 'PATCH', body: { pinned: operation.pinned }, token });
+            }
+            case 'TOGGLE_PIN': {
+              const id = operation.noteId;
+              await api(`/notes/${id}`, { method: 'PATCH', body: { pinned: operation.pinned }, token });
               break;
-            case 'ARCHIVE_NOTE':
-              await api(`/notes/${operation.noteId}/archive`, { method: 'POST', body: { archived: operation.archived }, token });
+            }
+            case 'ARCHIVE_NOTE': {
+              const id = operation.noteId;
+              await api(`/notes/${id}/archive`, { method: 'POST', body: { archived: operation.archived }, token });
+              break;
+            }
+            default:
+              console.warn('Unknown offline op type:', operation.type);
               break;
           }
           console.log('Processed offline operation:', operation.type, operation.noteId || operation.data?.id);
         } catch (error) {
           console.error('Failed to process offline operation:', operation, error);
-          // Keep failed operations in queue for retry
-          continue;
+          // Keep failed operation (with any applied id mappings) for retry
+          remaining.push(operation);
         }
       }
-      
-      // Clear the queue after successful processing
-      localStorage.removeItem(OFFLINE_QUEUE_KEY);
-      setPendingOperations(0);
-      console.log('Offline queue processed successfully');
-      
+
+      // Update the queue with only the remaining failed operations
+      if (remaining.length > 0) {
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+        setPendingOperations(remaining.length);
+        console.log('Some offline ops failed; kept in queue:', remaining.length);
+      } else {
+        localStorage.removeItem(OFFLINE_QUEUE_KEY);
+        setPendingOperations(0);
+        console.log('Offline queue processed successfully');
+      }
+
       // Refresh notes to show updated data
       if (tagFilter === 'ARCHIVED') {
         await loadArchivedNotes();
@@ -2602,7 +2737,10 @@ export default function App() {
     } catch (error) {
       console.error('Error processing offline queue:', error);
     }
-  };
+  
+  processingQueueRef.current = false;
+};
+;
 
   // Load notes with offline caching
   const loadNotes = async () => {
@@ -2619,7 +2757,8 @@ export default function App() {
       if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
         const cachedNotes = JSON.parse(cachedData);
         console.log("Loading notes from cache:", cachedNotes.length);
-        setNotes(cachedNotes);
+        const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
+        setNotes(uniqueById([...(offlineNotes||[]), ...cachedNotes]));
         setNotesLoading(false);
       }
     } catch (error) {
@@ -2631,29 +2770,21 @@ export default function App() {
       const data = await api("/notes", { token });
       console.log("Regular notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
-      
-      // Merge with any offline-created notes
-      const offlineNotes = getOfflineNotes();
-      const mergedNotes = [...notesArray, ...offlineNotes];
-      
-      setNotes(mergedNotes);
-      
-      // Cache the merged data
-      try {
-        localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify(mergedNotes));
-        localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-      } catch (error) {
-        console.error("Error caching notes:", error);
-      }
+// Merge with any offline-created notes
+const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
+const mergedNotes = uniqueById([...(offlineNotes||[]), ...notesArray]);
+setNotes(mergedNotes);
+// Cache the merged data
+persistNotesCache(mergedNotes)
     } catch (error) {
       console.error("Error loading regular notes from server:", error);
       // If server fails, load from cache and include offline notes
       try {
         const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
-        const offlineNotes = getOfflineNotes();
+        const offlineNotes = getAllOfflineNotes().filter(n => !n.archived);
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes([...cachedNotes, ...offlineNotes]);
+          setNotes(uniqueById([...(offlineNotes||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])]));
         } else {
           setNotes(offlineNotes);
         }
@@ -2681,7 +2812,8 @@ export default function App() {
       if (cachedData && cacheTimestamp && (now - parseInt(cacheTimestamp)) < 5 * 60 * 1000) {
         const cachedNotes = JSON.parse(cachedData);
         console.log("Loading archived notes from cache:", cachedNotes.length);
-        setNotes(cachedNotes);
+        const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
+        setNotes(uniqueById([...(offlineArchived||[]), ...cachedNotes]));
         setNotesLoading(false);
       }
     } catch (error) {
@@ -2709,15 +2841,15 @@ export default function App() {
       }
     } catch (error) {
       console.error("Error loading archived notes from server:", error);
-      // If server fails, load from cache and include offline archived notes
+      // If server fails, load from cache and include offline notes
       try {
         const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
-        const offlineNotes = getOfflineNotes().filter(note => note.archived);
+        const offlineArchived = getAllOfflineNotes().filter(n => n.archived);
         if (cachedData) {
           const cachedNotes = JSON.parse(cachedData);
-          setNotes([...cachedNotes, ...offlineNotes]);
+          setNotes(uniqueById([...(offlineArchived||[]), ...(Array.isArray(cachedNotes)?cachedNotes:[])]));
         } else {
-          setNotes(offlineNotes);
+          setNotes(offlineArchived);
         }
       } catch (cacheError) {
         console.error("Error loading from cache:", cacheError);
@@ -2790,7 +2922,7 @@ export default function App() {
                 loadNotes().catch(() => {});
               }
             }
-          } catch {}
+          } catch (e) {}
         };
         
         es.addEventListener('note_updated', (e) => {
@@ -2803,7 +2935,7 @@ export default function App() {
                 loadNotes().catch(() => {});
               }
             }
-          } catch {}
+          } catch (e) {}
         });
         
         es.onerror = (error) => {
@@ -2889,7 +3021,7 @@ export default function App() {
       setSseConnected(false);
       try { 
         if (es) es.close(); 
-      } catch {}
+      } catch (e) {}
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
@@ -2969,8 +3101,8 @@ export default function App() {
   const resizeModalTextarea = useMemo(() => {
     let timeoutId = null;
     return () => {
-      const el = mBodyRef.current;
-      if (!el) return;
+    const el = mBodyRef.current;
+    if (!el) return;
       
       // Clear previous timeout
       if (timeoutId) {
@@ -2983,9 +3115,9 @@ export default function App() {
         const scrollTop = modalScrollEl?.scrollTop || 0;
         
         // Set a minimum height to prevent layout shifts
-        const MIN = 160;
+    const MIN = 160;
         el.style.height = MIN + "px";
-        el.style.height = Math.max(el.scrollHeight, MIN) + "px";
+    el.style.height = Math.max(el.scrollHeight, MIN) + "px";
         
         // Auto-scroll to keep cursor visible
         const cursorPosition = el.selectionStart;
@@ -3145,30 +3277,29 @@ export default function App() {
     try {
       if (isOnline) {
         // Online: try to save to server
-        const created = await api("/notes", { method: "POST", body: newNote, token });
-        setNotes((prev) => [created, ...prev]);
+      const created = await api("/notes", { method: "POST", body: newNote, token });
+      setNotes((prev) => [created, ...prev]);
         invalidateNotesCache();
       } else {
         // Offline: add to local state, store offline, and queue for later sync
-        setNotes((prev) => [newNote, ...prev]);
+        setNotes((prev) => [newNote, ...(Array.isArray(prev)?prev:[])]);
         addOfflineNote(newNote);
         addToOfflineQueue({
           type: 'CREATE_NOTE',
           data: newNote
         });
+        // Also refresh the cached notes immediately
+        try {
+          const cachedRaw = localStorage.getItem(NOTES_CACHE_KEY);
+          const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
+          persistNotesCache(uniqueById([newNote, ...(Array.isArray(cached) ? cached : [])]));
+        } catch (e) {}
+        
+        // reset composer
+        setTitle(""); setContent(""); setTags(""); setComposerImages([]); setComposerColor("default");
+        setClItems([]); setClInput(""); setComposerType("text"); setComposerCollapsed(true);
+        if (contentRef.current) contentRef.current.style.height = "auto";
       }
-      
-      // reset composer (also collapse back to single input)
-      setTitle("");
-      setContent("");
-      setTags("");
-      setComposerImages([]);
-      setComposerColor("default");
-      setClItems([]);
-      setClInput("");
-      setComposerType("text");
-      setComposerCollapsed(true);
-      if (contentRef.current) contentRef.current.style.height = "auto";
     } catch (e) {
       if (isOnline) {
         alert(e.message || "Failed to add note");
@@ -3418,7 +3549,7 @@ export default function App() {
             position: ms,
             timestamp,
           });
-        } catch {}
+        } catch (e) {}
       }
       if (!notesArr.length) { alert("No valid Google Keep notes found."); return; }
       await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
@@ -3622,7 +3753,7 @@ export default function App() {
       
       if (isOnline) {
         // Online: try to save to server
-        await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+      await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
         invalidateNotesCache();
       } else {
         // Offline: queue for later sync
@@ -3648,7 +3779,7 @@ export default function App() {
       closeModal();
     } catch (e) {
       if (isOnline) {
-        alert(e.message || "Failed to save note");
+      alert(e.message || "Failed to save note");
       } else {
         // Offline: still update local state and queue
         addToOfflineQueue({
@@ -3678,7 +3809,7 @@ export default function App() {
     try {
       if (isOnline) {
         // Online: try to delete from server
-        await api(`/notes/${activeId}`, { method: "DELETE", token });
+      await api(`/notes/${activeId}`, { method: "DELETE", token });
         invalidateNotesCache();
       } else {
         // Offline: queue for later sync
@@ -3692,7 +3823,7 @@ export default function App() {
       closeModal();
     } catch (e) {
       if (isOnline) {
-        alert(e.message || "Delete failed");
+      alert(e.message || "Delete failed");
       } else {
         // Offline: still remove from local state and queue
         addToOfflineQueue({
@@ -3708,7 +3839,7 @@ export default function App() {
     try {
       if (isOnline) {
         // Online: try to update server
-        await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
+      await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
         invalidateNotesCache();
       } else {
         // Offline: queue for later sync
@@ -3722,7 +3853,7 @@ export default function App() {
       setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
     } catch (e) {
       if (isOnline) {
-        alert(e.message || "Failed to toggle pin");
+      alert(e.message || "Failed to toggle pin");
       } else {
         // Offline: still update local state and queue
         addToOfflineQueue({
@@ -3876,7 +4007,7 @@ export default function App() {
       setter(snippet);
       requestAnimationFrame(() => {
         el.focus();
-        try { el.setSelectionRange(snippet.length, snippet.length); } catch {}
+        try { el.setSelectionRange(snippet.length, snippet.length); } catch (e) {}
       });
       return;
     }
@@ -3902,7 +4033,7 @@ export default function App() {
       el.focus();
       try {
         el.setSelectionRange(result.range[0], result.range[1]);
-      } catch {}
+      } catch (e) {}
     });
   };
   const formatComposer = (type) => runFormat(() => content, setContent, contentRef, type);
@@ -3921,7 +4052,7 @@ export default function App() {
       e.preventDefault();
       setContent(res.text);
       requestAnimationFrame(() => {
-        try { el.setSelectionRange(res.range[0], res.range[1]); } catch {}
+        try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) {}
         el.style.height = "auto";
         el.style.height = el.scrollHeight + "px";
       });
@@ -3994,7 +4125,7 @@ export default function App() {
     const mo = new MutationObserver(() => attach());
     try {
       mo.observe(root, { childList: true, subtree: true });
-    } catch {}
+    } catch (e) {}
 
     return () => {
       clearTimeout(t1);
@@ -4207,7 +4338,7 @@ export default function App() {
                             e.preventDefault();
                             setMBody(res.text);
                             requestAnimationFrame(() => {
-                              try { el.setSelectionRange(res.range[0], res.range[1]); } catch {}
+                              try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) {}
                               resizeModalTextarea();
                             });
                           }
@@ -4237,7 +4368,7 @@ export default function App() {
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch {}
+                            } catch (e) {}
                           }
                         }
                       }}
@@ -4256,7 +4387,7 @@ export default function App() {
                               await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                               prevItemsRef.current = newItems;
                             }
-                          } catch {}
+                          } catch (e) {}
                         } 
                       }}
                       className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -4284,7 +4415,7 @@ export default function App() {
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch {}
+                            } catch (e) {}
                           }}
                           onChange={async (txt) => {
                             const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
@@ -4294,7 +4425,7 @@ export default function App() {
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch {}
+                            } catch (e) {}
                           }}
                           onRemove={async () => {
                             const newItems = mItems.filter(p => p.id !== it.id);
@@ -4304,7 +4435,7 @@ export default function App() {
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch {}
+                            } catch (e) {}
                           }}
                         />
                       ))}
@@ -4330,7 +4461,7 @@ export default function App() {
                                       await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                       prevItemsRef.current = newItems;
                                     }
-                                  } catch {}
+                                  } catch (e) {}
                                 }}
                                 onChange={async (txt) => {
                                   const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
@@ -4340,7 +4471,7 @@ export default function App() {
                                       await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                       prevItemsRef.current = newItems;
                                     }
-                                  } catch {}
+                                  } catch (e) {}
                                 }}
                                 onRemove={async () => {
                                   const newItems = mItems.filter(p => p.id !== it.id);
@@ -4350,10 +4481,10 @@ export default function App() {
                                       await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                       prevItemsRef.current = newItems;
                                     }
-                                  } catch {}
+                                  } catch (e) {}
                                 }}
-                              />
-                            ))}
+                        />
+                      ))}
                           </div>
                         </>
                       )}
