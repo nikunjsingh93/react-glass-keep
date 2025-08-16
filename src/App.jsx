@@ -2633,6 +2633,26 @@ const processingQueueRef = useRef(false);
     }
   };
 
+  // Upsert any note into offline storage (used for offline edits/changes)
+  const upsertOfflineNote = (note) => {
+    try {
+      if (!note || !note.id) return;
+      const offlineNotes = getOfflineNotes();
+      const idx = offlineNotes.findIndex((n) => String(n.id) === String(note.id));
+      if (idx >= 0) offlineNotes[idx] = { ...offlineNotes[idx], ...note };
+      else offlineNotes.push(note);
+      localStorage.setItem(OFFLINE_NOTES_KEY, JSON.stringify(offlineNotes));
+      // keep cache in sync so refresh shows the change
+      try {
+        const cachedRaw = localStorage.getItem(NOTES_CACHE_KEY);
+        const cached = cachedRaw ? JSON.parse(cachedRaw) : [];
+        persistNotesCache(uniqueById([note, ...(Array.isArray(cached) ? cached : [])]));
+      } catch {}
+    } catch (error) {
+      console.error('Error upserting offline note:', error);
+    }
+  };
+
   const removeOfflineNote = (noteId) => {
     try {
       const offlineNotes = getOfflineNotes();
@@ -3298,7 +3318,7 @@ persistNotesCache(mergedNotes)
     try {
       if (isOnline) {
         // Online: try to save to server
-        const created = await api("/notes", { method: "POST", body: newNote, token });
+      const created = await api("/notes", { method: "POST", body: newNote, token });
         setNotes((prev) => sortNotesByRecency([created, ...(Array.isArray(prev)?prev:[])]));
         invalidateNotesCache();
         // Reset composer after successful online add
@@ -3338,16 +3358,16 @@ persistNotesCache(mergedNotes)
         });
         
         // reset composer
-        setTitle("");
-        setContent("");
-        setTags("");
-        setComposerImages([]);
-        setComposerColor("default");
-        setClItems([]);
-        setClInput("");
-        setComposerType("text");
-        setComposerCollapsed(true);
-        if (contentRef.current) contentRef.current.style.height = "auto";
+      setTitle("");
+      setContent("");
+      setTags("");
+      setComposerImages([]);
+      setComposerColor("default");
+      setClItems([]);
+      setClInput("");
+      setComposerType("text");
+      setComposerCollapsed(true);
+      if (contentRef.current) contentRef.current.style.height = "auto";
       }
     }
   };
@@ -3781,12 +3801,9 @@ persistNotesCache(mergedNotes)
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
         invalidateNotesCache();
       } else {
-        // Offline: queue for later sync
-        addToOfflineQueue({
-          type: 'UPDATE_NOTE',
-          noteId: activeId,
-          data: payload
-        });
+        // Offline: queue for later sync and persist locally so refresh shows it
+        addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: payload });
+        upsertOfflineNote({ ...payload, id: activeId, updated_at: new Date().toISOString() });
       }
       
       prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
@@ -3806,12 +3823,9 @@ persistNotesCache(mergedNotes)
       if (isOnline) {
       alert(e.message || "Failed to save note");
       } else {
-        // Offline: still update local state and queue
-        addToOfflineQueue({
-          type: 'UPDATE_NOTE',
-          noteId: activeId,
-          data: payload
-        });
+        // Offline: still update local state and queue; also persist locally
+        addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: payload });
+        upsertOfflineNote({ ...payload, id: activeId, updated_at: nowIso });
         
         const nowIso = new Date().toISOString();
         setNotes((prev) => prev.map((n) =>
@@ -4393,7 +4407,13 @@ persistNotesCache(mergedNotes)
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch (e) {}
+                            } catch (e) {
+                              if (activeId) {
+                                addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: { items: newItems, type: 'checklist', content: '' } });
+                                upsertOfflineNote({ id: activeId, items: newItems, type: 'checklist', content: '', updated_at: new Date().toISOString() });
+                                prevItemsRef.current = newItems;
+                              }
+                            }
                           }
                         }
                       }}
@@ -4440,7 +4460,13 @@ persistNotesCache(mergedNotes)
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch (e) {}
+                            } catch (e) {
+                              if (activeId) {
+                                addToOfflineQueue({ type: 'UPDATE_NOTE', noteId: activeId, data: { items: newItems, type: 'checklist', content: '' } });
+                                upsertOfflineNote({ id: activeId, items: newItems, type: 'checklist', content: '', updated_at: new Date().toISOString() });
+                                prevItemsRef.current = newItems;
+                              }
+                            }
                           }}
                           onChange={async (txt) => {
                             const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
