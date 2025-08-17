@@ -3640,6 +3640,18 @@ export default function App() {
       return;
     }
 
+    // Handle list formatting when no text is selected
+    if ((type === "ul" || type === "ol") && start === end) {
+      const snippet = type === "ul" ? "- " : "1. ";
+      const newValue = value.slice(0, start) + snippet + value.slice(end);
+      setter(newValue);
+      requestAnimationFrame(() => {
+        el.focus();
+        try { el.setSelectionRange(start + snippet.length, start + snippet.length); } catch (e) {}
+      });
+      return;
+    }
+
     let result;
     switch (type) {
       case "h1": result = prefixLines(value, start, end, "# "); break;
