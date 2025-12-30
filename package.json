@@ -24,7 +24,7 @@
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.539.0",
     "marked": "^16.1.2",
-    "react": "^19.1.1",
+    "react": "^19.1.2",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
