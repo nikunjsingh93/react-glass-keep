@@ -2217,7 +2217,7 @@ function NotesUI({
                       value={clInput}
                       onChange={(e) => setClInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addComposerItem(); } }}
-                      placeholder="List item… (press Enter to add)"
+                      placeholder="List item…"
                       disabled={!isOnline}
                       className={`flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)] ${
                         !isOnline ? 'opacity-50 cursor-not-allowed' : ''
@@ -4713,7 +4713,7 @@ export default function App() {
                             }
                           }
                         }}
-                        placeholder="List item… (press Enter to add)"
+                        placeholder="List item…"
                         className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
                       />
                       <button
