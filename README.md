@@ -165,7 +165,7 @@ docker run -d \
   -e JWT_SECRET=dev-please-change \
   -e DB_FILE=/app/data/notes.db \
   -e ADMIN_EMAILS=admin \
-  -v "$HOME/.glass-keep:/app/data" \
+  -v "$HOME/.glass-keep:/app/data" \ # Change path according to OS (e.g., %USERPROFILE%\.glass-keep on Windows)
   glass-keep:local
 ```
 
