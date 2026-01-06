@@ -4233,6 +4233,11 @@ export default function App() {
                           const value = mBody;
                           const start = el.selectionStart ?? value.length;
                           const end = el.selectionEnd ?? value.length;
+
+                          // Check if cursor is on the last line before Enter
+                          const lastNewlineIndex = value.lastIndexOf('\n');
+                          const isOnLastLine = start > lastNewlineIndex;
+
                           const res = handleSmartEnter(value, start, end);
                           if (res) {
                             e.preventDefault();
@@ -4240,7 +4245,25 @@ export default function App() {
                             requestAnimationFrame(() => {
                               try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) {}
                               resizeModalTextarea();
+
+                              // If we were on the last line, scroll down a bit to ensure cursor visibility
+                              if (isOnLastLine) {
+                                const modalScrollEl = modalScrollRef.current;
+                                if (modalScrollEl) {
+                                  setTimeout(() => {
+                                    modalScrollEl.scrollTop += 30; // Scroll down by 30px
+                                  }, 50);
+                                }
+                              }
                             });
+                          } else if (isOnLastLine) {
+                            // If not handled by smart enter but on last line, allow normal Enter but scroll down
+                            setTimeout(() => {
+                              const modalScrollEl = modalScrollRef.current;
+                              if (modalScrollEl) {
+                                modalScrollEl.scrollTop += 30; // Scroll down by 30px
+                              }
+                            }, 10);
                           }
                         }
                       }}
