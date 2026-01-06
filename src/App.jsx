@@ -1047,6 +1047,8 @@ function NoteCard({
               key={it.id}
               item={it}
               size="sm"
+              readOnly={true}
+              showRemove={false}
               onToggle={async (checked, e) => {
                 e?.stopPropagation(); // Prevent opening the note modal
                 await onUpdateChecklistItem?.(n.id, it.id, checked);
