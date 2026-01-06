@@ -2743,6 +2743,9 @@ export default function App() {
   const dragId = useRef(null);
   const dragGroup = useRef(null);
 
+  // Checklist item drag (for modal reordering)
+  const checklistDragId = useRef(null);
+
   // Header menu refs + state
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const headerMenuRef = useRef(null);
@@ -4132,6 +4135,70 @@ export default function App() {
   };
   const onDragEnd = (ev) => { ev.currentTarget.classList.remove("dragging"); };
 
+  // Checklist item drag handlers (for modal reordering)
+  const onChecklistDragStart = (itemId, ev) => {
+    checklistDragId.current = String(itemId);
+    ev.currentTarget.classList.add("dragging");
+  };
+  const onChecklistDragOver = (overItemId, ev) => {
+    ev.preventDefault();
+    if (!checklistDragId.current) return;
+    if (String(checklistDragId.current) === String(overItemId)) return;
+    ev.currentTarget.classList.add("drag-over");
+  };
+  const onChecklistDragLeave = (ev) => {
+    ev.currentTarget.classList.remove("drag-over");
+  };
+  const onChecklistDrop = async (overItemId, ev) => {
+    ev.preventDefault();
+    ev.currentTarget.classList.remove("drag-over");
+    const dragged = checklistDragId.current;
+    checklistDragId.current = null;
+
+    if (!dragged || String(dragged) === String(overItemId)) return;
+
+    // Only allow reordering unchecked items
+    const draggedItem = mItems.find(it => String(it.id) === String(dragged));
+    const overItem = mItems.find(it => String(it.id) === String(overItemId));
+
+    if (!draggedItem || !overItem || draggedItem.done || overItem.done) return;
+
+    // Reorder the unchecked items
+    const uncheckedItems = mItems.filter(it => !it.done);
+    const checkedItems = mItems.filter(it => it.done);
+
+    const draggedIndex = uncheckedItems.findIndex(it => String(it.id) === String(dragged));
+    const overIndex = uncheckedItems.findIndex(it => String(it.id) === String(overItemId));
+
+    if (draggedIndex === -1 || overIndex === -1) return;
+
+    // Remove dragged item and insert at new position
+    const [removed] = uncheckedItems.splice(draggedIndex, 1);
+    uncheckedItems.splice(overIndex, 0, removed);
+
+    // Combine back with checked items
+    const newItems = [...uncheckedItems, ...checkedItems];
+
+    setMItems(newItems);
+    prevItemsRef.current = newItems;
+
+    // Save to server
+    try {
+      if (activeId) {
+        await api(`/notes/${activeId}`, {
+          method: "PATCH",
+          token,
+          body: { items: newItems, type: "checklist", content: "" }
+        });
+      }
+    } catch (error) {
+      console.error("Failed to reorder checklist items:", error);
+    }
+  };
+  const onChecklistDragEnd = (ev) => {
+    ev.currentTarget.classList.remove("dragging");
+  };
+
   /** -------- Tags list (unique + counts) -------- */
   const tagsWithCounts = useMemo(() => {
     const map = new Map();
@@ -4671,50 +4738,59 @@ export default function App() {
                     <div className="space-y-4 md:space-y-2">
                       {/* Unchecked items */}
                       {mItems.filter(it => !it.done).map((it) => (
-                        <ChecklistRow
+                        <div
                           key={it.id}
-                          item={it}
-                          readOnly={!isOnline || viewMode}
-                          disableToggle={!isOnline}      /* disable toggle when offline */
-                          showRemove={isOnline && true}  /* show delete X only when online */
-                          size="lg"                  /* bigger checkboxes and X in modal */
-                          onToggle={async (checked, e) => {
-                            e?.stopPropagation(); // Prevent any unwanted event bubbling
-                            if (!isOnline) return;
-                            const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
-                            setMItems(newItems);
-                                                      try {
-                            if (activeId) {
-                              await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                              prevItemsRef.current = newItems;
+                          draggable={isOnline}
+                          onDragStart={(e) => onChecklistDragStart(it.id, e)}
+                          onDragOver={(e) => onChecklistDragOver(it.id, e)}
+                          onDragLeave={onChecklistDragLeave}
+                          onDrop={(e) => onChecklistDrop(it.id, e)}
+                          onDragEnd={onChecklistDragEnd}
+                        >
+                          <ChecklistRow
+                            item={it}
+                            readOnly={!isOnline}
+                            disableToggle={!isOnline}      /* disable toggle when offline */
+                            showRemove={isOnline && true}  /* show delete X only when online */
+                            size="lg"                  /* bigger checkboxes and X in modal */
+                            onToggle={async (checked, e) => {
+                              e?.stopPropagation(); // Prevent any unwanted event bubbling
+                              if (!isOnline) return;
+                              const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
+                              setMItems(newItems);
+                                                        try {
+                              if (activeId) {
+                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                prevItemsRef.current = newItems;
+                              }
+                            } catch (e) {
+                              // Handle error silently
                             }
-                          } catch (e) {
-                            // Handle error silently
-                          }
-                          }}
-                          onChange={async (txt) => {
-                            if (!isOnline) return;
-                            const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
-                            setMItems(newItems);
-                            try {
-                              if (activeId) {
-                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                prevItemsRef.current = newItems;
-                              }
-                            } catch (e) {}
-                          }}
-                          onRemove={async () => {
-                            if (!isOnline) return;
-                            const newItems = mItems.filter(p => p.id !== it.id);
-                            setMItems(newItems);
-                            try {
-                              if (activeId) {
-                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                prevItemsRef.current = newItems;
-                              }
-                            } catch (e) {}
-                          }}
-                        />
+                            }}
+                            onChange={async (txt) => {
+                              if (!isOnline) return;
+                              const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
+                              setMItems(newItems);
+                              try {
+                                if (activeId) {
+                                  await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                  prevItemsRef.current = newItems;
+                                }
+                              } catch (e) {}
+                            }}
+                            onRemove={async () => {
+                              if (!isOnline) return;
+                              const newItems = mItems.filter(p => p.id !== it.id);
+                              setMItems(newItems);
+                              try {
+                                if (activeId) {
+                                  await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                  prevItemsRef.current = newItems;
+                                }
+                              } catch (e) {}
+                            }}
+                          />
+                        </div>
                       ))}
                       
                       {/* Done section */}
@@ -4726,7 +4802,7 @@ export default function App() {
                               <ChecklistRow
                                 key={it.id}
                                 item={it}
-                                readOnly={!isOnline || viewMode}
+                                readOnly={!isOnline}
                                 disableToggle={!isOnline}      /* disable toggle when offline */
                                 showRemove={isOnline && true}  /* show delete X only when online */
                                 size="lg"                  /* bigger checkboxes and X in modal */
