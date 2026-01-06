@@ -1477,6 +1477,19 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Prevent body scroll when admin panel is open
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
   return (
     <>
       {open && (
