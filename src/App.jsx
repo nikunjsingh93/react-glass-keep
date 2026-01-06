@@ -1301,11 +1301,14 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
       )}
       <div
         className={`fixed top-0 right-0 z-50 h-full w-96 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
-        style={{ backgroundColor: dark ? "rgb(31, 41, 55)" : "rgba(255,255,255,0.95)", borderLeft: "1px solid var(--border-light)" }}
+        style={{ backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)", borderLeft: "1px solid var(--border-light)" }}
         aria-hidden={!open}
       >
         <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
-          <h3 className="text-lg font-semibold">Settings</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <SettingsIcon />
+            Settings
+          </h3>
           <button
             className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
             onClick={onClose}
