@@ -1740,7 +1740,8 @@ function NotesUI({
           {headerMenuOpen && (
             <div
               ref={headerMenuRef}
-              className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+              className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "text-gray-100" : "bg-white text-gray-800"}`}
+              style={{ backgroundColor: dark ? "#222222" : undefined }}
               onClick={(e) => e.stopPropagation()}
             >
 
