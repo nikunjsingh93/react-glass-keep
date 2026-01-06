@@ -1326,6 +1326,19 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
 
 /** ---------- Settings Panel ---------- */
 function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide }) {
+  // Prevent body scroll when settings panel is open
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [open]);
+
   return (
     <>
       {open && (
@@ -1338,8 +1351,6 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
         className={`fixed top-0 right-0 z-50 h-full w-96 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         style={{ backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)", borderLeft: "1px solid var(--border-light)" }}
         aria-hidden={!open}
-        onWheel={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
       >
         <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
           <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -1673,9 +1684,24 @@ function NotesUI({
     const multiColorBtnRef = useRef(null);
     const [showMultiColorPop, setShowMultiColorPop] = useState(false);
   const tagLabel =
-    activeTagFilter === ALL_IMAGES ? "All Images" : 
-    activeTagFilter === 'ARCHIVED' ? "Archived Notes" : 
+    activeTagFilter === ALL_IMAGES ? "All Images" :
+    activeTagFilter === 'ARCHIVED' ? "Archived Notes" :
     activeTagFilter;
+
+  // Close header menu when scrolling
+  React.useEffect(() => {
+    if (!headerMenuOpen) return;
+
+    const handleScroll = () => {
+      setHeaderMenuOpen(false);
+    };
+
+    const scrollContainer = document.querySelector('.min-h-screen');
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }
+  }, [headerMenuOpen, setHeaderMenuOpen]);
 
   return (
     <div
