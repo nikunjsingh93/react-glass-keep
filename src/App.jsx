@@ -1453,7 +1453,7 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
 }
 
 /** ---------- Admin Panel ---------- */
-function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm, setNewUserForm, updateAdminSettings, createUser, deleteUser, currentUser }) {
+function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm, setNewUserForm, updateAdminSettings, createUser, deleteUser, currentUser, showGenericConfirm, showToast }) {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   console.log("AdminPanel render:", { open, adminSettings, allUsers: allUsers?.length });
@@ -1461,14 +1461,14 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUserForm.name || !newUserForm.email || !newUserForm.password) {
-      alert("Please fill in all required fields");
+      showToast("Please fill in all required fields", "error");
       return;
     }
     
     setIsCreatingUser(true);
     try {
       await createUser(newUserForm);
-      alert("User created successfully!");
+      showToast("User created successfully!", "success");
     } catch (e) {
       // Error already handled in createUser function
     } finally {
@@ -1611,9 +1611,13 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
                       {user.id !== currentUser?.id && (
                         <button
                           onClick={() => {
-                            if (confirm(`Are you sure you want to delete ${user.name}?`)) {
-                              deleteUser(user.id);
-                            }
+                            showGenericConfirm({
+                              title: "Delete User",
+                              message: `Are you sure you want to delete ${user.name}?`,
+                              confirmText: "Delete",
+                              danger: true,
+                              onConfirm: () => deleteUser(user.id)
+                            });
                           }}
                           className="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800"
                         >
@@ -2334,7 +2338,6 @@ function AdminView({ dark }) {
   }
 
   async function removeUser(id) {
-    if (!confirm("Delete this user and ALL their notes? This cannot be undone.")) return;
     try {
       const res = await fetch(`${API_BASE}/admin/users/${id}`, {
         method: "DELETE",
@@ -2412,7 +2415,15 @@ function AdminView({ dark }) {
                   <td className="py-2 pr-3">
                     <button
                       className="px-2.5 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700"
-                      onClick={() => removeUser(u.id)}
+                      onClick={() => {
+                        showGenericConfirm({
+                          title: "Delete User",
+                          message: "Delete this user and ALL their notes? This cannot be undone.",
+                          confirmText: "Delete",
+                          danger: true,
+                          onConfirm: () => removeUser(u.id)
+                        });
+                      }}
                       title="Delete user"
                     >
                       Delete
@@ -2495,6 +2506,31 @@ export default function App() {
   const modalFileRef = useRef(null);
   const [modalMenuOpen, setModalMenuOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [genericConfirmOpen, setGenericConfirmOpen] = useState(false);
+  const [genericConfirmConfig, setGenericConfirmConfig] = useState({});
+
+  // Toast notification system
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'success', duration = 3000) => {
+    const id = Date.now();
+    const toast = { id, message, type };
+    setToasts(prev => [...prev, toast]);
+
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, duration);
+    }
+
+    return id;
+  };
+
+  // Generic confirmation dialog helper
+  const showGenericConfirm = (config) => {
+    setGenericConfirmConfig(config);
+    setGenericConfirmOpen(true);
+  };
   const [mItems, setMItems] = useState([]);
   const skipNextItemsAutosave = useRef(false);
   const prevItemsRef = useRef([]);
@@ -2595,17 +2631,24 @@ export default function App() {
 
   const onBulkDelete = async () => {
     if (!selectedIds.length) return;
-    if (!confirm(`Delete ${selectedIds.length} selected note(s)? This cannot be undone.`)) return;
-    try {
-      // Fire deletes sequentially to keep API simple
-      for (const id of selectedIds) {
-        await api(`/notes/${id}`, { method: "DELETE", token });
+    showGenericConfirm({
+      title: "Delete Notes",
+      message: `Delete ${selectedIds.length} selected note(s)? This cannot be undone.`,
+      confirmText: "Delete",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          // Fire deletes sequentially to keep API simple
+          for (const id of selectedIds) {
+            await api(`/notes/${id}`, { method: "DELETE", token });
+          }
+          setNotes((prev) => prev.filter((n) => !selectedIds.includes(String(n.id))));
+          onExitMulti();
+        } catch (e) {
+          alert(e.message || "Bulk delete failed");
+        }
       }
-      setNotes((prev) => prev.filter((n) => !selectedIds.includes(String(n.id))));
-      onExitMulti();
-    } catch (e) {
-      alert(e.message || "Bulk delete failed");
-    }
+    });
   };
 
   const onBulkPin = async (pinnedVal) => {
@@ -4601,6 +4644,7 @@ export default function App() {
             </div>
           )}
 
+
           {/* Collaboration Modal */}
           {collaborationModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -4845,6 +4889,8 @@ export default function App() {
         createUser={createUser}
         deleteUser={deleteUser}
         currentUser={currentUser}
+        showGenericConfirm={showGenericConfirm}
+        showToast={showToast}
       />
 
       <NotesUI
@@ -4943,6 +4989,65 @@ export default function App() {
         openSettingsPanel={openSettingsPanel}
       />
       {modal}
+
+      {/* Generic Confirmation Dialog */}
+      {genericConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setGenericConfirmOpen(false)}
+          />
+          <div
+            className="glass-card rounded-xl shadow-2xl w-[90%] max-w-sm p-6 relative"
+            style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2">{genericConfirmConfig.title || "Confirm Action"}</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              {genericConfirmConfig.message}
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                onClick={() => setGenericConfirmOpen(false)}
+              >
+                {genericConfirmConfig.cancelText || "Cancel"}
+              </button>
+              <button
+                className={`px-4 py-2 rounded-lg ${genericConfirmConfig.danger ? "bg-red-600 text-white hover:bg-red-700" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
+                onClick={async () => {
+                  setGenericConfirmOpen(false);
+                  if (genericConfirmConfig.onConfirm) {
+                    await genericConfirmConfig.onConfirm();
+                  }
+                }}
+              >
+                {genericConfirmConfig.confirmText || "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed top-4 right-4 z-[60] space-y-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`px-4 py-2 rounded-lg shadow-lg max-w-sm animate-in slide-in-from-right-2 ${
+                toast.type === 'success'
+                  ? 'bg-green-600 text-white'
+                  : toast.type === 'error'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-blue-600 text-white'
+              }`}
+            >
+              {toast.message}
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
