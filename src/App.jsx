@@ -1453,8 +1453,12 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
 }
 
 /** ---------- Admin Panel ---------- */
-function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm, setNewUserForm, updateAdminSettings, createUser, deleteUser, currentUser, showGenericConfirm, showToast }) {
+function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm, setNewUserForm, updateAdminSettings, createUser, deleteUser, updateUser, currentUser, showGenericConfirm, showToast }) {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [editUserModalOpen, setEditUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editUserForm, setEditUserForm] = useState({ name: '', email: '', password: '', is_admin: false });
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
 
   console.log("AdminPanel render:", { open, adminSettings, allUsers: allUsers?.length });
 
@@ -1473,6 +1477,47 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
       // Error already handled in createUser function
     } finally {
       setIsCreatingUser(false);
+    }
+  };
+
+  const openEditUserModal = (user) => {
+    setEditingUser(user);
+    setEditUserForm({
+      name: user.name,
+      email: user.email,
+      password: '',
+      is_admin: user.is_admin
+    });
+    setEditUserModalOpen(true);
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!editUserForm.name || !editUserForm.email) {
+      showToast("Name and email are required", "error");
+      return;
+    }
+
+    setIsUpdatingUser(true);
+    try {
+      // Only include password if it's not empty
+      const updateData = {
+        name: editUserForm.name,
+        email: editUserForm.email,
+        is_admin: editUserForm.is_admin
+      };
+      if (editUserForm.password) {
+        updateData.password = editUserForm.password;
+      }
+
+      await updateUser(editingUser.id, updateData);
+      showToast("User updated successfully!", "success");
+      setEditUserModalOpen(false);
+      setEditingUser(null);
+    } catch (e) {
+      // Error already handled in updateUser function
+    } finally {
+      setIsUpdatingUser(false);
     }
   };
 
@@ -1608,6 +1653,12 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
                           Admin
                         </span>
                       )}
+                      <button
+                        onClick={() => openEditUserModal(user)}
+                        className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-800"
+                      >
+                        Edit
+                      </button>
                       {user.id !== currentUser?.id && (
                         <button
                           onClick={() => {
@@ -1637,6 +1688,73 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
           </div>
         </div>
       </div>
+
+      {/* Edit User Modal */}
+      {editUserModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Edit User</h3>
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Username</label>
+                <input
+                  type="text"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Password (leave empty to keep current)</label>
+                <input
+                  type="password"
+                  value={editUserForm.password}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+                  placeholder="Leave empty to keep current password"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="edit_is_admin"
+                  checked={editUserForm.is_admin}
+                  onChange={(e) => setEditUserForm(prev => ({ ...prev, is_admin: e.target.checked }))}
+                  className="mr-2"
+                />
+                <label htmlFor="edit_is_admin" className="text-sm">Make admin</label>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setEditUserModalOpen(false)}
+                  className="px-4 py-2 border border-[var(--border-light)] rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingUser}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isUpdatingUser ? "Updating..." : "Update User"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -3429,6 +3547,17 @@ export default function App() {
     }
   };
 
+  const updateUser = async (userId, userData) => {
+    try {
+      const updatedUser = await api(`/admin/users/${userId}`, { method: "PATCH", token, body: userData });
+      setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+      return updatedUser;
+    } catch (e) {
+      alert(e.message || "Failed to update user");
+      throw e;
+    }
+  };
+
   const openAdminPanel = async () => {
     console.log("Opening admin panel...");
     setAdminPanelOpen(true);
@@ -4883,6 +5012,7 @@ export default function App() {
         updateAdminSettings={updateAdminSettings}
         createUser={createUser}
         deleteUser={deleteUser}
+        updateUser={updateUser}
         currentUser={currentUser}
         showGenericConfirm={showGenericConfirm}
         showToast={showToast}

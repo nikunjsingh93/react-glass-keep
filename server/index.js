@@ -976,24 +976,24 @@ app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
 // Create user from admin panel
 app.post("/api/admin/users", auth, adminOnly, (req, res) => {
   const { name, email, password, is_admin } = req.body || {};
-  
+
   if (!name || !email || !password) {
     return res.status(400).json({ error: "Name, email, and password are required." });
   }
-  
+
   if (getUserByEmail.get(email)) {
     return res.status(409).json({ error: "Email already registered." });
   }
-  
+
   const hash = bcrypt.hashSync(password, 10);
   const info = insertUser.run(name.trim(), email.trim(), hash, nowISO());
-  
+
   // Set admin status if specified
   if (is_admin) {
     const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE id=?");
     mkAdmin.run(info.lastInsertRowid);
   }
-  
+
   const user = getUserById.get(info.lastInsertRowid);
   res.status(201).json({
     id: user.id,
@@ -1001,6 +1001,81 @@ app.post("/api/admin/users", auth, adminOnly, (req, res) => {
     email: user.email,
     is_admin: !!user.is_admin,
     created_at: user.created_at,
+  });
+});
+
+// Update user from admin panel
+app.patch("/api/admin/users/:id", auth, adminOnly, (req, res) => {
+  const id = Number(req.params.id);
+  const { name, email, password, is_admin } = req.body || {};
+
+  // Cannot update yourself to non-admin if you're the only admin
+  if (id === req.user.id && is_admin === false) {
+    const adminCount = db.prepare("SELECT COUNT(*) AS c FROM users WHERE is_admin=1").get().c;
+    if (adminCount <= 1) {
+      return res.status(400).json({ error: "Cannot remove admin status from the last admin." });
+    }
+  }
+
+  // Check if user exists
+  const existing = getUserById.get(id);
+  if (!existing) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  // Check if email is already taken by another user
+  if (email && email !== existing.email) {
+    const emailCheck = getUserByEmail.get(email);
+    if (emailCheck && emailCheck.id !== id) {
+      return res.status(409).json({ error: "Email already in use by another user." });
+    }
+  }
+
+  // Prepare update query
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined) {
+    updates.push("name = ?");
+    params.push(name.trim());
+  }
+
+  if (email !== undefined) {
+    updates.push("email = ?");
+    params.push(email.trim());
+  }
+
+  if (password) {
+    updates.push("password_hash = ?");
+    params.push(bcrypt.hashSync(password, 10));
+  }
+
+  if (is_admin !== undefined) {
+    updates.push("is_admin = ?");
+    params.push(is_admin ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: "No valid fields to update." });
+  }
+
+  // Execute update
+  const updateStmt = db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`);
+  params.push(id);
+  const result = updateStmt.run(...params);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  // Return updated user data
+  const updatedUser = getUserById.get(id);
+  res.json({
+    id: updatedUser.id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    is_admin: !!updatedUser.is_admin,
+    created_at: updatedUser.created_at,
   });
 });
 
