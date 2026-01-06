@@ -888,8 +888,8 @@ function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
       if (a && a.contains(e.target)) return;
       onClose?.();
     };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("mousedown", onDown, true); // useCapture: true
+    return () => document.removeEventListener("mousedown", onDown, true);
   }, [open, onClose, anchorRef]);
 
   if (!open) return null;
@@ -2758,7 +2758,7 @@ export default function App() {
   }, [activeNoteObj, mTitle, mColor, mTagList, mImages, mType, mBody, mItems]);
 
   useEffect(() => {
-    // Only close header and modal kebab on outside click
+    // Only close header kebab on outside click (modal kebab is handled by Popover)
     function onDocClick(e) {
       if (headerMenuOpen) {
         const m = headerMenuRef.current;
@@ -2767,15 +2767,10 @@ export default function App() {
         if (b && b.contains(e.target)) return;
         setHeaderMenuOpen(false);
       }
-      if (modalMenuOpen) {
-        const b = modalMenuBtnRef.current;
-        if (b && b.contains(e.target)) return;
-        setModalMenuOpen(false);
-      }
     }
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
-  }, [headerMenuOpen, modalMenuOpen]);
+  }, [headerMenuOpen]);
 
   // CSS inject
   useEffect(() => {
