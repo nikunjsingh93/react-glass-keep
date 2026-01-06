@@ -953,22 +953,44 @@ function NoteCard({
       onDragLeave={(e) => { if (!multiMode) onDragLeave(e); }}
       onDrop={(e) => { if (!multiMode) onDrop(n.id, group, e); }}
       onDragEnd={(e) => { if (!multiMode) onDragEnd(e); }}
-      onClick={() => { if (!multiMode) openModal(n.id); }}
-      className="note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative min-h-[54px] group"
+      onClick={(e) => {
+        if (multiMode) {
+          // In multi-select mode, clicking anywhere toggles selection
+          e.stopPropagation();
+          onToggleSelect?.(n.id, !selected);
+        } else {
+          // In normal mode, open the modal
+          openModal(n.id);
+        }
+      }}
+      className={`note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative min-h-[54px] group ${
+        multiMode && selected ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-transparent' : ''
+      }`}
       style={{ backgroundColor: bgFor(n.color, dark) }}
       data-id={n.id}
       data-group={group}
     >
       {multiMode && (
-        <label className="absolute top-3 right-3 bg-white/70 dark:bg-black/40 rounded-md px-2 py-1 flex items-center gap-2 select-none" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            className="w-5 h-5"
-            checked={selected}
-            onChange={(e) => onToggleSelect(n.id, e.target.checked)}
-          />
-          <span className="text-xs">Select</span>
-        </label>
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+          {/* Modern checkbox */}
+          <div
+            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center cursor-pointer transition-all ${
+              selected
+                ? 'bg-indigo-500 border-indigo-500 text-white'
+                : 'border-gray-300 dark:border-gray-500 bg-white/80 dark:bg-gray-700/80 hover:border-indigo-400'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect?.(n.id, !selected);
+            }}
+          >
+            {selected && (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+        </div>
       )}
       {!multiMode && !disablePin && (
         <div className="absolute top-3 right-3 h-8 opacity-0 group-hover:opacity-100 transition-opacity">
