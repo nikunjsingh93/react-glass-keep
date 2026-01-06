@@ -3145,51 +3145,18 @@ export default function App() {
       timeoutId = setTimeout(() => {
         const modalScrollEl = modalScrollRef.current;
         const scrollTop = modalScrollEl?.scrollTop || 0;
-        
+
         // Set a minimum height to prevent layout shifts
-    const MIN = 160;
+        const MIN = 160;
         el.style.height = MIN + "px";
-    el.style.height = Math.max(el.scrollHeight, MIN) + "px";
-        
-        // Auto-scroll to keep cursor visible
-        const cursorPosition = el.selectionStart;
-        if (cursorPosition !== null) {
-          // Calculate cursor position relative to textarea
-          const textBeforeCursor = el.value.substring(0, cursorPosition);
-          const lines = textBeforeCursor.split('\n');
-          const currentLine = lines.length;
-          
-          // Create a temporary element to measure line height
-          const tempEl = document.createElement('div');
-          tempEl.style.cssText = window.getComputedStyle(el).cssText;
-          tempEl.style.height = 'auto';
-          tempEl.style.position = 'absolute';
-          tempEl.style.visibility = 'hidden';
-          tempEl.style.whiteSpace = 'pre-wrap';
-          tempEl.textContent = textBeforeCursor;
-          document.body.appendChild(tempEl);
-          
-          const lineHeight = tempEl.offsetHeight / lines.length || 20;
-          document.body.removeChild(tempEl);
-          
-          // Calculate desired scroll position
-          const cursorTop = (currentLine - 1) * lineHeight;
-          const textareaTop = el.offsetTop;
-          const modalScrollTop = modalScrollEl?.scrollTop || 0;
-          const modalHeight = modalScrollEl?.clientHeight || 0;
-          
-          // Keep cursor visible with some padding
-          const desiredScrollTop = Math.max(0, modalScrollTop + textareaTop + cursorTop - modalHeight / 2);
-          
-          if (modalScrollEl) {
-            modalScrollEl.scrollTop = desiredScrollTop;
-          }
-        } else {
-          // Fallback: restore original scroll position
+        el.style.height = Math.max(el.scrollHeight, MIN) + "px";
+
+        // Prevent browser auto-scroll by restoring scroll position after DOM update
+        requestAnimationFrame(() => {
           if (modalScrollEl) {
             modalScrollEl.scrollTop = scrollTop;
           }
-        }
+        });
       }, 10); // Small delay to batch rapid changes
     };
   }, []);
@@ -4256,6 +4223,7 @@ export default function App() {
                       className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px] ${
                         !isOnline ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
+                      style={{ scrollBehavior: 'unset' }}
                       value={mBody}
                       onChange={(e) => { if (isOnline) { setMBody(e.target.value); resizeModalTextarea(); } }}
                       onKeyDown={(e) => {
