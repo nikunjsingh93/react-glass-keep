@@ -1046,7 +1046,7 @@ function NoteCard({
             <ChecklistRow
               key={it.id}
               item={it}
-              size="sm"
+              size="md"
               readOnly={true}
               showRemove={false}
               onToggle={async (checked, e) => {
