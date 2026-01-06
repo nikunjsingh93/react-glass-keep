@@ -1212,32 +1212,34 @@ function SecretLoginView({ dark, onToggleDark, onLoginWithKey, goLogin }) {
 }
 
 /** ---------- Tag Sidebar / Drawer ---------- */
-function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }) {
+function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, permanent = false }) {
   const isAllNotes = activeTag === null;
   const isAllImages = activeTag === ALL_IMAGES;
 
   return (
     <>
-      {open && (
+      {open && !permanent && (
         <div
           className="fixed inset-0 z-30 bg-black/30"
           onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         />
       )}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full w-72 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full"}`}
-        style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)", borderRight: "1px solid var(--border-light)" }}
-        aria-hidden={!open}
+        className={`fixed top-0 left-0 z-40 h-full w-72 shadow-2xl transition-transform duration-200 ${permanent || open ? "translate-x-0" : "-translate-x-full"}`}
+        style={{ backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)", borderRight: "1px solid var(--border-light)" }}
+        aria-hidden={!(permanent || open)}
       >
         <div className="p-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Tags</h3>
-          <button
-            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
-            onClick={onClose}
-            title="Close"
-          >
-            <CloseIcon />
-          </button>
+          {!permanent && (
+            <button
+              className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
+              onClick={onClose}
+              title="Close"
+            >
+              <CloseIcon />
+            </button>
+          )}
         </div>
         <nav className="p-2 overflow-y-auto h-[calc(100%-56px)]">
           {/* Notes (All) */}
@@ -1290,7 +1292,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
 }
 
 /** ---------- Settings Panel ---------- */
-function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey }) {
+function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide }) {
   return (
     <>
       {open && (
@@ -1362,6 +1364,33 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
                 <div className="font-medium">Download secret key (.txt)</div>
                 <div className="text-sm text-gray-500">Download your encryption key for backup</div>
               </button>
+            </div>
+          </div>
+
+          {/* UI Preferences Section */}
+          <div className="mb-8">
+            <h4 className="text-md font-semibold mb-4">UI Preferences</h4>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Always show sidebar on wide screens</div>
+                  <div className="text-sm text-gray-500">Keep tags panel visible on screens wider than 700px</div>
+                </div>
+                <button
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    alwaysShowSidebarOnWide
+                      ? 'bg-indigo-600'
+                      : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                  onClick={() => setAlwaysShowSidebarOnWide(!alwaysShowSidebarOnWide)}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      alwaysShowSidebarOnWide ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1566,6 +1595,9 @@ function NotesUI({
   // new for sidebar
   openSidebar,
   activeTagFilter,
+  sidebarPermanent,
+  alwaysShowSidebarOnWide,
+  windowWidth,
   // formatting
   formatComposer,
   showComposerFmt, setShowComposerFmt,
@@ -1612,7 +1644,7 @@ function NotesUI({
     activeTagFilter;
 
   return (
-    <div className="min-h-screen">
+    <div className={`min-h-screen ${sidebarPermanent ? 'ml-72' : ''}`}>
       {/* Multi-select toolbar (floats above header when active) */}
       {multiMode && (
         <div className="p-3 sm:p-4 flex items-center justify-between sticky top-0 z-[25] glass-card mb-2" style={{ position: "sticky" }}>
@@ -1667,15 +1699,17 @@ function NotesUI({
       {/* Header */}
       <header className="p-4 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
         <div className="flex items-center gap-3">
-          {/* Hamburger */}
-          <button
-            onClick={openSidebar}
-            className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            title="Open tags"
-            aria-label="Open tags"
-          >
-            <Hamburger />
-          </button>
+          {/* Hamburger - only show when sidebar is not permanent */}
+          {!sidebarPermanent && (
+            <button
+              onClick={openSidebar}
+              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              title="Open tags"
+              aria-label="Open tags"
+            >
+              <Hamburger />
+            </button>
+          )}
 
           {/* App logo */}
           <img
@@ -2320,6 +2354,9 @@ export default function App() {
   // Theme
   const [dark, setDark] = useState(false);
 
+  // Screen width for responsive behavior
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
   // Notes & search
   const [notes, setNotes] = useState([]);
   const [search, setSearch] = useState("");
@@ -2327,6 +2364,9 @@ export default function App() {
   // Tag filter & sidebar
   const [tagFilter, setTagFilter] = useState(null); // null = all, ALL_IMAGES = only notes with images
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide] = useState(() => {
+    try { return localStorage.getItem("sidebarAlwaysVisible") === "true"; } catch (e) { return false; }
+  });
 
   // Composer
   const [composerType, setComposerType] = useState("text");
@@ -2443,6 +2483,18 @@ export default function App() {
     try { localStorage.setItem("viewMode", listView ? "list" : "grid"); } catch (e) {}
   }, [listView]);
   const onToggleViewMode = () => setListView((v) => !v);
+
+  // Save sidebar visibility setting
+  useEffect(() => {
+    try { localStorage.setItem("sidebarAlwaysVisible", String(alwaysShowSidebarOnWide)); } catch (e) {}
+  }, [alwaysShowSidebarOnWide]);
+
+  // Window resize listener for responsive sidebar behavior
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const onBulkDelete = async () => {
     if (!selectedIds.length) return;
@@ -4668,6 +4720,7 @@ export default function App() {
         activeTag={tagFilter}
         onSelect={(tag) => setTagFilter(tag)}
         dark={dark}
+        permanent={alwaysShowSidebarOnWide && windowWidth >= 700}
       />
 
       {/* Settings Panel */}
@@ -4680,6 +4733,8 @@ export default function App() {
         onImportGKeep={() => gkeepFileRef.current?.click()}
         onImportMd={() => mdFileRef.current?.click()}
         onDownloadSecretKey={downloadSecretKey}
+        alwaysShowSidebarOnWide={alwaysShowSidebarOnWide}
+        setAlwaysShowSidebarOnWide={setAlwaysShowSidebarOnWide}
       />
 
       {/* Admin Panel */}
@@ -4750,6 +4805,9 @@ export default function App() {
         headerBtnRef={headerBtnRef}
         openSidebar={() => setSidebarOpen(true)}
         activeTagFilter={tagFilter}
+        sidebarPermanent={alwaysShowSidebarOnWide && windowWidth >= 700}
+        alwaysShowSidebarOnWide={alwaysShowSidebarOnWide}
+        windowWidth={windowWidth}
         // formatting props
         formatComposer={formatComposer}
         showComposerFmt={showComposerFmt}
