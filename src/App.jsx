@@ -1338,6 +1338,8 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
         className={`fixed top-0 right-0 z-50 h-full w-96 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         style={{ backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)", borderLeft: "1px solid var(--border-light)" }}
         aria-hidden={!open}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
           <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -1810,12 +1812,18 @@ function NotesUI({
           </button>
 
           {headerMenuOpen && (
-            <div
-              ref={headerMenuRef}
-              className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "text-gray-100" : "bg-white text-gray-800"}`}
-              style={{ backgroundColor: dark ? "#222222" : undefined }}
-              onClick={(e) => e.stopPropagation()}
-            >
+            <>
+              {/* Backdrop to close menu when clicking outside */}
+              <div
+                className="fixed inset-0 z-[1099]"
+                onClick={() => setHeaderMenuOpen(false)}
+              />
+              <div
+                ref={headerMenuRef}
+                className={`absolute top-12 right-0 min-w-[220px] z-[1100] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "text-gray-100" : "bg-white text-gray-800"}`}
+                style={{ backgroundColor: dark ? "#222222" : undefined }}
+                onClick={(e) => e.stopPropagation()}
+              >
 
               <button
                 className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
@@ -1862,7 +1870,8 @@ function NotesUI({
                 <LogOutIcon />
                 Sign out
               </button>
-            </div>
+              </div>
+            </>
           )}
 
           {/* Hidden import input */}
