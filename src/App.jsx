@@ -4066,7 +4066,7 @@ export default function App() {
         }}
       >
         <div
-          className="glass-card rounded-xl shadow-2xl w-11/12 max-w-2xl h-[80vh] flex flex-col relative overflow-hidden"
+          className="glass-card rounded-xl shadow-2xl w-full h-full max-w-none rounded-none sm:w-11/12 sm:max-w-2xl sm:h-[80vh] sm:rounded-xl flex flex-col relative overflow-hidden"
           style={{ backgroundColor: modalBgFor(mColor, dark) }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
@@ -4079,7 +4079,7 @@ export default function App() {
           >
             {/* Sticky header (kept single line on desktop, wraps on mobile) */}
             <div
-              className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur rounded-t-xl"
+              className="sticky top-0 z-20 px-4 sm:px-6 pt-4 pb-3 modal-header-blur rounded-t-none sm:rounded-t-xl"
               style={{ backgroundColor: modalBgFor(mColor, dark) }}
             >
               <div className="flex flex-wrap items-center gap-2">
