@@ -261,6 +261,13 @@ const LogOutIcon = () => (
   </svg>
 );
 
+// Archive icon
+const ArchiveIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+  </svg>
+);
+
 /** ---------- Utils ---------- */
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const mdToPlain = (md) => {
@@ -4127,18 +4134,20 @@ export default function App() {
                         onClose={() => setModalMenuOpen(false)}
                       >
                         <div
-                          className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}
+                          className={`min-w-[180px] border border-[var(--border-light)] rounded-lg shadow-lg overflow-hidden ${dark ? "text-gray-100" : "bg-white text-gray-800"}`}
+                          style={{ backgroundColor: dark ? "#222222" : undefined }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
-                            className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                            className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                             onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
                           >
+                            <DownloadIcon />
                             Download .md
                           </button>
                           <button
-                            className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                            onClick={() => { 
+                            className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                            onClick={() => {
                               const note = notes.find(nn => String(nn.id) === String(activeId));
                               if (note) {
                                 handleArchiveNote(activeId, !note.archived);
@@ -4146,12 +4155,14 @@ export default function App() {
                               }
                             }}
                           >
+                            <ArchiveIcon />
                             {activeNoteObj?.archived ? "Unarchive" : "Archive"}
                           </button>
                           <button
-                            className={`block w-full text-left px-3 py-2 text-sm text-red-600 ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                            className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-red-600 ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                             onClick={() => { setConfirmDeleteOpen(true); setModalMenuOpen(false); }}
                           >
+                            <Trash />
                             Delete
                           </button>
                         </div>
