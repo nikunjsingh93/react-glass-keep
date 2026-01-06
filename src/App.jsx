@@ -1230,6 +1230,84 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark }
   );
 }
 
+/** ---------- Settings Panel ---------- */
+function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey }) {
+  return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        />
+      )}
+      <div
+        className={`fixed top-0 right-0 z-50 h-full w-96 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+        style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)", borderLeft: "1px solid var(--border-light)" }}
+        aria-hidden={!open}
+      >
+        <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
+          <h3 className="text-lg font-semibold">Settings</h3>
+          <button
+            className="p-2 rounded hover:bg-black/5 dark:hover:bg-white/10"
+            onClick={onClose}
+            title="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="p-4 overflow-y-auto h-[calc(100%-64px)]">
+          {/* Data Management Section */}
+          <div className="mb-8">
+            <h4 className="text-md font-semibold mb-4">Data Management</h4>
+            <div className="space-y-3">
+              <button
+                className={`block w-full text-left px-4 py-3 border border-[var(--border-light)] rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-gray-50"} transition-colors`}
+                onClick={() => { onClose(); onExportAll?.(); }}
+              >
+                <div className="font-medium">Export ALL notes (.json)</div>
+                <div className="text-sm text-gray-500">Download all notes as JSON file</div>
+              </button>
+
+              <button
+                className={`block w-full text-left px-4 py-3 border border-[var(--border-light)] rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-gray-50"} transition-colors`}
+                onClick={() => { onClose(); onImportAll?.(); }}
+              >
+                <div className="font-medium">Import notes (.json)</div>
+                <div className="text-sm text-gray-500">Import notes from JSON file</div>
+              </button>
+
+              <button
+                className={`block w-full text-left px-4 py-3 border border-[var(--border-light)] rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-gray-50"} transition-colors`}
+                onClick={() => { onClose(); onImportGKeep?.(); }}
+              >
+                <div className="font-medium">Import Google Keep notes (.json)</div>
+                <div className="text-sm text-gray-500">Import notes from Google Keep JSON export</div>
+              </button>
+
+              <button
+                className={`block w-full text-left px-4 py-3 border border-[var(--border-light)] rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-gray-50"} transition-colors`}
+                onClick={() => { onClose(); onImportMd?.(); }}
+              >
+                <div className="font-medium">Import Markdown files (.md)</div>
+                <div className="text-sm text-gray-500">Import notes from Markdown files</div>
+              </button>
+
+              <button
+                className={`block w-full text-left px-4 py-3 border border-[var(--border-light)] rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-gray-50"} transition-colors`}
+                onClick={() => { onClose(); onDownloadSecretKey?.(); }}
+              >
+                <div className="font-medium">Download secret key (.txt)</div>
+                <div className="text-sm text-gray-500">Download your encryption key for backup</div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /** ---------- Admin Panel ---------- */
 function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm, setNewUserForm, updateAdminSettings, createUser, deleteUser, currentUser }) {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
@@ -1460,6 +1538,8 @@ function NotesUI({
   loadArchivedNotes,
   // Admin panel
   openAdminPanel,
+  // Settings panel
+  openSettingsPanel,
 }) {
     // Multi-select color popover (local UI state)
     const multiColorBtnRef = useRef(null);
@@ -1607,33 +1687,9 @@ function NotesUI({
 
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { onExportAll?.(); }}
+                onClick={() => { setHeaderMenuOpen(false); openSettingsPanel?.(); }}
               >
-                Export ALL notes (.json)
-              </button>
-              <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { importFileRef.current?.click(); }}
-              >
-                Import ALL notes (.json)
-              </button>
-              <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { gkeepFileRef.current?.click(); }}
-              >
-                Import G. Keep notes (.json)
-              </button>
-              <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { mdFileRef.current?.click(); }}
-              >
-                Import Notes (.md)
-              </button>
-              <button
-                className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { onDownloadSecretKey?.(); }}
-              >
-                Download secret key (.txt)
+                Settings
               </button>
               <button
                 className={`block w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
@@ -2397,6 +2453,9 @@ export default function App() {
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', password: '', is_admin: false });
   const [allowRegistration, setAllowRegistration] = useState(true);
 
+  // Settings panel state
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState(false);
+
   // Derived: Active note + edited text
   const activeNoteObj = useMemo(
     () => notes.find((x) => String(x.id) === String(activeId)),
@@ -3159,6 +3218,10 @@ export default function App() {
     } catch (error) {
       console.error("Error loading admin panel data:", error);
     }
+  };
+
+  const openSettingsPanel = () => {
+    setSettingsPanelOpen(true);
   };
 
   // Check if registration is allowed
@@ -4538,6 +4601,18 @@ export default function App() {
         dark={dark}
       />
 
+      {/* Settings Panel */}
+      <SettingsPanel
+        open={settingsPanelOpen}
+        onClose={() => setSettingsPanelOpen(false)}
+        dark={dark}
+        onExportAll={exportAll}
+        onImportAll={() => importFileRef.current?.click()}
+        onImportGKeep={() => gkeepFileRef.current?.click()}
+        onImportMd={() => mdFileRef.current?.click()}
+        onDownloadSecretKey={downloadSecretKey}
+      />
+
       {/* Admin Panel */}
       {console.log("Rendering AdminPanel with:", { adminPanelOpen, adminSettings, allUsers: allUsers?.length })}
       <AdminPanel
@@ -4644,6 +4719,8 @@ export default function App() {
         loadArchivedNotes={loadArchivedNotes}
         // Admin panel
         openAdminPanel={openAdminPanel}
+        // Settings panel
+        openSettingsPanel={openSettingsPanel}
       />
       {modal}
     </>
