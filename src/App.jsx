@@ -638,7 +638,11 @@ function ChecklistRow({
         type="checkbox"
         className={`mt-0.5 ${boxSize} cursor-pointer`}
         checked={!!item.done}
-        onChange={(e) => onToggle?.(e.target.checked)}
+        onChange={(e) => {
+          e.stopPropagation();
+          onToggle?.(e.target.checked, e);
+        }}
+        onClick={(e) => e.stopPropagation()}
         disabled={!!disableToggle}
       />
       {readOnly ? (
@@ -922,6 +926,10 @@ function NoteCard({
   onToggleSelect = () => {},
   disablePin = false,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
+  // online status
+  isOnline = true,
+  // checklist update callback
+  onUpdateChecklistItem,
 }) {
   
   const isChecklist = n.type === "checklist";
@@ -1035,7 +1043,15 @@ function NoteCard({
       ) : (
         <div className="space-y-2">
           {visibleItems.map((it) => (
-            <ChecklistRow key={it.id} item={it} readOnly disableToggle size="sm" />
+            <ChecklistRow
+              key={it.id}
+              item={it}
+              size="sm"
+              onToggle={async (checked, e) => {
+                e?.stopPropagation(); // Prevent opening the note modal
+                await onUpdateChecklistItem?.(n.id, it.id, checked);
+              }}
+            />
           ))}
           {extraCount > 0 && (
             <div className="text-xs text-gray-600 dark:text-gray-300">+{extraCount} more…</div>
@@ -1853,6 +1869,8 @@ function NotesUI({
   isOnline,
   loadNotes,
   loadArchivedNotes,
+  // checklist update
+  onUpdateChecklistItem,
   // Admin panel
   openAdminPanel,
   // Settings panel
@@ -2404,6 +2422,8 @@ function NotesUI({
                   onDragLeave={onDragLeave}
                   onDrop={onDrop}
                   onDragEnd={onDragEnd}
+                  isOnline={isOnline}
+                  onUpdateChecklistItem={onUpdateChecklistItem}
                 />
               ))}
             </div>
@@ -2442,6 +2462,8 @@ function NotesUI({
                   onDragLeave={onDragLeave}
                   onDrop={onDrop}
                   onDragEnd={onDragEnd}
+                  isOnline={isOnline}
+                  onUpdateChecklistItem={onUpdateChecklistItem}
                 />
               ))}
             </div>
@@ -2877,6 +2899,42 @@ export default function App() {
       } else {
         loadNotes().catch(() => {});
       }
+    }
+  };
+
+  const onUpdateChecklistItem = async (noteId, itemId, checked) => {
+    // Find the note
+    const note = notes.find(n => String(n.id) === String(noteId));
+    if (!note) return;
+
+    // Optimistically update the note
+    const updatedItems = (note.items || []).map(item =>
+      item.id === itemId ? { ...item, done: checked } : item
+    );
+    const updatedNote = { ...note, items: updatedItems };
+
+    // Update local state optimistically
+    setNotes(prev => prev.map(n =>
+      String(n.id) === String(noteId) ? updatedNote : n
+    ));
+
+    try {
+      // Update on server
+      await api(`/notes/${noteId}`, {
+        method: "PATCH",
+        token,
+        body: { items: updatedItems, type: "checklist", content: "" }
+      });
+
+      // Invalidate caches since we modified the note
+      invalidateNotesCache();
+      invalidateArchivedNotesCache();
+    } catch (error) {
+      console.error("Failed to update checklist item:", error);
+      // Revert the optimistic update on error
+      setNotes(prev => prev.map(n =>
+        String(n.id) === String(noteId) ? note : n
+      ));
     }
   };
 
@@ -4618,7 +4676,8 @@ export default function App() {
                           disableToggle={!isOnline}      /* disable toggle when offline */
                           showRemove={isOnline && true}  /* show delete X only when online */
                           size="lg"                  /* bigger checkboxes and X in modal */
-                          onToggle={async (checked) => {
+                          onToggle={async (checked, e) => {
+                            e?.stopPropagation(); // Prevent any unwanted event bubbling
                             if (!isOnline) return;
                             const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
                             setMItems(newItems);
@@ -4669,7 +4728,8 @@ export default function App() {
                                 disableToggle={!isOnline}      /* disable toggle when offline */
                                 showRemove={isOnline && true}  /* show delete X only when online */
                                 size="lg"                  /* bigger checkboxes and X in modal */
-                                onToggle={async (checked) => {
+                                onToggle={async (checked, e) => {
+                                  e?.stopPropagation(); // Prevent any unwanted event bubbling
                                   if (!isOnline) return;
                                   const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
                                   setMItems(newItems);
@@ -5214,6 +5274,8 @@ export default function App() {
         isOnline={isOnline}
         loadNotes={loadNotes}
         loadArchivedNotes={loadArchivedNotes}
+        // checklist update
+        onUpdateChecklistItem={onUpdateChecklistItem}
         // Admin panel
         openAdminPanel={openAdminPanel}
         // Settings panel
