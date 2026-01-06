@@ -4746,7 +4746,21 @@ export default function App() {
                           onDragLeave={onChecklistDragLeave}
                           onDrop={(e) => onChecklistDrop(it.id, e)}
                           onDragEnd={onChecklistDragEnd}
+                          className="group flex items-start gap-2"
                         >
+                          {/* Drag handle */}
+                          <div className="flex items-center justify-center py-1 px-1 mt-0.5 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-70 transition-opacity">
+                            <div className="grid grid-cols-2 gap-0.5">
+                              <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                              <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                              <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                              <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                              <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                              <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
+                            </div>
+                          </div>
+
+                          <div className="flex-1">
                           <ChecklistRow
                             item={it}
                             readOnly={!isOnline}
@@ -4790,6 +4804,7 @@ export default function App() {
                               } catch (e) {}
                             }}
                           />
+                          </div>
                         </div>
                       ))}
                       
