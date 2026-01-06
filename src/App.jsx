@@ -1212,7 +1212,7 @@ function SecretLoginView({ dark, onToggleDark, onLoginWithKey, goLogin }) {
 }
 
 /** ---------- Tag Sidebar / Drawer ---------- */
-function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, permanent = false }) {
+function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, permanent = false, width = 288, onResize }) {
   const isAllNotes = activeTag === null;
   const isAllImages = activeTag === ALL_IMAGES;
 
@@ -1225,8 +1225,12 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
         />
       )}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full w-72 shadow-2xl transition-transform duration-200 ${permanent || open ? "translate-x-0" : "-translate-x-full"}`}
-        style={{ backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)", borderRight: "1px solid var(--border-light)" }}
+        className={`fixed top-0 left-0 z-40 h-full shadow-2xl transition-transform duration-200 ${permanent || open ? "translate-x-0" : "-translate-x-full"}`}
+        style={{
+          width: permanent ? `${width}px` : '288px',
+          backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)",
+          borderRight: "1px solid var(--border-light)"
+        }}
         aria-hidden={!(permanent || open)}
       >
         <div className="p-4 flex items-center justify-between">
@@ -1286,6 +1290,35 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
             <p className="text-sm text-gray-500 mt-2">No tags yet. Add tags to your notes!</p>
           )}
         </nav>
+
+        {/* Resize handle - only show when permanent */}
+        {permanent && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-indigo-500/50 active:bg-indigo-500 transition-colors"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startWidth = width;
+
+              const handleMouseMove = (moveEvent) => {
+                const newWidth = Math.max(200, Math.min(500, startWidth + (moveEvent.clientX - startX)));
+                onResize(newWidth);
+              };
+
+              const handleMouseUp = () => {
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+              };
+
+              document.addEventListener('mousemove', handleMouseMove);
+              document.addEventListener('mouseup', handleMouseUp);
+              document.body.style.cursor = 'ew-resize';
+              document.body.style.userSelect = 'none';
+            }}
+          />
+        )}
       </aside>
     </>
   );
@@ -1596,8 +1629,7 @@ function NotesUI({
   openSidebar,
   activeTagFilter,
   sidebarPermanent,
-  alwaysShowSidebarOnWide,
-  windowWidth,
+  sidebarWidth,
   // formatting
   formatComposer,
   showComposerFmt, setShowComposerFmt,
@@ -1644,7 +1676,10 @@ function NotesUI({
     activeTagFilter;
 
   return (
-    <div className={`min-h-screen ${sidebarPermanent ? 'ml-72' : ''}`}>
+    <div
+      className="min-h-screen"
+      style={{ marginLeft: sidebarPermanent ? `${sidebarWidth}px` : '0px' }}
+    >
       {/* Multi-select toolbar (floats above header when active) */}
       {multiMode && (
         <div className="p-3 sm:p-4 flex items-center justify-between sticky top-0 z-[25] glass-card mb-2" style={{ position: "sticky" }}>
@@ -2367,6 +2402,9 @@ export default function App() {
   const [alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide] = useState(() => {
     try { return localStorage.getItem("sidebarAlwaysVisible") === "true"; } catch (e) { return false; }
   });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try { return parseInt(localStorage.getItem("sidebarWidth")) || 288; } catch (e) { return 288; }
+  });
 
   // Composer
   const [composerType, setComposerType] = useState("text");
@@ -2484,10 +2522,14 @@ export default function App() {
   }, [listView]);
   const onToggleViewMode = () => setListView((v) => !v);
 
-  // Save sidebar visibility setting
+  // Save sidebar settings
   useEffect(() => {
     try { localStorage.setItem("sidebarAlwaysVisible", String(alwaysShowSidebarOnWide)); } catch (e) {}
   }, [alwaysShowSidebarOnWide]);
+
+  useEffect(() => {
+    try { localStorage.setItem("sidebarWidth", String(sidebarWidth)); } catch (e) {}
+  }, [sidebarWidth]);
 
   // Window resize listener for responsive sidebar behavior
   useEffect(() => {
@@ -4721,6 +4763,8 @@ export default function App() {
         onSelect={(tag) => setTagFilter(tag)}
         dark={dark}
         permanent={alwaysShowSidebarOnWide && windowWidth >= 700}
+        width={sidebarWidth}
+        onResize={setSidebarWidth}
       />
 
       {/* Settings Panel */}
@@ -4806,8 +4850,7 @@ export default function App() {
         openSidebar={() => setSidebarOpen(true)}
         activeTagFilter={tagFilter}
         sidebarPermanent={alwaysShowSidebarOnWide && windowWidth >= 700}
-        alwaysShowSidebarOnWide={alwaysShowSidebarOnWide}
-        windowWidth={windowWidth}
+        sidebarWidth={sidebarWidth}
         // formatting props
         formatComposer={formatComposer}
         showComposerFmt={showComposerFmt}
