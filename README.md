@@ -145,7 +145,12 @@ UPDATE users SET is_admin=1 WHERE email='your-admin-username';
 
 ### 3) Docker (Local Development)
 
-**For Local:**
+**Quick Local Docker Script:**
+```bash
+./local_docker_run.sh
+```
+
+**Or manually:**
 ```bash
 docker build -t glass-keep:local .
 
