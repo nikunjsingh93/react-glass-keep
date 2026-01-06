@@ -1905,7 +1905,7 @@ function NotesUI({
             )}
             <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm flex items-center gap-1" onClick={onBulkArchive}>
               <ArchiveIcon />
-              Archive
+              {activeTagFilter === 'ARCHIVED' ? 'Unarchive' : 'Archive'}
             </button>
             <span className="text-xs opacity-70 ml-2">Selected: {selectedIds.length}</span>
           </div>
@@ -2818,20 +2818,32 @@ export default function App() {
 
   const onBulkArchive = async () => {
     if (!selectedIds.length) return;
+
+    // Determine if we're archiving or unarchiving based on current view
+    const isArchiving = tagFilter !== 'ARCHIVED';
+    const archivedValue = isArchiving;
+
     try {
       // Optimistic update - remove from current view
       setNotes((prev) => prev.filter((n) => !selectedIds.includes(String(n.id))));
       // Persist in background (best-effort)
       for (const id of selectedIds) {
-        await api(`/notes/${id}/archive`, { method: "POST", token, body: { archived: true } });
+        await api(`/notes/${id}/archive`, { method: "POST", token, body: { archived: archivedValue } });
       }
       // Invalidate caches
       invalidateNotesCache();
       invalidateArchivedNotesCache();
+
+      // If we just unarchived notes from archived view, switch to regular notes view
+      if (!isArchiving && tagFilter === 'ARCHIVED') {
+        setTagFilter(null);
+        await loadNotes();
+      }
+
       // Exit multi-select mode
       onExitMulti();
     } catch (e) {
-      console.error("Bulk archive failed", e);
+      console.error(`Bulk ${isArchiving ? 'archive' : 'unarchive'} failed`, e);
       // Reload notes on failure
       if (tagFilter === 'ARCHIVED') {
         loadArchivedNotes().catch(() => {});
