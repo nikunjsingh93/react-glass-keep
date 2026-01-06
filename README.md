@@ -143,9 +143,30 @@ npm run dev
 UPDATE users SET is_admin=1 WHERE email='your-admin-username';
 ```
 
+### 3) Docker (Local Development)
+
+**For Local:**
+```bash
+docker build -t glass-keep:local .
+
+docker rm -f glass-keep 2>/dev/null || true
+
+docker run -d \
+  --name glass-keep \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e NODE_ENV=production \
+  -e API_PORT=8080 \
+  -e JWT_SECRET=dev-please-change \
+  -e DB_FILE=/app/data/notes.db \
+  -e ADMIN_EMAILS=admin \
+  -v "$HOME/.glass-keep:/app/data" \
+  glass-keep:local
+```
+
 ---
 
-## 🐳 Docker (single image: API + built frontend)
+## 🐳 Docker Deploy to Server(single image: API + built frontend)
 
 ### Dockerfile
 
