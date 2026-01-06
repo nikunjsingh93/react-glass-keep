@@ -268,6 +268,14 @@ const ArchiveIcon = () => (
   </svg>
 );
 
+// Pin icon (using the same icon as individual notes)
+const PinIcon = () => (
+  <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+       fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.5V22H12.5V16H18V14L16,12Z" />
+  </svg>
+);
+
 /** ---------- Utils ---------- */
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const mdToPlain = (md) => {
@@ -962,7 +970,7 @@ function NoteCard({
           <span className="text-xs">Select</span>
         </label>
       )}
-      {!multiMode && (
+      {!multiMode && !disablePin && (
         <div className="absolute top-3 right-3 h-8 opacity-0 group-hover:opacity-100 transition-opacity">
           <div
             className="absolute inset-0 rounded-full"
@@ -1807,6 +1815,7 @@ function NotesUI({
     onSelectAllOthers,
     onBulkDelete,
     onBulkPin,
+    onBulkArchive,
     onBulkColor,
     onBulkDownloadZip,
   // view mode
@@ -1888,7 +1897,16 @@ function NotesUI({
                 </div>
               </div>
             </Popover>
-            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={() => onBulkPin(true)}>Pin</button>
+            {activeTagFilter !== 'ARCHIVED' && (
+              <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm flex items-center gap-1" onClick={() => onBulkPin(true)}>
+                <PinIcon />
+                Pin
+              </button>
+            )}
+            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm flex items-center gap-1" onClick={onBulkArchive}>
+              <ArchiveIcon />
+              Archive
+            </button>
             <span className="text-xs opacity-70 ml-2">Selected: {selectedIds.length}</span>
           </div>
           <button
@@ -2353,7 +2371,7 @@ function NotesUI({
               multiMode={multiMode}
               selected={selectedIds.includes(String(n.id))}
               onToggleSelect={onToggleSelect}
-                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0)}
+                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || activeTagFilter === 'ARCHIVED'}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -2391,7 +2409,7 @@ function NotesUI({
               multiMode={multiMode}
               selected={selectedIds.includes(String(n.id))}
               onToggleSelect={onToggleSelect}
-                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0)}
+                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || activeTagFilter === 'ARCHIVED'}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}
                   onDragLeave={onDragLeave}
@@ -2778,9 +2796,48 @@ export default function App() {
       for (const id of selectedIds) {
         await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!pinnedVal } });
       }
+      // Invalidate caches
+      invalidateNotesCache();
+      invalidateArchivedNotesCache();
+      // Reload fresh data since we invalidated caches
+      if (tagFilter === 'ARCHIVED') {
+        loadArchivedNotes().catch(() => {});
+      } else {
+        loadNotes().catch(() => {});
+      }
     } catch (e) {
       console.error("Bulk pin failed", e);
-      loadNotes().catch(() => {});
+      // Reload appropriate notes based on current view
+      if (tagFilter === 'ARCHIVED') {
+        loadArchivedNotes().catch(() => {});
+      } else {
+        loadNotes().catch(() => {});
+      }
+    }
+  };
+
+  const onBulkArchive = async () => {
+    if (!selectedIds.length) return;
+    try {
+      // Optimistic update - remove from current view
+      setNotes((prev) => prev.filter((n) => !selectedIds.includes(String(n.id))));
+      // Persist in background (best-effort)
+      for (const id of selectedIds) {
+        await api(`/notes/${id}/archive`, { method: "POST", token, body: { archived: true } });
+      }
+      // Invalidate caches
+      invalidateNotesCache();
+      invalidateArchivedNotesCache();
+      // Exit multi-select mode
+      onExitMulti();
+    } catch (e) {
+      console.error("Bulk archive failed", e);
+      // Reload notes on failure
+      if (tagFilter === 'ARCHIVED') {
+        loadArchivedNotes().catch(() => {});
+      } else {
+        loadNotes().catch(() => {});
+      }
     }
   };
 
@@ -3034,33 +3091,43 @@ export default function App() {
   const loadArchivedNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
-    
+
+    console.log("Loading archived notes, checking cache...");
+    // First, try to load from cache immediately for better UX
+    let hasCachedData = false;
+    try {
+      const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
+      if (cachedData) {
+        const cachedNotes = JSON.parse(cachedData);
+        console.log("Found cached archived notes:", cachedNotes.length);
+        setNotes(sortNotesByRecency(cachedNotes));
+        hasCachedData = true;
+      } else {
+        console.log("No cached archived notes found");
+      }
+    } catch (cacheError) {
+      console.error("Error loading archived notes from cache:", cacheError);
+    }
+
     try {
       const data = await api("/notes/archived", { token });
       console.log("Archived notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
       setNotes(sortNotesByRecency(notesArray));
-      
+
       // Cache the data
       try {
         localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(notesArray));
         localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+        console.log("Cached", notesArray.length, "archived notes");
       } catch (error) {
         console.error("Error caching archived notes:", error);
       }
     } catch (error) {
       console.error("Error loading archived notes from server:", error);
-      // Try to load from cache as fallback
-      try {
-        const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
-        if (cachedData) {
-          const cachedNotes = JSON.parse(cachedData);
-          setNotes(sortNotesByRecency(cachedNotes));
-        } else {
-          setNotes([]);
-        }
-      } catch (cacheError) {
-        console.error("Error loading from cache:", cacheError);
+      // If we don't have cached data, set empty array
+      if (!hasCachedData) {
+        console.log("No cached data and server error, setting empty array");
         setNotes([]);
       }
     } finally {
@@ -3069,16 +3136,20 @@ export default function App() {
   };
   useEffect(() => {
     if (!token) return;
-    
-    console.log("Tag filter changed to:", tagFilter);
-    
+
+    console.log("Tag filter changed to:", tagFilter, "from previous value");
+
     // Load appropriate notes based on tag filter
     if (tagFilter === 'ARCHIVED') {
       console.log("Loading archived notes...");
-      loadArchivedNotes().catch(() => {});
+      loadArchivedNotes().catch((error) => {
+        console.error("Failed to load archived notes:", error);
+      });
     } else {
       console.log("Loading regular notes...");
-      loadNotes().catch(() => {});
+      loadNotes().catch((error) => {
+        console.error("Failed to load regular notes:", error);
+      });
     }
   }, [token, tagFilter]);
 
@@ -4332,8 +4403,8 @@ export default function App() {
                     </>
                   )}
 
-                  {/* Pin button - hidden when offline */}
-                  {isOnline && (
+                  {/* Pin button - hidden when offline or in archived view */}
+                  {isOnline && tagFilter !== 'ARCHIVED' && (
                     <button
                       className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       title="Pin/unpin"
@@ -5093,6 +5164,7 @@ export default function App() {
         onSelectAllOthers={onSelectAllOthers}
         onBulkDelete={onBulkDelete}
         onBulkPin={onBulkPin}
+        onBulkArchive={onBulkArchive}
         onBulkColor={onBulkColor}
         onBulkDownloadZip={onBulkDownloadZip}
         // view mode
