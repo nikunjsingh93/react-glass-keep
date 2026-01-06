@@ -932,7 +932,12 @@ function NoteCard({
 
   const total = (n.items || []).length;
   const done = (n.items || []).filter((i) => i.done).length;
-  const visibleItems = (n.items || []).slice(0, 8);
+  // Sort items with unchecked items first, just like in the modal
+  const sortedItems = (n.items || []).sort((a, b) => {
+    if (a.done === b.done) return 0; // Same status, maintain order
+    return a.done ? 1 : -1; // Unchecked (false) comes before checked (true)
+  });
+  const visibleItems = sortedItems.slice(0, 8);
   const extraCount = total > visibleItems.length ? total - visibleItems.length : 0;
 
   const imgs = n.images || [];
