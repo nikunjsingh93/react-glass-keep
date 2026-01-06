@@ -1515,7 +1515,7 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
       setEditUserModalOpen(false);
       setEditingUser(null);
     } catch (e) {
-      // Error already handled in updateUser function
+      showToast(e.message || "Failed to update user", "error");
     } finally {
       setIsUpdatingUser(false);
     }
@@ -3548,14 +3548,9 @@ export default function App() {
   };
 
   const updateUser = async (userId, userData) => {
-    try {
-      const updatedUser = await api(`/admin/users/${userId}`, { method: "PATCH", token, body: userData });
-      setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-      return updatedUser;
-    } catch (e) {
-      alert(e.message || "Failed to update user");
-      throw e;
-    }
+    const updatedUser = await api(`/admin/users/${userId}`, { method: "PATCH", token, body: userData });
+    setAllUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+    return updatedUser;
   };
 
   const openAdminPanel = async () => {
