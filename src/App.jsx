@@ -4197,6 +4197,10 @@ export default function App() {
   };
   const onChecklistDragEnd = (ev) => {
     ev.currentTarget.classList.remove("dragging");
+    // Clean up any remaining drag-over states
+    document.querySelectorAll('.drag-over').forEach(el => {
+      el.classList.remove('drag-over');
+    });
   };
 
   /** -------- Tags list (unique + counts) -------- */
@@ -4740,68 +4744,67 @@ export default function App() {
                       {mItems.filter(it => !it.done).map((it) => (
                         <div
                           key={it.id}
-                          draggable={isOnline}
-                          onDragStart={(e) => onChecklistDragStart(it.id, e)}
+                          data-checklist-item={it.id}
                           onDragOver={(e) => onChecklistDragOver(it.id, e)}
                           onDragLeave={onChecklistDragLeave}
                           onDrop={(e) => onChecklistDrop(it.id, e)}
-                          onDragEnd={onChecklistDragEnd}
-                          onTouchStart={(e) => {
-                            // Handle touch drag start
-                            if (!isOnline) return;
-                            const touch = e.touches[0];
-                            const target = e.currentTarget;
-                            checklistDragId.current = String(it.id);
-                            target.classList.add("dragging");
-
-                            // Create a synthetic drag event
-                            const dragStartEvent = new Event('dragstart', { bubbles: true });
-                            Object.defineProperty(dragStartEvent, 'dataTransfer', {
-                              value: {
-                                setData: () => {},
-                                getData: () => {},
-                                effectAllowed: 'move'
-                              }
-                            });
-                            target.dispatchEvent(dragStartEvent);
-                          }}
-                          onTouchMove={(e) => {
-                            if (!checklistDragId.current) return;
-                            e.preventDefault(); // Only prevent when actually dragging
-                            const touch = e.touches[0];
-                            const target = e.currentTarget;
-
-                            // Create synthetic dragover events for elements under touch
-                            const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
-                            if (elementAtPoint && elementAtPoint !== target) {
-                              const dragOverEvent = new Event('dragover', { bubbles: true });
-                              elementAtPoint.dispatchEvent(dragOverEvent);
-                            }
-                          }}
-                          onTouchEnd={(e) => {
-                            if (!checklistDragId.current) return;
-                            const target = e.currentTarget;
-                            const touch = e.changedTouches[0];
-                            const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
-
-                            // Create synthetic drop event
-                            if (elementAtPoint && elementAtPoint !== target) {
-                              const dropEvent = new Event('drop', { bubbles: true });
-                              elementAtPoint.dispatchEvent(dropEvent);
-                            }
-
-                            // Create synthetic dragend event
-                            const dragEndEvent = new Event('dragend', { bubbles: true });
-                            target.dispatchEvent(dragEndEvent);
-
-                            target.classList.remove("dragging");
-                            checklistDragId.current = null;
-                          }}
                           className="group flex items-start gap-2"
-                          style={{ touchAction: 'none' }}
                         >
                           {/* Drag handle */}
-                          <div className="flex items-center justify-center py-1 px-1 mt-0.5 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-70 transition-opacity">
+                          <div
+                            draggable={isOnline}
+                            onDragStart={(e) => onChecklistDragStart(it.id, e)}
+                            onDragEnd={onChecklistDragEnd}
+                            onTouchStart={(e) => {
+                              // Handle touch drag start - only when touching the handle
+                              if (!isOnline) return;
+                              const target = e.currentTarget.closest('[data-checklist-item]');
+                              if (target) {
+                                checklistDragId.current = String(it.id);
+                                target.classList.add("dragging");
+                              }
+                            }}
+                            onTouchMove={(e) => {
+                              if (!checklistDragId.current) return;
+
+                              const touch = e.touches[0];
+                              const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+                              if (elementAtPoint) {
+                                // Find the checklist item container
+                                const checklistItem = elementAtPoint.closest('[data-checklist-item]');
+                                if (checklistItem && checklistItem !== e.currentTarget.closest('[data-checklist-item]')) {
+                                  const dragOverEvent = new Event('dragover', { bubbles: true });
+                                  checklistItem.dispatchEvent(dragOverEvent);
+                                }
+                              }
+                            }}
+                            onTouchEnd={(e) => {
+                              if (!checklistDragId.current) return;
+                              const touch = e.changedTouches[0];
+                              const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+                              const target = e.currentTarget.closest('[data-checklist-item]');
+
+                              if (elementAtPoint) {
+                                const checklistItem = elementAtPoint.closest('[data-checklist-item]');
+                                if (checklistItem && checklistItem !== target) {
+                                  const dropEvent = new Event('drop', { bubbles: true });
+                                  checklistItem.dispatchEvent(dropEvent);
+                                }
+                              }
+
+                              if (target) {
+                                target.classList.remove("dragging");
+                              }
+                              checklistDragId.current = null;
+
+                              // Clean up any remaining drag-over states
+                              document.querySelectorAll('.drag-over').forEach(el => {
+                                el.classList.remove('drag-over');
+                              });
+                            }}
+                            className="flex items-center justify-center py-1 px-1 mt-0.5 cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-70 transition-opacity"
+                            style={{ touchAction: 'none' }}
+                          >
                             <div className="grid grid-cols-2 gap-0.5">
                               <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
                               <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
