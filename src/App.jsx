@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { marked as markedParser } from "marked";
+import DrawingCanvas from "./DrawingCanvas";
 
 // Ensure we can call marked.parse(...)
 const marked =
@@ -933,6 +934,7 @@ function NoteCard({
 }) {
   
   const isChecklist = n.type === "checklist";
+  const isDraw = n.type === "draw";
   const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
   const MAX_CHARS = 600;
   const isLong = previewText.length > MAX_CHARS;
@@ -1036,9 +1038,16 @@ function NoteCard({
         </div>
       )}
 
-      {!isChecklist ? (
+      {!isChecklist && !isDraw ? (
         <div className="text-sm break-words whitespace-pre-wrap line-clamp-6">
           {displayText}
+        </div>
+      ) : isDraw ? (
+        <div className="flex items-center justify-center h-20 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+          <div className="text-center">
+            <div className="text-2xl mb-1">🎨</div>
+            <div className="text-xs text-gray-600 dark:text-gray-300">Drawing</div>
+          </div>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1820,6 +1829,7 @@ function NotesUI({
   title, setTitle,
   content, setContent, contentRef,
   clInput, setClInput, addComposerItem, clItems,
+  composerDrawingData, setComposerDrawingData,
   composerImages, setComposerImages, composerFileRef,
   tags, setTags,
   composerColor, setComposerColor,
@@ -2196,7 +2206,7 @@ function NotesUI({
                 }`}
               />
 
-              {/* Body or Checklist */}
+              {/* Body, Checklist, or Drawing */}
               {composerType === "text" ? (
                 <textarea
                   ref={contentRef}
@@ -2210,7 +2220,7 @@ function NotesUI({
                   }`}
                   rows={1}
                 />
-              ) : (
+              ) : composerType === "checklist" ? (
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <input
@@ -2227,8 +2237,8 @@ function NotesUI({
                       onClick={addComposerItem}
                       disabled={!isOnline}
                       className={`px-3 py-1.5 rounded-lg whitespace-nowrap ${
-                        isOnline 
-                          ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
+                        isOnline
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                           : 'bg-gray-400 text-gray-200 cursor-not-allowed'
                       }`}
                     >
@@ -2243,6 +2253,14 @@ function NotesUI({
                     </div>
                   )}
                 </div>
+              ) : (
+                <DrawingCanvas
+                  data={composerDrawingData}
+                  onChange={setComposerDrawingData}
+                  width={600}
+                  height={400}
+                  readOnly={!isOnline}
+                />
               )}
 
               {/* Composer image thumbnails */}
@@ -2277,7 +2295,7 @@ function NotesUI({
                 />
 
                 <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none relative">
-                  {/* Formatting button (composer) */}
+                  {/* Formatting button (composer) - only for text mode */}
                   {composerType === "text" && (
                     <>
                       <button
@@ -2299,15 +2317,45 @@ function NotesUI({
                     </>
                   )}
 
-                  {/* Checklist toggle button (footer-left) */}
-                  <button
-                    type="button"
-                    onClick={() => setComposerType((t) => (t === "text" ? "checklist" : "text"))}
-                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
-                    title="Toggle checklist"
-                  >
-                    ☑
-                  </button>
+                  {/* Type selection buttons */}
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setComposerType("text")}
+                      className={`px-2 py-1 rounded-lg border text-sm ${
+                        composerType === "text"
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                      title="Text note"
+                    >
+                      📝
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComposerType("checklist")}
+                      className={`px-2 py-1 rounded-lg border text-sm ${
+                        composerType === "checklist"
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                      title="Checklist"
+                    >
+                      ☑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComposerType("draw")}
+                      className={`px-2 py-1 rounded-lg border text-sm ${
+                        composerType === "draw"
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
+                      }`}
+                      title="Drawing"
+                    >
+                      🎨
+                    </button>
+                  </div>
 
                   {/* Color dropdown (composer) */}
                   <button
@@ -2677,6 +2725,9 @@ export default function App() {
   const [clItems, setClItems] = useState([]);
   const [clInput, setClInput] = useState("");
 
+  // Drawing composer
+  const [composerDrawingData, setComposerDrawingData] = useState([]);
+
   // Modal state
   const [open, setOpen] = useState(false);
   const [activeId, setActiveId] = useState(null);
@@ -2722,6 +2773,25 @@ export default function App() {
   const skipNextItemsAutosave = useRef(false);
   const prevItemsRef = useRef([]);
   const [mInput, setMInput] = useState("");
+
+  // Drawing modal
+  const [mDrawingData, setMDrawingData] = useState([]);
+  const skipNextDrawingAutosave = useRef(false);
+  const prevDrawingRef = useRef([]);
+
+  // Clear data when switching composer types
+  useEffect(() => {
+    if (composerType === "text") {
+      setClItems([]);
+      setClInput("");
+      setComposerDrawingData([]);
+    } else if (composerType === "checklist") {
+      setComposerDrawingData([]);
+    } else if (composerType === "draw") {
+      setClItems([]);
+      setClInput("");
+    }
+  }, [composerType]);
 
   // Collaboration modal
   const [collaborationModalOpen, setCollaborationModalOpen] = useState(false);
@@ -3420,6 +3490,55 @@ export default function App() {
     }
   }, [notes, open, activeId, mType]);
 
+  // Auto-save drawing changes
+  useEffect(() => {
+    if (!open || !activeId || mType !== "draw") return;
+    if (skipNextDrawingAutosave.current) {
+      skipNextDrawingAutosave.current = false;
+      return;
+    }
+
+    const prevJson = JSON.stringify(prevDrawingRef.current || []);
+    const currentJson = JSON.stringify(mDrawingData || []);
+    if (prevJson === currentJson) return;
+
+    // Debounce auto-save by 500ms
+    const timeoutId = setTimeout(async () => {
+      try {
+        await api(`/notes/${activeId}`, {
+          method: "PATCH",
+          token,
+          body: { content: JSON.stringify(mDrawingData), type: "draw" }
+        });
+        prevDrawingRef.current = mDrawingData;
+        invalidateNotesCache();
+      } catch (e) {
+        console.error("Failed to auto-save drawing:", e);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [mDrawingData, open, activeId, mType]);
+
+  // Live-sync drawing data in open modal when remote updates arrive
+  useEffect(() => {
+    if (!open || !activeId) return;
+    const n = notes.find((x) => String(x.id) === String(activeId));
+    if (!n || n.type !== "draw") return;
+
+    try {
+      const serverDrawingData = JSON.parse(n.content || "[]");
+      const prevJson = JSON.stringify(prevDrawingRef.current || []);
+      const serverJson = JSON.stringify(serverDrawingData);
+      if (serverJson !== prevJson) {
+        setMDrawingData(serverDrawingData);
+        prevDrawingRef.current = serverDrawingData;
+      }
+    } catch (e) {
+      // Invalid JSON, ignore
+    }
+  }, [notes, open, activeId]);
+
   // No infinite scroll
 
   // Lock body scroll on modal & image viewer
@@ -3588,18 +3707,24 @@ export default function App() {
 
   const addNote = async () => {
     const isText = composerType === "text";
+    const isChecklist = composerType === "checklist";
+    const isDraw = composerType === "draw";
+
     if (isText) {
       if (!title.trim() && !content.trim() && !tags.trim() && composerImages.length === 0) return;
-    } else {
+    } else if (isChecklist) {
       if (!title.trim() && clItems.length === 0) return;
+    } else if (isDraw) {
+      if (!title.trim() && composerDrawingData.length === 0) return;
     }
+
     const nowIso = new Date().toISOString();
     const newNote = {
       id: uid(),
       type: composerType,
       title: title.trim(),
-      content: isText ? content : "",
-      items: isText ? [] : clItems,
+      content: isText ? content : isDraw ? JSON.stringify(composerDrawingData) : "",
+      items: isChecklist ? clItems : [],
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
       images: composerImages,
       color: composerColor,
@@ -3615,14 +3740,15 @@ export default function App() {
       invalidateNotesCache();
       
       // Reset composer after successful add
-      setTitle(""); 
-      setContent(""); 
-      setTags(""); 
-      setComposerImages([]); 
+      setTitle("");
+      setContent("");
+      setTags("");
+      setComposerImages([]);
       setComposerColor("default");
-      setClItems([]); 
-      setClInput(""); 
-      setComposerType("text"); 
+      setClItems([]);
+      setClInput("");
+      setComposerDrawingData([]);
+      setComposerType("text");
       setComposerCollapsed(true);
       if (contentRef.current) contentRef.current.style.height = "auto";
     } catch (e) {
@@ -3994,7 +4120,22 @@ export default function App() {
     setActiveId(String(id));
     setMType(n.type || "text");
     setMTitle(n.title || "");
-    setMBody(n.content || "");
+    if (n.type === "draw") {
+      try {
+        const drawingData = JSON.parse(n.content || "[]");
+        setMDrawingData(drawingData);
+        prevDrawingRef.current = drawingData;
+      } catch (e) {
+        setMDrawingData([]);
+        prevDrawingRef.current = [];
+      }
+      setMBody("");
+      skipNextDrawingAutosave.current = true;
+    } else {
+      setMBody(n.content || "");
+      setMDrawingData([]);
+      prevDrawingRef.current = [];
+    }
     skipNextItemsAutosave.current = true;
     setMItems(Array.isArray(n.items) ? n.items : []);
     prevItemsRef.current = Array.isArray(n.items) ? n.items : [];
@@ -4027,7 +4168,9 @@ export default function App() {
     const payload =
       mType === "text"
         ? { ...base, type: "text", content: mBody, items: [] }
-        : { ...base, type: "checklist", content: "", items: mItems };
+        : mType === "checklist"
+        ? { ...base, type: "checklist", content: "", items: mItems }
+        : { ...base, type: "draw", content: JSON.stringify(mDrawingData), items: [] };
 
     try {
       setSavingModal(true);
@@ -4036,6 +4179,7 @@ export default function App() {
       invalidateNotesCache();
       
       prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
+      prevDrawingRef.current = mType === "draw" ? (Array.isArray(mDrawingData) ? mDrawingData : []) : [];
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
@@ -4486,6 +4630,7 @@ export default function App() {
                     </button>
                   )}
 
+
                   {/* View/Edit toggle only for TEXT notes - hidden when offline */}
                   {isOnline && mType === "text" && (
                     <button
@@ -4622,7 +4767,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Text or Checklist */}
+              {/* Text, Checklist, or Drawing */}
               {mType === "text" ? (
                 viewMode ? (
                   <div
@@ -4686,7 +4831,7 @@ export default function App() {
                     />
                   </div>
                 )
-              ) : (
+              ) : mType === "checklist" ? (
                 <div className="space-y-4 md:space-y-2">
                   {/* Add new item row - hidden when offline */}
                   {isOnline && (
@@ -4918,6 +5063,14 @@ export default function App() {
                     </div>
                   ) : <p className="text-sm text-gray-500">No items yet.</p>}
                 </div>
+              ) : (
+                <DrawingCanvas
+                  data={mDrawingData}
+                  onChange={setMDrawingData}
+                  width={700}
+                  height={500}
+                  readOnly={!isOnline}
+                />
               )}
 
               {/* Inline Edited stamp: only when scrollable (appears at very end) */}
@@ -5349,6 +5502,8 @@ export default function App() {
         setClInput={setClInput}
         addComposerItem={addComposerItem}
         clItems={clItems}
+        composerDrawingData={composerDrawingData}
+        setComposerDrawingData={setComposerDrawingData}
         composerImages={composerImages}
         setComposerImages={setComposerImages}
         composerFileRef={composerFileRef}

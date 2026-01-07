@@ -556,7 +556,7 @@ app.post("/api/notes", auth, (req, res) => {
   const n = {
     id: body.id || uid(),
     user_id: req.user.id,
-    type: body.type === "checklist" ? "checklist" : "text",
+    type: body.type === "checklist" ? "checklist" : body.type === "draw" ? "draw" : "text",
     title: String(body.title || ""),
     content: body.type === "checklist" ? "" : String(body.content || ""),
     items_json: JSON.stringify(Array.isArray(body.items) ? body.items : []),
@@ -592,7 +592,7 @@ app.put("/api/notes/:id", auth, (req, res) => {
   const updated = {
     id,
     user_id: req.user.id,
-    type: b.type === "checklist" ? "checklist" : "text",
+    type: b.type === "checklist" ? "checklist" : b.type === "draw" ? "draw" : "text",
     title: String(b.title || ""),
     content: b.type === "checklist" ? "" : String(b.content || ""),
     items_json: JSON.stringify(Array.isArray(b.items) ? b.items : []),
@@ -866,7 +866,7 @@ app.post("/api/notes/import", auth, (req, res) => {
       insertNote.run({
         id,
         user_id: req.user.id,
-        type: n.type === "checklist" ? "checklist" : "text",
+        type: n.type === "checklist" ? "checklist" : n.type === "draw" ? "draw" : "text",
         title: String(n.title || ""),
         content: n.type === "checklist" ? "" : String(n.content || ""),
         items_json: JSON.stringify(Array.isArray(n.items) ? n.items : []),
