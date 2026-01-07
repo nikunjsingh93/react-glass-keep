@@ -926,7 +926,6 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
 
     // Parse drawing data
     let paths = [];
@@ -996,24 +995,35 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
       return path;
     });
 
+    // Scale factor to fit drawing in preview - use firstPageHeight to avoid blank space
+    const scaleX = width / originalWidth;
+    const scaleY = height / firstPageHeight;
+    const scale = Math.min(scaleX, scaleY);
+    
+    // Calculate preview dimensions (only first page, no blank space)
+    const previewWidth = width;
+    const previewHeight = firstPageHeight * scale;
+    
+    // Set canvas dimensions to match preview size (no blank space below)
+    canvas.width = previewWidth;
+    canvas.height = previewHeight;
+    
+    // Clear canvas with calculated dimensions
+    ctx.clearRect(0, 0, previewWidth, previewHeight);
+
     if (paths.length === 0) {
       // Draw a subtle placeholder
       ctx.strokeStyle = '#e5e7eb';
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 5]);
-      ctx.strokeRect(10, 10, width - 20, height - 20);
+      ctx.strokeRect(10, 10, previewWidth - 20, previewHeight - 20);
 
       ctx.fillStyle = '#9ca3af';
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Empty', width / 2, height / 2 + 3);
+      ctx.fillText('Empty', previewWidth / 2, previewHeight / 2 + 3);
       return;
     }
-
-    // Scale factor to fit drawing in preview
-    const scaleX = width / originalWidth;
-    const scaleY = height / originalHeight;
-    const scale = Math.min(scaleX, scaleY);
 
     // Draw paths at scaled size
     paths.forEach(path => {
@@ -1181,7 +1191,7 @@ function NoteCard({
           {displayText}
         </div>
       ) : isDraw ? (
-        <DrawingPreview data={n.content} width={100} height={110} darkMode={dark} />
+        <DrawingPreview data={n.content} width={100} height={150} darkMode={dark} />
       ) : (
         <div className="space-y-2">
           {visibleItems.map((it) => (
@@ -5215,6 +5225,7 @@ export default function App() {
                   height={850}
                   readOnly={!isOnline}
                   darkMode={dark}
+                  initialMode="view"
                 />
               )}
 

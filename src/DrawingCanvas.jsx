@@ -18,7 +18,7 @@ const DRAWING_COLORS = [
 
 const PEN_SIZES = [1, 2, 4, 8, 12, 16, 24, 32];
 
-function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = false, darkMode = false, hideModeToggle = false }) {
+function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = false, darkMode = false, hideModeToggle = false, initialMode = null }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState('pen'); // 'pen' or 'eraser'
@@ -27,7 +27,14 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
-  const [mode, setMode] = useState(readOnly ? 'view' : 'draw'); // Start in draw mode if not read-only
+  // Determine initial mode: use initialMode prop if provided, otherwise draw mode for composer, view mode for modal
+  const getInitialMode = () => {
+    if (initialMode !== null) return initialMode;
+    if (readOnly) return 'view';
+    if (hideModeToggle) return 'draw'; // Composer - always draw mode
+    return 'view'; // Modal - default to view mode
+  };
+  const [mode, setMode] = useState(getInitialMode());
   const [canvasWidth, setCanvasWidth] = useState(width);
   const [canvasHeight, setCanvasHeight] = useState(height);
 
@@ -399,22 +406,38 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
           width={canvasWidth}
           height={canvasHeight}
           className={`block ${mode === 'draw' && !readOnly ? 'cursor-crosshair' : 'cursor-default'}`}
-          style={{ maxWidth: '100%', height: 'auto', touchAction: 'none' }}
+          style={{ 
+            maxWidth: '100%', 
+            height: 'auto', 
+            touchAction: mode === 'draw' && !readOnly ? 'none' : 'auto' 
+          }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
           onTouchStart={(e) => {
-            e.preventDefault();
-            startDrawing(e);
+            // Only prevent default and handle drawing in draw mode
+            if (mode === 'draw' && !readOnly) {
+              e.preventDefault();
+              startDrawing(e);
+            }
+            // In view mode, allow normal touch scrolling
           }}
           onTouchMove={(e) => {
-            e.preventDefault();
-            draw(e);
+            // Only prevent default and handle drawing in draw mode
+            if (mode === 'draw' && !readOnly) {
+              e.preventDefault();
+              draw(e);
+            }
+            // In view mode, allow normal touch scrolling
           }}
           onTouchEnd={(e) => {
-            e.preventDefault();
-            stopDrawing();
+            // Only prevent default and handle drawing in draw mode
+            if (mode === 'draw' && !readOnly) {
+              e.preventDefault();
+              stopDrawing();
+            }
+            // In view mode, allow normal touch scrolling
           }}
         />
       </div>
