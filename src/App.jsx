@@ -2260,6 +2260,7 @@ function NotesUI({
                   width={600}
                   height={400}
                   readOnly={!isOnline}
+                  darkMode={dark}
                 />
               )}
 
@@ -5070,6 +5071,7 @@ export default function App() {
                   width={700}
                   height={500}
                   readOnly={!isOnline}
+                  darkMode={dark}
                 />
               )}
 

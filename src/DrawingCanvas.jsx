@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 const DRAWING_COLORS = [
   '#000000', // black
+  '#FFFFFF', // white
   '#FF0000', // red
   '#00FF00', // green
   '#0000FF', // blue
@@ -17,11 +18,11 @@ const DRAWING_COLORS = [
 
 const PEN_SIZES = [1, 2, 4, 8, 12, 16, 24, 32];
 
-function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = false }) {
+function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = false, darkMode = false }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState('pen'); // 'pen' or 'eraser'
-  const [color, setColor] = useState('#000000');
+  const [color, setColor] = useState(darkMode ? '#FFFFFF' : '#000000');
   const [size, setSize] = useState(4);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [paths, setPaths] = useState([]);
@@ -35,6 +36,36 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
       setPaths([]);
     }
   }, [data]);
+
+  // Update default color when dark mode changes
+  useEffect(() => {
+    setColor(darkMode ? '#FFFFFF' : '#000000');
+  }, [darkMode]);
+
+  // Convert white/black strokes when theme changes
+  useEffect(() => {
+    if (!paths || paths.length === 0) return;
+
+    const convertedPaths = paths.map(path => {
+      // Only convert black/white strokes, keep other colors as-is
+      if (path.color === '#000000') {
+        return { ...path, color: '#FFFFFF' };
+      } else if (path.color === '#FFFFFF') {
+        return { ...path, color: '#000000' };
+      }
+      return path;
+    });
+
+    // Check if any conversion happened
+    const hasChanges = convertedPaths.some((path, index) =>
+      path.color !== paths[index].color
+    );
+
+    if (hasChanges) {
+      setPaths(convertedPaths);
+      notifyChange(convertedPaths);
+    }
+  }, [darkMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notify parent of changes
   const notifyChange = useCallback((newPaths) => {
