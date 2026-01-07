@@ -1156,10 +1156,10 @@ function NoteCard({
           </div>
         </div>
       )}
-      {/* Collaboration icon - top right, below pin icon - show if note has collaborators (empty array means has collaborators) or if user is viewing a note they don't own */}
+      {/* Collaboration icon - bottom right - show if note has collaborators (empty array means has collaborators) or if user is viewing a note they don't own */}
       {/* Show icon if note has collaborators (empty array) or if user is viewing someone else's note */}
       {((n.collaborators !== undefined && n.collaborators !== null) || (n.user_id && currentUser && n.user_id !== currentUser.id)) && (
-        <div className="absolute top-12 right-3 z-10">
+        <div className="absolute bottom-3 right-3 z-10">
           <div
             className="relative"
             title="Collaborated note"
