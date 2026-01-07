@@ -2352,8 +2352,8 @@ function NotesUI({
                 <DrawingCanvas
                   data={composerDrawingData}
                   onChange={setComposerDrawingData}
-                  width={600}
-                  height={400}
+                  width={650}
+                  height={450}
                   readOnly={!isOnline}
                   darkMode={dark}
                 />
@@ -4683,7 +4683,7 @@ export default function App() {
         }}
       >
         <div
-          className="glass-card rounded-xl shadow-2xl w-full h-full max-w-none rounded-none sm:w-11/12 sm:max-w-2xl sm:h-[80vh] sm:rounded-xl flex flex-col relative overflow-hidden"
+          className="glass-card rounded-xl shadow-2xl w-full h-full max-w-none rounded-none sm:w-11/12 sm:max-w-2xl sm:h-[95vh] sm:rounded-xl flex flex-col relative overflow-hidden"
           style={{ backgroundColor: modalBgFor(mColor, dark) }}
           onMouseDown={(e) => e.stopPropagation()}
           onMouseUp={(e) => e.stopPropagation()}
@@ -4837,7 +4837,7 @@ export default function App() {
             </div>
 
             {/* Content area */}
-            <div className="p-6 pb-12" onClick={onModalBodyClick}>
+            <div className={mType === "draw" ? "p-2 pb-6" : "p-6 pb-12"} onClick={onModalBodyClick}>
               {/* Images */}
               {mImages.length > 0 && (
                 <div className="mb-5 flex gap-3 overflow-x-auto">
@@ -5163,8 +5163,8 @@ export default function App() {
                 <DrawingCanvas
                   data={mDrawingData}
                   onChange={setMDrawingData}
-                  width={700}
-                  height={500}
+                  width={750}
+                  height={850}
                   readOnly={!isOnline}
                   darkMode={dark}
                 />
