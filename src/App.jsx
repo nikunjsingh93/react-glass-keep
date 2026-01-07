@@ -2394,6 +2394,7 @@ function NotesUI({
                   height={450}
                   readOnly={!isOnline}
                   darkMode={dark}
+                  hideModeToggle={true}
                 />
               )}
 

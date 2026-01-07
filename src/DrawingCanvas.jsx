@@ -18,7 +18,7 @@ const DRAWING_COLORS = [
 
 const PEN_SIZES = [1, 2, 4, 8, 12, 16, 24, 32];
 
-function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = false, darkMode = false }) {
+function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = false, darkMode = false, hideModeToggle = false }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState('pen'); // 'pen' or 'eraser'
@@ -267,8 +267,7 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
     // Only double the height (add page below)
     const newHeight = canvasHeight * 2;
     setCanvasHeight(newHeight);
-    // Switch to view mode to show the full canvas
-    setMode('view');
+    // Stay in draw mode to continue editing
     // Notify parent of the dimension change with updated dimensions
     if (onChange) {
       // Get current dimensions to preserve originalHeight if it exists
@@ -290,8 +289,8 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
 
   return (
     <div className="drawing-canvas-container">
-      {/* View/Draw Mode Toggle - only when drawing is allowed */}
-      {!readOnly && (
+      {/* View/Draw Mode Toggle - only when drawing is allowed and not hidden */}
+      {!readOnly && !hideModeToggle && (
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => setMode(mode === 'view' ? 'draw' : 'view')}
