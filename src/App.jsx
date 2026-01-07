@@ -4471,7 +4471,112 @@ export default function App() {
     setModalMenuOpen(false);
     setOpen(true);
   };
+  
+  // Check if note is collaborative (has collaborators or is owned by someone else)
+  const isCollaborativeNote = useCallback((noteId) => {
+    if (!noteId) return false;
+    const note = notes.find(n => String(n.id) === String(noteId));
+    if (!note) return false;
+    const hasCollaborators = note.collaborators !== undefined && note.collaborators !== null;
+    const isOwnedByOther = note.user_id && currentUser && note.user_id !== currentUser.id;
+    return hasCollaborators || isOwnedByOther;
+  }, [notes, currentUser]);
+  
+  // Auto-save timeout ref - must be defined before closeModal
+  const autoSaveTimeoutRef = useRef(null);
+  
+  // Auto-save for collaborative text notes - must be defined before useEffect that uses it
+  const autoSaveCollaborativeNote = useCallback(async () => {
+    if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId)) return;
+    
+    // Clear existing timeout
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+    
+    // Set new timeout for debounced save
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      const base = {
+        id: activeId,
+        title: mTitle.trim(),
+        tags: mTagList,
+        images: mImages,
+        color: mColor,
+        pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+      };
+      const payload = { ...base, type: "text", content: mBody, items: [] };
+
+      try {
+        await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+        invalidateNotesCache();
+        
+        // Update local state
+        const nowIso = new Date().toISOString();
+        setNotes((prev) => prev.map((n) =>
+          (String(n.id) === String(activeId) ? { 
+            ...n, 
+            ...payload, 
+            updated_at: nowIso,
+            lastEditedBy: currentUser?.email || currentUser?.name,
+            lastEditedAt: nowIso
+          } : n)
+        ));
+      } catch (e) {
+        console.error("Auto-save failed:", e);
+        // Don't show error toast for auto-save failures to avoid interrupting user
+      }
+    }, 1000); // 1 second debounce
+  }, [activeId, mType, mTitle, mTagList, mImages, mColor, mBody, notes, token, currentUser, isCollaborativeNote]);
+
+  // Auto-save for collaborative text notes when content changes
+  useEffect(() => {
+    if (activeId && mType === "text" && isCollaborativeNote(activeId) && isOnline) {
+      autoSaveCollaborativeNote();
+    }
+    
+    // Cleanup timeout on unmount or when dependencies change
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [mBody, mTitle, mTagList, mColor, activeId, mType, isCollaborativeNote, isOnline, autoSaveCollaborativeNote]);
+  
   const closeModal = () => {
+    // Save any pending changes for collaborative text notes before closing
+    if (activeId && mType === "text" && isCollaborativeNote(activeId)) {
+      // Clear the timeout and save immediately
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      // Trigger immediate save
+      const base = {
+        id: activeId,
+        title: mTitle.trim(),
+        tags: mTagList,
+        images: mImages,
+        color: mColor,
+        pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+      };
+      const payload = { ...base, type: "text", content: mBody, items: [] };
+      
+      api(`/notes/${activeId}`, { method: "PUT", token, body: payload })
+        .then(() => {
+          invalidateNotesCache();
+          const nowIso = new Date().toISOString();
+          setNotes((prev) => prev.map((n) =>
+            (String(n.id) === String(activeId) ? { 
+              ...n, 
+              ...payload, 
+              updated_at: nowIso,
+              lastEditedBy: currentUser?.email || currentUser?.name,
+              lastEditedAt: nowIso
+            } : n)
+          ));
+        })
+        .catch((e) => console.error("Final save on close failed:", e));
+    }
+    
     setOpen(false);
     setActiveId(null);
     setViewMode(true);
@@ -4479,6 +4584,7 @@ export default function App() {
     setConfirmDeleteOpen(false);
     setShowModalFmt(false);
   };
+
   const saveModal = async () => {
     if (activeId == null) return;
     const base = {
@@ -5527,8 +5633,8 @@ export default function App() {
                 </>
               )}
 
-              {/* Save button - hidden when offline */}
-              {isOnline && modalHasChanges && (
+              {/* Save button - hidden when offline or for collaborative text notes (they auto-save) */}
+              {isOnline && modalHasChanges && !(mType === "text" && isCollaborativeNote(activeId)) && (
                 <button
                   onClick={saveModal}
                   disabled={savingModal}
