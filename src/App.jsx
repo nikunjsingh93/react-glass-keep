@@ -2449,7 +2449,7 @@ function NotesUI({
                       }`}
                       title="Drawing"
                     >
-                      🎨
+                      🖌️
                     </button>
                   </div>
 

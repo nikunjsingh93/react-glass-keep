@@ -231,7 +231,10 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
                 className="flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
                 title="Change color"
               >
-                <span>🖌️</span>
+                <div
+                  className="w-4 h-4 rounded border border-gray-400"
+                  style={{ backgroundColor: color }}
+                />
                 <span>▼</span>
               </button>
 
