@@ -31,41 +31,33 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   // Load drawing data when component mounts or data changes
   useEffect(() => {
     if (data && Array.isArray(data)) {
-      setPaths(data);
+      // Convert black/white strokes based on current theme for optimal contrast
+      const convertedData = data.map(path => {
+        // Only convert black/white strokes for better contrast, keep other colors as-is
+        if (darkMode) {
+          // In dark mode, ensure black strokes are white for visibility
+          if (path.color === '#000000') {
+            return { ...path, color: '#FFFFFF' };
+          }
+        } else {
+          // In light mode, ensure white strokes are black for visibility
+          if (path.color === '#FFFFFF') {
+            return { ...path, color: '#000000' };
+          }
+        }
+        return path;
+      });
+      setPaths(convertedData);
     } else {
       setPaths([]);
     }
-  }, [data]);
+  }, [data, darkMode]);
 
   // Update default color when dark mode changes
   useEffect(() => {
     setColor(darkMode ? '#FFFFFF' : '#000000');
   }, [darkMode]);
 
-  // Convert white/black strokes when theme changes
-  useEffect(() => {
-    if (!paths || paths.length === 0) return;
-
-    const convertedPaths = paths.map(path => {
-      // Only convert black/white strokes, keep other colors as-is
-      if (path.color === '#000000') {
-        return { ...path, color: '#FFFFFF' };
-      } else if (path.color === '#FFFFFF') {
-        return { ...path, color: '#000000' };
-      }
-      return path;
-    });
-
-    // Check if any conversion happened
-    const hasChanges = convertedPaths.some((path, index) =>
-      path.color !== paths[index].color
-    );
-
-    if (hasChanges) {
-      setPaths(convertedPaths);
-      notifyChange(convertedPaths);
-    }
-  }, [darkMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Notify parent of changes
   const notifyChange = useCallback((newPaths) => {
