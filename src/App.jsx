@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { marked as markedParser } from "marked";
 import DrawingCanvas from "./DrawingCanvas";
@@ -1079,6 +1079,7 @@ function NoteCard({
   isOnline = true,
   // checklist update callback
   onUpdateChecklistItem,
+  currentUser,
 }) {
   
   const isChecklist = n.type === "checklist";
@@ -1152,6 +1153,23 @@ function NoteCard({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
             )}
+          </div>
+        </div>
+      )}
+      {/* Collaboration icon - top left - show if note has collaborators (empty array means has collaborators) or if user is viewing a note they don't own */}
+      {/* Show icon if note has collaborators (empty array) or if user is viewing someone else's note */}
+      {((n.collaborators !== undefined && n.collaborators !== null) || (n.user_id && currentUser && n.user_id !== currentUser.id)) && (
+        <div className="absolute top-12 left-3 z-10">
+          <div
+            className="rounded-full p-1.5 bg-indigo-500/90 text-white shadow-lg relative"
+            title="Collaborated note"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+            </svg>
+            <svg className="w-3 h-3 absolute -top-1 -right-1" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+            </svg>
           </div>
         </div>
       )}
@@ -2619,6 +2637,7 @@ function NotesUI({
                   onDragEnd={onDragEnd}
                   isOnline={isOnline}
                   onUpdateChecklistItem={onUpdateChecklistItem}
+                  currentUser={currentUser}
                 />
               ))}
             </div>
@@ -2659,6 +2678,7 @@ function NotesUI({
                   onDragEnd={onDragEnd}
                   isOnline={isOnline}
                   onUpdateChecklistItem={onUpdateChecklistItem}
+                  currentUser={currentUser}
                 />
               ))}
             </div>
@@ -2941,6 +2961,7 @@ export default function App() {
   // Collaboration modal
   const [collaborationModalOpen, setCollaborationModalOpen] = useState(false);
   const [collaboratorUsername, setCollaboratorUsername] = useState("");
+  const [addModalCollaborators, setAddModalCollaborators] = useState([]);
 
   // Modal formatting
   const [showModalFmt, setShowModalFmt] = useState(false);
@@ -4178,12 +4199,85 @@ export default function App() {
   };
 
   /** -------- Collaboration actions -------- */
+  const [collaborationDialogOpen, setCollaborationDialogOpen] = useState(false);
+  const [collaborationDialogNoteId, setCollaborationDialogNoteId] = useState(null);
+  const [noteCollaborators, setNoteCollaborators] = useState([]);
+  const [isNoteOwner, setIsNoteOwner] = useState(false);
+
+  const loadNoteCollaborators = useCallback(async (noteId) => {
+    try {
+      const collaborators = await api(`/notes/${noteId}/collaborators`, { token });
+      setNoteCollaborators(collaborators || []);
+      
+      // Check if current user is the owner
+      // Try to get note from current notes list
+      const note = notes.find(n => String(n.id) === String(noteId));
+      // If note has user_id, use it; otherwise check if user is in collaborators list
+      if (note?.user_id) {
+        setIsNoteOwner(note.user_id === currentUser?.id);
+      } else {
+        // If note doesn't have user_id, check if current user is NOT in collaborators
+        // (if they're not a collaborator and can see the note, they're likely the owner)
+        const isCollaborator = collaborators.some(c => c.id === currentUser?.id);
+        setIsNoteOwner(!isCollaborator);
+      }
+    } catch (e) {
+      console.error("Failed to load collaborators:", e);
+      setNoteCollaborators([]);
+      setIsNoteOwner(false);
+    }
+  }, [token, notes, currentUser]);
+
+  const showCollaborationDialog = useCallback((noteId) => {
+    setCollaborationDialogNoteId(noteId);
+    setCollaborationDialogOpen(true);
+    loadNoteCollaborators(noteId);
+  }, [loadNoteCollaborators]);
+
+  const removeCollaborator = async (collaboratorId, noteId = null) => {
+    try {
+      const targetNoteId = noteId || collaborationDialogNoteId || activeId;
+      if (!targetNoteId) return;
+      await api(`/notes/${targetNoteId}/collaborate/${collaboratorId}`, {
+        method: "DELETE",
+        token
+      });
+      showToast("Collaborator removed successfully", "success");
+      if (collaborationDialogNoteId) {
+        loadNoteCollaborators(collaborationDialogNoteId);
+      }
+      if (activeId) {
+        await loadCollaboratorsForAddModal(activeId);
+      }
+      invalidateNotesCache();
+    } catch (e) {
+      showToast(e.message || "Failed to remove collaborator", "error");
+    }
+  };
+
+  const loadCollaboratorsForAddModal = useCallback(async (noteId) => {
+    try {
+      const collaborators = await api(`/notes/${noteId}/collaborators`, { token });
+      setAddModalCollaborators(collaborators || []);
+    } catch (e) {
+      console.error("Failed to load collaborators:", e);
+      setAddModalCollaborators([]);
+    }
+  }, [token]);
+
+  // Load collaborators when Add Collaborator modal opens
+  useEffect(() => {
+    if (collaborationModalOpen && activeId) {
+      loadCollaboratorsForAddModal(activeId);
+    }
+  }, [collaborationModalOpen, activeId, loadCollaboratorsForAddModal]);
+
   const addCollaborator = async (username) => {
     try {
       if (!activeId) return;
       
       // Add collaborator to the note
-      await api(`/notes/${activeId}/collaborate`, { 
+      const result = await api(`/notes/${activeId}/collaborate`, { 
         method: "POST", 
         token, 
         body: { username } 
@@ -4201,9 +4295,15 @@ export default function App() {
           : n
       ));
       
-      alert(`Added ${username} as collaborator successfully!`);
+      showToast(`Added ${username} as collaborator successfully!`, "success");
+      setCollaboratorUsername("");
+      // Reload collaborators for both dialogs
+      await loadCollaboratorsForAddModal(activeId);
+      if (collaborationDialogNoteId === activeId) {
+        loadNoteCollaborators(activeId);
+      }
     } catch (e) {
-      alert(e.message || "Failed to add collaborator");
+      showToast(e.message || "Failed to add collaborator", "error");
     }
   };
 
@@ -4355,13 +4455,25 @@ export default function App() {
   const deleteModal = async () => {
     if (activeId == null) return;
     try {
+      // Check if user owns the note
+      const note = notes.find(n => String(n.id) === String(activeId));
+      if (note && note.user_id !== currentUser?.id) {
+        showToast("You can't delete this note as you don't own it", "error");
+        return;
+      }
+      
       await api(`/notes/${activeId}`, { method: "DELETE", token });
       invalidateNotesCache();
       
       setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
       closeModal();
+      showToast("Note deleted successfully", "success");
     } catch (e) {
-      alert(e.message || "Delete failed");
+      if (e.status === 404 || e.message?.includes("not found")) {
+        showToast("You can't delete this note as you don't own it", "error");
+      } else {
+        showToast(e.message || "Delete failed", "error");
+      }
     }
   };
   const togglePin = async (id, toPinned) => {
@@ -4773,7 +4885,12 @@ export default function App() {
                     <button
                       className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 relative"
                       title="Collaborate"
-                      onClick={() => setCollaborationModalOpen(true)}
+                      onClick={async () => {
+                        setCollaborationModalOpen(true);
+                        if (activeId) {
+                          await loadCollaboratorsForAddModal(activeId);
+                        }
+                      }}
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
@@ -5396,14 +5513,55 @@ export default function App() {
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div
                 className="absolute inset-0 bg-black/40"
-                onClick={() => setCollaborationModalOpen(false)}
+                onClick={() => {
+                  setCollaborationModalOpen(false);
+                  setCollaboratorUsername("");
+                }}
               />
               <div
-                className="glass-card rounded-xl shadow-2xl w-[90%] max-w-md p-6 relative"
+                className="glass-card rounded-xl shadow-2xl w-[90%] max-w-md p-6 relative max-h-[90vh] overflow-y-auto"
                 style={{ backgroundColor: dark ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.95)" }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 className="text-lg font-semibold mb-4">Add Collaborator</h3>
+                
+                {/* Show existing collaborators with remove option */}
+                {addModalCollaborators.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Collaborators:</p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {addModalCollaborators.map((collab) => {
+                        const note = notes.find(n => String(n.id) === String(activeId));
+                        const isOwner = note?.user_id === currentUser?.id;
+                        const canRemove = isOwner || collab.id === currentUser?.id;
+                        
+                        return (
+                          <div
+                            key={collab.id}
+                            className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-700 rounded-lg"
+                          >
+                            <div>
+                              <p className="font-medium text-sm">{collab.name || collab.email}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{collab.email}</p>
+                            </div>
+                            {canRemove && (
+                              <button
+                                onClick={async () => {
+                                  await removeCollaborator(collab.id, activeId);
+                                }}
+                                className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                                title={collab.id === currentUser?.id ? "Remove yourself" : "Remove collaborator"}
+                              >
+                                {collab.id === currentUser?.id ? "Leave" : "Remove"}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                   Enter the username of the person you want to collaborate with on this note.
                 </p>
@@ -5413,11 +5571,19 @@ export default function App() {
                   onChange={(e) => setCollaboratorUsername(e.target.value)}
                   placeholder="Enter username"
                   className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-transparent"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && collaboratorUsername.trim()) {
+                      addCollaborator(collaboratorUsername.trim());
+                    }
+                  }}
                 />
                 <div className="mt-5 flex justify-end gap-3">
                   <button
                     className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
-                    onClick={() => setCollaborationModalOpen(false)}
+                    onClick={() => {
+                      setCollaborationModalOpen(false);
+                      setCollaboratorUsername("");
+                    }}
                   >
                     Cancel
                   </button>
@@ -5426,8 +5592,6 @@ export default function App() {
                     onClick={async () => {
                       if (collaboratorUsername.trim()) {
                         await addCollaborator(collaboratorUsername.trim());
-                        setCollaboratorUsername("");
-                        setCollaborationModalOpen(false);
                       }
                     }}
                   >
@@ -5437,6 +5601,7 @@ export default function App() {
               </div>
             </div>
           )}
+
         </div>
       </div>
 

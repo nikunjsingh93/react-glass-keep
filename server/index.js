@@ -530,24 +530,36 @@ app.get("/api/notes", auth, (req, res) => {
   const rows = usePaging 
     ? allNotesWithPagingQuery.all(req.user.id, req.user.id, lim, off)
     : allNotesQuery.all(req.user.id, req.user.id);
+  
+  // Get collaborators for each note
+  const getNoteCollaboratorsCount = db.prepare(`
+    SELECT COUNT(*) as count FROM note_collaborators WHERE note_id = ?
+  `);
+  
   res.json(
-    rows.map((r) => ({
-      id: r.id,
-      type: r.type,
-      title: r.title,
-      content: r.content,
-      items: JSON.parse(r.items_json || "[]"),
-      tags: JSON.parse(r.tags_json || "[]"),
-      images: JSON.parse(r.images_json || "[]"),
-      color: r.color,
-      pinned: !!r.pinned,
-      position: r.position,
-      timestamp: r.timestamp,
-      updated_at: r.updated_at,
-      lastEditedBy: r.last_edited_by,
-      lastEditedAt: r.last_edited_at,
-      archived: !!r.archived,
-    }))
+    rows.map((r) => {
+      const collabCount = getNoteCollaboratorsCount.get(r.id);
+      const hasCollaborators = (collabCount?.count || 0) > 0;
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        type: r.type,
+        title: r.title,
+        content: r.content,
+        items: JSON.parse(r.items_json || "[]"),
+        tags: JSON.parse(r.tags_json || "[]"),
+        images: JSON.parse(r.images_json || "[]"),
+        color: r.color,
+        pinned: !!r.pinned,
+        position: r.position,
+        timestamp: r.timestamp,
+        updated_at: r.updated_at,
+        lastEditedBy: r.last_edited_by,
+        lastEditedAt: r.last_edited_at,
+        archived: !!r.archived,
+        collaborators: hasCollaborators ? [] : null, // Empty array to indicate has collaborators, null if none
+      };
+    })
   );
 });
 
@@ -746,6 +758,43 @@ app.get("/api/notes/:id/collaborators", auth, (req, res) => {
     added_at: c.added_at,
     added_by: c.added_by
   })));
+});
+
+app.delete("/api/notes/:id/collaborate/:userId", auth, (req, res) => {
+  const noteId = req.params.id;
+  const userIdToRemove = req.params.userId;
+  
+  // Check if note exists
+  const note = getNoteWithCollaboration.get(req.user.id, noteId, req.user.id);
+  if (!note) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+  
+  // Check if user is the owner (can remove anyone) or is removing themselves
+  const isOwner = note.user_id === req.user.id;
+  const isRemovingSelf = String(userIdToRemove) === String(req.user.id);
+  
+  if (!isOwner && !isRemovingSelf) {
+    return res.status(403).json({ error: "Only note owner can remove other collaborators" });
+  }
+  
+  // Remove collaborator
+  const removeCollaborator = db.prepare(`
+    DELETE FROM note_collaborators 
+    WHERE note_id = ? AND user_id = ?
+  `);
+  
+  const result = removeCollaborator.run(noteId, userIdToRemove);
+  
+  if (result.changes === 0) {
+    return res.status(404).json({ error: "Collaborator not found" });
+  }
+  
+  // Update note with editor info
+  updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), noteId);
+  broadcastNoteUpdated(noteId);
+  
+  res.json({ ok: true, message: "Collaborator removed" });
 });
 
 app.get("/api/notes/collaborated", auth, (req, res) => {
