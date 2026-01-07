@@ -918,7 +918,7 @@ function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
 }
 
 /** ---------- Drawing Preview ---------- */
-function DrawingPreview({ data, width, height }) {
+function DrawingPreview({ data, width, height, darkMode = false }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -940,6 +940,23 @@ function DrawingPreview({ data, width, height }) {
       // Invalid data, show empty preview
       return;
     }
+
+    // Convert black/white strokes based on current theme for optimal contrast
+    paths = paths.map(path => {
+      // Only convert black/white strokes for better contrast, keep other colors as-is
+      if (darkMode) {
+        // In dark mode, ensure black strokes are white for visibility
+        if (path.color === '#000000') {
+          return { ...path, color: '#FFFFFF' };
+        }
+      } else {
+        // In light mode, ensure white strokes are black for visibility
+        if (path.color === '#FFFFFF') {
+          return { ...path, color: '#000000' };
+        }
+      }
+      return path;
+    });
 
     if (paths.length === 0) {
       // Draw a subtle placeholder
@@ -985,10 +1002,10 @@ function DrawingPreview({ data, width, height }) {
         ctx.globalCompositeOperation = 'source-over';
       }
     });
-  }, [data, width, height]);
+  }, [data, width, height, darkMode]);
 
   return (
-    <div className="flex items-center justify-center h-20 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div className="flex items-center justify-center h-20 rounded overflow-hidden">
       <canvas
         ref={canvasRef}
         width={width}
@@ -1126,7 +1143,7 @@ function NoteCard({
           {displayText}
         </div>
       ) : isDraw ? (
-        <DrawingPreview data={n.content} width={120} height={80} />
+        <DrawingPreview data={n.content} width={100} height={80} darkMode={dark} />
       ) : (
         <div className="space-y-2">
           {visibleItems.map((it) => (
