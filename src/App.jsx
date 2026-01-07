@@ -5730,7 +5730,7 @@ export default function App() {
           {showUserDropdown && filteredUsers.length > 0 && createPortal(
             <div
               data-user-dropdown
-              className="fixed z-[60] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              className="fixed z-[60] bg-white dark:bg-[#272727] border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
               style={{
                 top: `${dropdownPosition.top}px`,
                 left: `${dropdownPosition.left}px`,
