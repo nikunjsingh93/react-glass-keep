@@ -5730,7 +5730,7 @@ export default function App() {
           {showUserDropdown && filteredUsers.length > 0 && createPortal(
             <div
               data-user-dropdown
-              className="fixed z-[60] bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              className="fixed z-[60] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
               style={{
                 top: `${dropdownPosition.top}px`,
                 left: `${dropdownPosition.left}px`,
@@ -5738,14 +5738,14 @@ export default function App() {
               }}
             >
               {loadingUsers ? (
-                <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
                   Searching...
                 </div>
               ) : (
                 filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-[var(--border-light)] last:border-b-0"
+                    className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700 last:border-b-0"
                     onClick={() => {
                       setCollaboratorUsername(user.name || user.email);
                       setShowUserDropdown(false);
@@ -5755,7 +5755,7 @@ export default function App() {
                       {user.name || user.email}
                     </div>
                     {user.name && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
                         {user.email}
                       </div>
                     )}
