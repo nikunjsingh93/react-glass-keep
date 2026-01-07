@@ -1156,18 +1156,18 @@ function NoteCard({
           </div>
         </div>
       )}
-      {/* Collaboration icon - top left - show if note has collaborators (empty array means has collaborators) or if user is viewing a note they don't own */}
+      {/* Collaboration icon - top right, below pin icon - show if note has collaborators (empty array means has collaborators) or if user is viewing a note they don't own */}
       {/* Show icon if note has collaborators (empty array) or if user is viewing someone else's note */}
       {((n.collaborators !== undefined && n.collaborators !== null) || (n.user_id && currentUser && n.user_id !== currentUser.id)) && (
-        <div className="absolute top-12 left-3 z-10">
+        <div className="absolute top-12 right-3 z-10">
           <div
-            className="rounded-full p-1.5 bg-indigo-500/90 text-white shadow-lg relative"
+            className="relative"
             title="Collaborated note"
           >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-5 h-5 text-black dark:text-white" fill="currentColor" viewBox="0 0 20 20">
               <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
             </svg>
-            <svg className="w-3 h-3 absolute -top-1 -right-1" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-3 h-3 absolute -top-1 -right-1 text-black dark:text-white" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
             </svg>
           </div>
