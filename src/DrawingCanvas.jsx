@@ -27,6 +27,7 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
+  const [mode, setMode] = useState('view'); // Internal mode state
 
   // Load drawing data when component mounts or data changes
   useEffect(() => {
@@ -137,20 +138,24 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
     }
   }, [paths, currentPath, width, height]);
 
-  const getCanvasCoordinates = (e) => {
+  const getCanvasCoordinates = useCallback((e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    };
-  };
+    // Handle both mouse and touch events
+    const clientX = e.clientX !== undefined ? e.clientX : e.touches[0].clientX;
+    const clientY = e.clientY !== undefined ? e.clientY : e.touches[0].clientY;
 
-  const startDrawing = (e) => {
-    if (readOnly) return;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  }, []);
+
+  const startDrawing = useCallback((e) => {
+    if (readOnly || mode !== 'draw') return;
 
     const point = getCanvasCoordinates(e);
     const newPath = {
@@ -162,20 +167,26 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
 
     setCurrentPath(newPath);
     setIsDrawing(true);
-  };
+  }, [readOnly, mode, tool, color, size, getCanvasCoordinates]);
 
-  const draw = (e) => {
-    if (!isDrawing || readOnly) return;
+  // Throttle draw updates to prevent excessive CPU usage
+  const lastDrawTime = useRef(0);
+  const draw = useCallback((e) => {
+    if (!isDrawing || readOnly || mode !== 'draw') return;
+
+    const now = Date.now();
+    if (now - lastDrawTime.current < 16) return; // Throttle to ~60fps
+    lastDrawTime.current = now;
 
     const point = getCanvasCoordinates(e);
     setCurrentPath(prev => ({
       ...prev,
       points: [...prev.points, point],
     }));
-  };
+  }, [isDrawing, readOnly, mode, getCanvasCoordinates]);
 
-  const stopDrawing = () => {
-    if (!isDrawing || readOnly) return;
+  const stopDrawing = useCallback(() => {
+    if (!isDrawing || readOnly || mode !== 'draw') return;
 
     if (currentPath && currentPath.points.length > 0) {
       const newPaths = [...paths, currentPath];
@@ -185,25 +196,45 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
 
     setCurrentPath(null);
     setIsDrawing(false);
-  };
+  }, [isDrawing, readOnly, mode, currentPath, paths, notifyChange]);
 
-  const clearCanvas = () => {
-    if (readOnly) return;
+  const clearCanvas = useCallback(() => {
+    if (readOnly || mode !== 'draw') return;
     setPaths([]);
     notifyChange([]);
-  };
+  }, [readOnly, mode, notifyChange]);
 
-  const undo = () => {
-    if (readOnly) return;
+  const undo = useCallback(() => {
+    if (readOnly || mode !== 'draw') return;
     const newPaths = paths.slice(0, -1);
     setPaths(newPaths);
     notifyChange(newPaths);
-  };
+  }, [readOnly, mode, paths, notifyChange]);
 
   return (
     <div className="drawing-canvas-container">
+      {/* Mode Toggle Button */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMode(mode === 'view' ? 'draw' : 'view')}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mode === 'draw'
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+            }`}
+            title={mode === 'view' ? 'Switch to draw mode' : 'Switch to view mode'}
+          >
+            {mode === 'view' ? '✏️ Draw' : '👁️ View'}
+          </button>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {mode === 'view' ? 'View Mode' : 'Draw Mode'}
+          </span>
+        </div>
+      </div>
+
       {/* Compact Toolbar */}
-      {!readOnly && (
+      {!readOnly && mode === 'draw' && (
         <div className="flex items-center gap-3 mb-3 p-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
           {/* Tool selection */}
           <div className="flex items-center gap-1">
@@ -298,19 +329,32 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
           ref={canvasRef}
           width={width}
           height={height}
-          className={`block ${!readOnly ? 'cursor-crosshair' : 'cursor-default'}`}
-          style={{ maxWidth: '100%', height: 'auto' }}
+          className={`block ${mode === 'draw' && !readOnly ? 'cursor-crosshair' : 'cursor-default'}`}
+          style={{ maxWidth: '100%', height: 'auto', touchAction: 'none' }}
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
+          onTouchStart={(e) => {
+            e.preventDefault();
+            startDrawing(e);
+          }}
+          onTouchMove={(e) => {
+            e.preventDefault();
+            draw(e);
+          }}
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            stopDrawing();
+          }}
         />
       </div>
 
       {/* Info */}
       <div className="text-xs text-gray-500 mt-2">
         {paths.length} stroke{paths.length !== 1 ? 's' : ''}
-        {readOnly && ' (read-only)'}
+        {mode === 'view' && ' (view mode)'}
+        {readOnly && mode === 'draw' && ' (read-only)'}
       </div>
     </div>
   );
