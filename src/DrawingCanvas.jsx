@@ -213,25 +213,18 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
 
   return (
     <div className="drawing-canvas-container">
-      {/* Mode Toggle Button */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      {/* View/Draw Mode Toggle - only when drawing is allowed */}
+      {!readOnly && (
+        <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => setMode(mode === 'view' ? 'draw' : 'view')}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              mode === 'draw'
-                ? 'bg-blue-500 text-white hover:bg-blue-600'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
-            title={mode === 'view' ? 'Switch to draw mode' : 'Switch to view mode'}
+            className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+            title={mode === 'view' ? 'Switch to Draw mode' : 'Switch to View mode'}
           >
-            {mode === 'view' ? '✏️ Draw' : '👁️ View'}
+            {mode === 'view' ? 'Draw mode' : 'View mode'}
           </button>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {mode === 'view' ? 'View Mode' : 'Draw Mode'}
-          </span>
         </div>
-      </div>
+      )}
 
       {/* Compact Toolbar */}
       {!readOnly && mode === 'draw' && (
