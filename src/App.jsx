@@ -2962,6 +2962,12 @@ export default function App() {
   const [collaborationModalOpen, setCollaborationModalOpen] = useState(false);
   const [collaboratorUsername, setCollaboratorUsername] = useState("");
   const [addModalCollaborators, setAddModalCollaborators] = useState([]);
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const collaboratorInputRef = useRef(null);
 
   // Modal formatting
   const [showModalFmt, setShowModalFmt] = useState(false);
@@ -4265,6 +4271,68 @@ export default function App() {
     }
   }, [token]);
 
+  // Search users for collaboration dropdown
+  const searchUsers = useCallback(async (query) => {
+    setLoadingUsers(true);
+    try {
+      const searchQuery = query && query.trim().length > 0 ? query.trim() : "";
+      const users = await api(`/users/search?q=${encodeURIComponent(searchQuery)}`, { token });
+      // Filter out current user and existing collaborators
+      const existingCollaboratorIds = new Set(addModalCollaborators.map(c => c.id));
+      const filtered = users.filter(u => 
+        u.id !== currentUser?.id && !existingCollaboratorIds.has(u.id)
+      );
+      setFilteredUsers(filtered);
+      setShowUserDropdown(filtered.length > 0);
+    } catch (e) {
+      console.error("Failed to search users:", e);
+      setFilteredUsers([]);
+      setShowUserDropdown(false);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [token, addModalCollaborators, currentUser]);
+
+  // Update dropdown position based on input field
+  const updateDropdownPosition = useCallback(() => {
+    if (collaboratorInputRef.current) {
+      const rect = collaboratorInputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 4, // fixed positioning is relative to viewport
+        left: rect.left,
+        width: rect.width
+      });
+    }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        collaboratorInputRef.current &&
+        !collaboratorInputRef.current.contains(event.target) &&
+        !event.target.closest('[data-user-dropdown]')
+      ) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    if (showUserDropdown) {
+      updateDropdownPosition();
+      // Use setTimeout to ensure the portal is rendered
+      setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 0);
+      window.addEventListener('scroll', updateDropdownPosition, true);
+      window.addEventListener('resize', updateDropdownPosition);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('scroll', updateDropdownPosition, true);
+        window.removeEventListener('resize', updateDropdownPosition);
+      };
+    }
+  }, [showUserDropdown, updateDropdownPosition]);
+
   // Load collaborators when Add Collaborator modal opens
   useEffect(() => {
     if (collaborationModalOpen && activeId) {
@@ -4297,6 +4365,8 @@ export default function App() {
       
       showToast(`Added ${username} as collaborator successfully!`, "success");
       setCollaboratorUsername("");
+      setShowUserDropdown(false);
+      setFilteredUsers([]);
       // Reload collaborators for both dialogs
       await loadCollaboratorsForAddModal(activeId);
       if (collaborationDialogNoteId === activeId) {
@@ -5514,6 +5584,8 @@ export default function App() {
                 onClick={() => {
                   setCollaborationModalOpen(false);
                   setCollaboratorUsername("");
+                  setShowUserDropdown(false);
+                  setFilteredUsers([]);
                 }}
               />
               <div
@@ -5573,24 +5645,46 @@ export default function App() {
                           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                             Enter the username of the person you want to collaborate with on this note.
                           </p>
-                          <input
-                            type="text"
-                            value={collaboratorUsername}
-                            onChange={(e) => setCollaboratorUsername(e.target.value)}
-                            placeholder="Enter username"
-                            className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-transparent"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && collaboratorUsername.trim()) {
-                                addCollaborator(collaboratorUsername.trim());
-                              }
-                            }}
-                          />
+                          <div ref={collaboratorInputRef} className="relative">
+                            <input
+                              type="text"
+                              value={collaboratorUsername}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setCollaboratorUsername(value);
+                                updateDropdownPosition();
+                                searchUsers(value);
+                              }}
+                              onFocus={() => {
+                                updateDropdownPosition();
+                                searchUsers(collaboratorUsername || "");
+                              }}
+                              placeholder="Search by username or email"
+                              className="w-full px-3 py-2 border border-[var(--border-light)] rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-transparent"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && collaboratorUsername.trim()) {
+                                  // If dropdown is open and there's a filtered user, select the first one
+                                  if (showUserDropdown && filteredUsers.length > 0) {
+                                    const firstUser = filteredUsers[0];
+                                    setCollaboratorUsername(firstUser.name || firstUser.email);
+                                    setShowUserDropdown(false);
+                                  } else {
+                                    addCollaborator(collaboratorUsername.trim());
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  setShowUserDropdown(false);
+                                }
+                              }}
+                            />
+                          </div>
                           <div className="mt-5 flex justify-end gap-3">
                             <button
                               className="px-4 py-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
                               onClick={() => {
                                 setCollaborationModalOpen(false);
                                 setCollaboratorUsername("");
+                                setShowUserDropdown(false);
+                                setFilteredUsers([]);
                               }}
                             >
                               Cancel
@@ -5617,6 +5711,8 @@ export default function App() {
                             onClick={() => {
                               setCollaborationModalOpen(false);
                               setCollaboratorUsername("");
+                              setShowUserDropdown(false);
+                              setFilteredUsers([]);
                             }}
                           >
                             Close
@@ -5628,6 +5724,46 @@ export default function App() {
                 })()}
               </div>
             </div>
+          )}
+
+          {/* User dropdown portal - rendered outside modal */}
+          {showUserDropdown && filteredUsers.length > 0 && createPortal(
+            <div
+              data-user-dropdown
+              className="fixed z-[60] bg-white dark:bg-gray-800 border border-[var(--border-light)] rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              style={{
+                top: `${dropdownPosition.top}px`,
+                left: `${dropdownPosition.left}px`,
+                width: `${dropdownPosition.width}px`
+              }}
+            >
+              {loadingUsers ? (
+                <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                  Searching...
+                </div>
+              ) : (
+                filteredUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-[var(--border-light)] last:border-b-0"
+                    onClick={() => {
+                      setCollaboratorUsername(user.name || user.email);
+                      setShowUserDropdown(false);
+                    }}
+                  >
+                    <div className="font-medium text-sm text-gray-900 dark:text-gray-100">
+                      {user.name || user.email}
+                    </div>
+                    {user.name && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {user.email}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>,
+            document.body
           )}
 
         </div>

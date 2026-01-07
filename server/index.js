@@ -1004,6 +1004,27 @@ app.get("/api/admin/users", auth, adminOnly, (_req, res) => {
   );
 });
 
+// Search users endpoint for collaboration
+const searchUsersStmt = db.prepare(`
+  SELECT id, name, email 
+  FROM users 
+  WHERE (name LIKE ? OR email LIKE ?)
+  ORDER BY name ASC
+  LIMIT 50
+`);
+app.get("/api/users/search", auth, (req, res) => {
+  const query = req.query.q || "";
+  const searchTerm = `%${query}%`;
+  const rows = searchUsersStmt.all(searchTerm, searchTerm);
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+    }))
+  );
+});
+
 const deleteUserStmt = db.prepare("DELETE FROM users WHERE id = ?");
 app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
   const id = Number(req.params.id);
