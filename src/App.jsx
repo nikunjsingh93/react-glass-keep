@@ -917,6 +917,89 @@ function Popover({ anchorRef, open, onClose, children, offset = 8 }) {
   );
 }
 
+/** ---------- Drawing Preview ---------- */
+function DrawingPreview({ data, width, height }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+
+    // Parse drawing data
+    let paths = [];
+    try {
+      if (typeof data === 'string') {
+        paths = JSON.parse(data) || [];
+      } else if (Array.isArray(data)) {
+        paths = data;
+      }
+    } catch (e) {
+      // Invalid data, show empty preview
+      return;
+    }
+
+    if (paths.length === 0) {
+      // Draw a subtle placeholder
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(10, 10, width - 20, height - 20);
+
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Empty', width / 2, height / 2 + 3);
+      return;
+    }
+
+    // Scale factor to fit drawing in preview
+    const scaleX = width / 800; // Assuming original canvas width is 800
+    const scaleY = height / 600; // Assuming original canvas height is 600
+    const scale = Math.min(scaleX, scaleY);
+
+    // Draw paths at scaled size
+    paths.forEach(path => {
+      if (path.points && path.points.length > 0) {
+        ctx.strokeStyle = path.color;
+        ctx.lineWidth = Math.max(1, path.size * scale);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (path.tool === 'eraser') {
+          ctx.globalCompositeOperation = 'destination-out';
+        } else {
+          ctx.globalCompositeOperation = 'source-over';
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(path.points[0].x * scale, path.points[0].y * scale);
+
+        for (let i = 1; i < path.points.length; i++) {
+          ctx.lineTo(path.points[i].x * scale, path.points[i].y * scale);
+        }
+
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    });
+  }, [data, width, height]);
+
+  return (
+    <div className="flex items-center justify-center h-20 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <canvas
+        ref={canvasRef}
+        width={width}
+        height={height}
+        className="block"
+        style={{ maxWidth: '100%', maxHeight: '100%' }}
+      />
+    </div>
+  );
+}
+
 /** ---------- Note Card ---------- */
 function NoteCard({
   n, dark,
@@ -1043,12 +1126,7 @@ function NoteCard({
           {displayText}
         </div>
       ) : isDraw ? (
-        <div className="flex items-center justify-center h-20 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-          <div className="text-center">
-            <div className="text-2xl mb-1">🎨</div>
-            <div className="text-xs text-gray-600 dark:text-gray-300">Drawing</div>
-          </div>
-        </div>
+        <DrawingPreview data={n.content} width={120} height={80} />
       ) : (
         <div className="space-y-2">
           {visibleItems.map((it) => (
