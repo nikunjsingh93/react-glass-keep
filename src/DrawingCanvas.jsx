@@ -27,7 +27,7 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
-  const [mode, setMode] = useState('view'); // Internal mode state
+  const [mode, setMode] = useState(readOnly ? 'view' : 'draw'); // Start in draw mode if not read-only
   const [canvasWidth, setCanvasWidth] = useState(width);
   const [canvasHeight, setCanvasHeight] = useState(height);
 
@@ -88,16 +88,23 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   // Notify parent of changes (include dimensions)
   const notifyChange = useCallback((newPaths) => {
     if (onChange) {
+      // Get current dimensions to preserve originalHeight if it exists
+      let originalHeight = height; // Default to initial prop
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.dimensions) {
+        originalHeight = data.dimensions.originalHeight || height;
+      }
+      
       // Send both paths and dimensions
       onChange({
         paths: newPaths,
         dimensions: {
           width: canvasWidth,
-          height: canvasHeight
+          height: canvasHeight,
+          originalHeight: originalHeight
         }
       });
     }
-  }, [onChange, canvasWidth, canvasHeight]);
+  }, [onChange, canvasWidth, canvasHeight, data, height]);
 
   // Close color picker when clicking outside
   useEffect(() => {
@@ -264,15 +271,22 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
     setMode('view');
     // Notify parent of the dimension change with updated dimensions
     if (onChange) {
+      // Get current dimensions to preserve originalHeight if it exists
+      let originalHeight = height; // Default to initial prop
+      if (data && typeof data === 'object' && !Array.isArray(data) && data.dimensions) {
+        originalHeight = data.dimensions.originalHeight || height;
+      }
+      
       onChange({
         paths: paths,
         dimensions: {
           width: canvasWidth,
-          height: newHeight
+          height: newHeight,
+          originalHeight: originalHeight // Store the original first page height
         }
       });
     }
-  }, [readOnly, mode, paths, canvasWidth, canvasHeight, onChange]);
+  }, [readOnly, mode, paths, canvasWidth, canvasHeight, onChange, data, height]);
 
   return (
     <div className="drawing-canvas-container">

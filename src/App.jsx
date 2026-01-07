@@ -932,6 +932,7 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
     let paths = [];
     let originalWidth = 800; // Default canvas width
     let originalHeight = 600; // Default canvas height
+    let firstPageHeight = 600; // Height of first page for filtering
     try {
       let parsedData;
       if (typeof data === 'string') {
@@ -950,6 +951,17 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
         if (parsedData.dimensions && parsedData.dimensions.width && parsedData.dimensions.height) {
           originalWidth = parsedData.dimensions.width;
           originalHeight = parsedData.dimensions.height;
+          // First page height: use originalHeight if stored, otherwise estimate
+          // If originalHeight is stored, use it; otherwise, if height > 1000, assume it was doubled
+          if (parsedData.dimensions.originalHeight) {
+            firstPageHeight = parsedData.dimensions.originalHeight;
+          } else if (originalHeight > 1000) {
+            // Likely doubled, estimate first page as half (common sizes: 450->900, 850->1700)
+            firstPageHeight = originalHeight / 2;
+          } else {
+            // No pages added yet, use current height
+            firstPageHeight = originalHeight;
+          }
         }
       } else {
         paths = [];
@@ -958,6 +970,14 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
       // Invalid data, show empty preview
       return;
     }
+
+    // Filter paths to only show those in the first page (y coordinate < firstPageHeight)
+    // For preview, we only want to show the first page
+    paths = paths.filter(path => {
+      if (!path.points || path.points.length === 0) return false;
+      // Check if any point in the path is within the first page
+      return path.points.some(point => point.y < firstPageHeight);
+    });
 
     // Convert black/white strokes based on current theme for optimal contrast
     paths = paths.map(path => {
