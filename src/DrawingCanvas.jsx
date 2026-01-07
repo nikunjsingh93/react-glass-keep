@@ -28,30 +28,55 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   const [paths, setPaths] = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
   const [mode, setMode] = useState('view'); // Internal mode state
+  const [canvasWidth, setCanvasWidth] = useState(width);
+  const [canvasHeight, setCanvasHeight] = useState(height);
 
   // Load drawing data when component mounts or data changes
   useEffect(() => {
-    if (data && Array.isArray(data)) {
-      // Convert black/white strokes based on current theme for optimal contrast
-      const convertedData = data.map(path => {
-        // Only convert black/white strokes for better contrast, keep other colors as-is
-        if (darkMode) {
-          // In dark mode, ensure black strokes are white for visibility
-          if (path.color === '#000000') {
-            return { ...path, color: '#FFFFFF' };
-          }
-        } else {
-          // In light mode, ensure white strokes are black for visibility
-          if (path.color === '#FFFFFF') {
-            return { ...path, color: '#000000' };
-          }
+    let pathsData = [];
+    let dimensions = null;
+
+    // Handle both old format (array) and new format (object with paths and dimensions)
+    if (data) {
+      if (Array.isArray(data)) {
+        // Old format: just an array of paths
+        pathsData = data;
+      } else if (data.paths && Array.isArray(data.paths)) {
+        // New format: object with paths and dimensions
+        pathsData = data.paths;
+        if (data.dimensions) {
+          dimensions = data.dimensions;
         }
-        return path;
-      });
-      setPaths(convertedData);
-    } else {
-      setPaths([]);
+      }
     }
+
+    // Apply dimensions if available, otherwise reset to props (for new/old drawings)
+    if (dimensions && dimensions.width && dimensions.height) {
+      setCanvasWidth(dimensions.width);
+      setCanvasHeight(dimensions.height);
+    } else {
+      // Reset to initial props for old format drawings or new drawings
+      setCanvasWidth(width);
+      setCanvasHeight(height);
+    }
+
+    // Convert black/white strokes based on current theme for optimal contrast
+    const convertedData = pathsData.map(path => {
+      // Only convert black/white strokes for better contrast, keep other colors as-is
+      if (darkMode) {
+        // In dark mode, ensure black strokes are white for visibility
+        if (path.color === '#000000') {
+          return { ...path, color: '#FFFFFF' };
+        }
+      } else {
+        // In light mode, ensure white strokes are black for visibility
+        if (path.color === '#FFFFFF') {
+          return { ...path, color: '#000000' };
+        }
+      }
+      return path;
+    });
+    setPaths(convertedData);
   }, [data, darkMode]);
 
   // Update default color when dark mode changes
@@ -60,12 +85,19 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
   }, [darkMode]);
 
 
-  // Notify parent of changes
+  // Notify parent of changes (include dimensions)
   const notifyChange = useCallback((newPaths) => {
     if (onChange) {
-      onChange(newPaths);
+      // Send both paths and dimensions
+      onChange({
+        paths: newPaths,
+        dimensions: {
+          width: canvasWidth,
+          height: canvasHeight
+        }
+      });
     }
-  }, [onChange]);
+  }, [onChange, canvasWidth, canvasHeight]);
 
   // Close color picker when clicking outside
   useEffect(() => {
@@ -79,13 +111,25 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showColorPicker]);
 
+  // Update canvas size when width/height props change (only if no dimensions in data)
+  // This ensures props are used for initial size, but dimensions from data take precedence
+  useEffect(() => {
+    // Only update from props if we don't have dimensions in the current data
+    if (data && typeof data === 'object' && !Array.isArray(data) && data.dimensions) {
+      // Data has dimensions, don't override with props
+      return;
+    }
+    setCanvasWidth(width);
+    setCanvasHeight(height);
+  }, [width, height, data]);
+
   // Redraw canvas when paths change
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw all completed paths
     paths.forEach(path => {
@@ -136,7 +180,7 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     }
-  }, [paths, currentPath, width, height]);
+  }, [paths, currentPath, canvasWidth, canvasHeight]);
 
   const getCanvasCoordinates = useCallback((e) => {
     const canvas = canvasRef.current;
@@ -210,6 +254,25 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
     setPaths(newPaths);
     notifyChange(newPaths);
   }, [readOnly, mode, paths, notifyChange]);
+
+  const addPage = useCallback(() => {
+    if (readOnly || mode !== 'draw') return;
+    // Only double the height (add page below)
+    const newHeight = canvasHeight * 2;
+    setCanvasHeight(newHeight);
+    // Switch to view mode to show the full canvas
+    setMode('view');
+    // Notify parent of the dimension change with updated dimensions
+    if (onChange) {
+      onChange({
+        paths: paths,
+        dimensions: {
+          width: canvasWidth,
+          height: newHeight
+        }
+      });
+    }
+  }, [readOnly, mode, paths, canvasWidth, canvasHeight, onChange]);
 
   return (
     <div className="drawing-canvas-container">
@@ -320,8 +383,8 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
       <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
         <canvas
           ref={canvasRef}
-          width={width}
-          height={height}
+          width={canvasWidth}
+          height={canvasHeight}
           className={`block ${mode === 'draw' && !readOnly ? 'cursor-crosshair' : 'cursor-default'}`}
           style={{ maxWidth: '100%', height: 'auto', touchAction: 'none' }}
           onMouseDown={startDrawing}
@@ -342,6 +405,19 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
           }}
         />
       </div>
+
+      {/* Add Page Button - only in draw mode */}
+      {!readOnly && mode === 'draw' && (
+        <div className="mt-3 flex justify-center">
+          <button
+            onClick={addPage}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium transition-colors"
+            title="Double the canvas size to add more space for notes"
+          >
+            Add Page
+          </button>
+        </div>
+      )}
 
       {/* Info */}
       <div className="text-xs text-gray-500 mt-2">

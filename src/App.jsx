@@ -930,11 +930,29 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
 
     // Parse drawing data
     let paths = [];
+    let originalWidth = 800; // Default canvas width
+    let originalHeight = 600; // Default canvas height
     try {
+      let parsedData;
       if (typeof data === 'string') {
-        paths = JSON.parse(data) || [];
-      } else if (Array.isArray(data)) {
-        paths = data;
+        parsedData = JSON.parse(data) || [];
+      } else {
+        parsedData = data;
+      }
+
+      // Handle both old format (array) and new format (object with paths and dimensions)
+      if (Array.isArray(parsedData)) {
+        // Old format: just an array of paths
+        paths = parsedData;
+      } else if (parsedData && typeof parsedData === 'object' && Array.isArray(parsedData.paths)) {
+        // New format: object with paths and dimensions
+        paths = parsedData.paths;
+        if (parsedData.dimensions && parsedData.dimensions.width && parsedData.dimensions.height) {
+          originalWidth = parsedData.dimensions.width;
+          originalHeight = parsedData.dimensions.height;
+        }
+      } else {
+        paths = [];
       }
     } catch (e) {
       // Invalid data, show empty preview
@@ -973,8 +991,8 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
     }
 
     // Scale factor to fit drawing in preview
-    const scaleX = width / 800; // Assuming original canvas width is 800
-    const scaleY = height / 600; // Assuming original canvas height is 600
+    const scaleX = width / originalWidth;
+    const scaleY = height / originalHeight;
     const scale = Math.min(scaleX, scaleY);
 
     // Draw paths at scaled size
@@ -2822,7 +2840,7 @@ export default function App() {
   const [clInput, setClInput] = useState("");
 
   // Drawing composer
-  const [composerDrawingData, setComposerDrawingData] = useState([]);
+  const [composerDrawingData, setComposerDrawingData] = useState({ paths: [], dimensions: null });
 
   // Modal state
   const [open, setOpen] = useState(false);
@@ -2871,18 +2889,18 @@ export default function App() {
   const [mInput, setMInput] = useState("");
 
   // Drawing modal
-  const [mDrawingData, setMDrawingData] = useState([]);
+  const [mDrawingData, setMDrawingData] = useState({ paths: [], dimensions: null });
   const skipNextDrawingAutosave = useRef(false);
-  const prevDrawingRef = useRef([]);
+  const prevDrawingRef = useRef({ paths: [], dimensions: null });
 
   // Clear data when switching composer types
   useEffect(() => {
     if (composerType === "text") {
       setClItems([]);
       setClInput("");
-      setComposerDrawingData([]);
+      setComposerDrawingData({ paths: [], dimensions: null });
     } else if (composerType === "checklist") {
-      setComposerDrawingData([]);
+      setComposerDrawingData({ paths: [], dimensions: null });
     } else if (composerType === "draw") {
       setClItems([]);
       setClInput("");
@@ -3594,8 +3612,8 @@ export default function App() {
       return;
     }
 
-    const prevJson = JSON.stringify(prevDrawingRef.current || []);
-    const currentJson = JSON.stringify(mDrawingData || []);
+    const prevJson = JSON.stringify(prevDrawingRef.current || { paths: [], dimensions: null });
+    const currentJson = JSON.stringify(mDrawingData || { paths: [], dimensions: null });
     if (prevJson === currentJson) return;
 
     // Debounce auto-save by 500ms
@@ -3614,7 +3632,7 @@ export default function App() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [mDrawingData, open, activeId, mType]);
+  }, [mDrawingData, open, activeId, mType, token]);
 
   // Live-sync drawing data in open modal when remote updates arrive
   useEffect(() => {
@@ -3624,11 +3642,15 @@ export default function App() {
 
     try {
       const serverDrawingData = JSON.parse(n.content || "[]");
+      // Handle backward compatibility: if it's an array, convert to new format
+      const normalizedData = Array.isArray(serverDrawingData) 
+        ? { paths: serverDrawingData, dimensions: null }
+        : serverDrawingData;
       const prevJson = JSON.stringify(prevDrawingRef.current || []);
-      const serverJson = JSON.stringify(serverDrawingData);
+      const serverJson = JSON.stringify(normalizedData);
       if (serverJson !== prevJson) {
-        setMDrawingData(serverDrawingData);
-        prevDrawingRef.current = serverDrawingData;
+        setMDrawingData(normalizedData);
+        prevDrawingRef.current = normalizedData;
       }
     } catch (e) {
       // Invalid JSON, ignore
@@ -3811,7 +3833,8 @@ export default function App() {
     } else if (isChecklist) {
       if (!title.trim() && clItems.length === 0) return;
     } else if (isDraw) {
-      if (!title.trim() && composerDrawingData.length === 0) return;
+      const drawPaths = Array.isArray(composerDrawingData) ? composerDrawingData : (composerDrawingData?.paths || []);
+      if (!title.trim() && drawPaths.length === 0) return;
     }
 
     const nowIso = new Date().toISOString();
@@ -3843,7 +3866,7 @@ export default function App() {
       setComposerColor("default");
       setClItems([]);
       setClInput("");
-      setComposerDrawingData([]);
+      setComposerDrawingData({ paths: [], dimensions: null });
       setComposerType("text");
       setComposerCollapsed(true);
       if (contentRef.current) contentRef.current.style.height = "auto";
@@ -4219,18 +4242,22 @@ export default function App() {
     if (n.type === "draw") {
       try {
         const drawingData = JSON.parse(n.content || "[]");
-        setMDrawingData(drawingData);
-        prevDrawingRef.current = drawingData;
+        // Handle backward compatibility: if it's an array, convert to new format
+        const normalizedData = Array.isArray(drawingData)
+          ? { paths: drawingData, dimensions: null }
+          : drawingData;
+        setMDrawingData(normalizedData);
+        prevDrawingRef.current = normalizedData;
       } catch (e) {
-        setMDrawingData([]);
-        prevDrawingRef.current = [];
+        setMDrawingData({ paths: [], dimensions: null });
+        prevDrawingRef.current = { paths: [], dimensions: null };
       }
       setMBody("");
       skipNextDrawingAutosave.current = true;
     } else {
       setMBody(n.content || "");
-      setMDrawingData([]);
-      prevDrawingRef.current = [];
+      setMDrawingData({ paths: [], dimensions: null });
+      prevDrawingRef.current = { paths: [], dimensions: null };
     }
     skipNextItemsAutosave.current = true;
     setMItems(Array.isArray(n.items) ? n.items : []);
@@ -4275,7 +4302,7 @@ export default function App() {
       invalidateNotesCache();
       
       prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
-      prevDrawingRef.current = mType === "draw" ? (Array.isArray(mDrawingData) ? mDrawingData : []) : [];
+      prevDrawingRef.current = mType === "draw" ? (mDrawingData || { paths: [], dimensions: null }) : { paths: [], dimensions: null };
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
