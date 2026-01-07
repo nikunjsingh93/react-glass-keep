@@ -1005,7 +1005,7 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
   }, [data, width, height, darkMode]);
 
   return (
-    <div className="flex items-center justify-center h-20 rounded overflow-hidden">
+    <div className="flex items-center justify-center h-32 rounded overflow-hidden">
       <canvas
         ref={canvasRef}
         width={width}
@@ -1143,7 +1143,7 @@ function NoteCard({
           {displayText}
         </div>
       ) : isDraw ? (
-        <DrawingPreview data={n.content} width={100} height={80} darkMode={dark} />
+        <DrawingPreview data={n.content} width={100} height={110} darkMode={dark} />
       ) : (
         <div className="space-y-2">
           {visibleItems.map((it) => (
