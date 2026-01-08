@@ -3714,7 +3714,7 @@ export default function App() {
       // Invalid JSON, ignore
     }
   }, [notes, open, activeId]);
-
+  
   // No infinite scroll
 
   // Lock body scroll on modal & image viewer
@@ -4434,6 +4434,10 @@ export default function App() {
     if (results.length) setter((prev) => [...prev, ...results]);
   };
 
+  // Track initial state when opening modal to detect if user actually edited
+  // Must be defined before openModal
+  const initialModalStateRef = useRef(null);
+
   const openModal = (id) => {
     const n = notes.find((x) => String(x.id) === String(id)); if (!n) return;
     setSidebarOpen(false);
@@ -4467,6 +4471,16 @@ export default function App() {
     setMImages(Array.isArray(n.images) ? n.images : []);
     setTagInput("");
     setMColor(n.color || "default");
+    
+    // Store initial state to detect if user actually edited
+    initialModalStateRef.current = {
+      title: n.title || "",
+      content: n.type === "draw" ? "" : (n.content || ""),
+      tags: Array.isArray(n.tags) ? n.tags : [],
+      images: Array.isArray(n.images) ? n.images : [],
+      color: n.color || "default",
+    };
+    
     setViewMode(true);
     setModalMenuOpen(false);
     setOpen(true);
@@ -4485,9 +4499,30 @@ export default function App() {
   // Auto-save timeout ref - must be defined before closeModal
   const autoSaveTimeoutRef = useRef(null);
   
+  // Check if the note has been modified from initial state
+  const hasNoteBeenModified = useCallback(() => {
+    if (!initialModalStateRef.current || !activeId) return false;
+    const initial = initialModalStateRef.current;
+    const current = {
+      title: mTitle.trim(),
+      content: mBody,
+      tags: mTagList,
+      images: mImages,
+      color: mColor,
+    };
+    // Compare all fields
+    return (
+      initial.title !== current.title ||
+      initial.content !== current.content ||
+      JSON.stringify(initial.tags) !== JSON.stringify(current.tags) ||
+      JSON.stringify(initial.images) !== JSON.stringify(current.images) ||
+      initial.color !== current.color
+    );
+  }, [activeId, mTitle, mBody, mTagList, mImages, mColor]);
+  
   // Auto-save for collaborative text notes - must be defined before useEffect that uses it
   const autoSaveCollaborativeNote = useCallback(async () => {
-    if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId)) return;
+    if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId) || viewMode || !hasNoteBeenModified()) return;
     
     // Clear existing timeout
     if (autoSaveTimeoutRef.current) {
@@ -4526,11 +4561,11 @@ export default function App() {
         // Don't show error toast for auto-save failures to avoid interrupting user
       }
     }, 1000); // 1 second debounce
-  }, [activeId, mType, mTitle, mTagList, mImages, mColor, mBody, notes, token, currentUser, isCollaborativeNote]);
+  }, [activeId, mType, mTitle, mTagList, mImages, mColor, mBody, notes, token, currentUser, isCollaborativeNote, viewMode, hasNoteBeenModified]);
 
   // Auto-save for collaborative text notes when content changes
   useEffect(() => {
-    if (activeId && mType === "text" && isCollaborativeNote(activeId) && isOnline) {
+    if (activeId && mType === "text" && isCollaborativeNote(activeId) && isOnline && !viewMode && hasNoteBeenModified()) {
       autoSaveCollaborativeNote();
     }
     
@@ -4540,11 +4575,51 @@ export default function App() {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [mBody, mTitle, mTagList, mColor, activeId, mType, isCollaborativeNote, isOnline, autoSaveCollaborativeNote]);
+  }, [mBody, mTitle, mTagList, mColor, mImages, activeId, mType, isCollaborativeNote, isOnline, viewMode, hasNoteBeenModified, autoSaveCollaborativeNote]);
+  
+  // Update initial state reference when note is updated from server (for collaborative notes)
+  // This prevents overwriting server changes when user hasn't edited locally
+  // Must be after hasNoteBeenModified is defined
+  useEffect(() => {
+    if (!open || !activeId || !initialModalStateRef.current) return;
+    const n = notes.find((x) => String(x.id) === String(activeId));
+    if (!n || n.type === "draw") return;
+    
+    // Check if server version is different from our initial state
+    const serverState = {
+      title: n.title || "",
+      content: n.type === "draw" ? "" : (n.content || ""),
+      tags: Array.isArray(n.tags) ? n.tags : [],
+      images: Array.isArray(n.images) ? n.images : [],
+      color: n.color || "default",
+    };
+    
+    const initial = initialModalStateRef.current;
+    const serverChanged = (
+      initial.title !== serverState.title ||
+      initial.content !== serverState.content ||
+      JSON.stringify(initial.tags) !== JSON.stringify(serverState.tags) ||
+      JSON.stringify(initial.images) !== JSON.stringify(serverState.images) ||
+      initial.color !== serverState.color
+    );
+    
+    // If server changed and user hasn't edited locally, update initial state to server state
+    // This prevents overwriting server changes when user closes without editing
+    if (serverChanged && !hasNoteBeenModified()) {
+      initialModalStateRef.current = serverState;
+      // Update local modal state to match server (user hasn't edited, so safe to update)
+      setMTitle(serverState.title);
+      setMBody(serverState.content);
+      setMTagList(serverState.tags);
+      setMImages(serverState.images);
+      setMColor(serverState.color);
+    }
+  }, [notes, open, activeId, hasNoteBeenModified]);
   
   const closeModal = () => {
     // Save any pending changes for collaborative text notes before closing
-    if (activeId && mType === "text" && isCollaborativeNote(activeId)) {
+    // Only save if NOT in view mode AND user has actually edited - don't overwrite with stale data
+    if (activeId && mType === "text" && isCollaborativeNote(activeId) && !viewMode && hasNoteBeenModified()) {
       // Clear the timeout and save immediately
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
