@@ -28,7 +28,10 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 * **Collaboration (real-time)** ✅ NEW
 
   * Real-time collaboration for checklists — multiple people can add/tick items together and see updates instantly.
-  * Collaboration on notes — co-edit Markdown notes and watch changes sync across collaborators.  
+  * Collaboration on notes — co-edit Markdown notes and watch changes sync across collaborators.
+  * **Add and remove collaborators** — invite users by username/email to collaborate on your notes.
+  * View-only mode for collaborators — open notes in view mode without overwriting edits from others.
+  * Automatic conflict resolution — prevents stale data from overwriting recent edits.  
 * **Admin Panel**
 
   * New Admin Panel Sidebar in 3 dots Dropdown with many features like Add new uesr, Toggle new account creation ✅ NEW
@@ -39,6 +42,9 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
   * **Text notes** with Markdown (H1/H2/H3, bold, italic, strike, links, blockquote, inline/fenced code)
   * **Checklists** (add items, toggle done, inline edit)
+    * **Drag to reorder** checklist items within the modal ✅ NEW
+    * **Control checklist items** directly from the notes grid — toggle items without opening the modal ✅ NEW
+  * **Drawing/Handwritten notes** — create freehand drawings with customizable brush sizes and colors ✅ NEW
   * **Smart Enter** continues lists / exits on empty line
   * **Formatting toolbar** in editor (composer + modal edit mode)
   * **Links open in new tab** from view mode
@@ -78,11 +84,29 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * Per-note **Download .md**
   * Import from Google Keep (Google Takeout) — pick multiple .json files in one go to bring your Keep notes over. ✅ NEW
   * Backend: **Express API + SQLite** (`better-sqlite3`)
-* **UI/Theme**
+* **UI/Theme** ✅ IMPROVED
 
   * Tailwind (v4) look & feel with glassmorphism
   * Dark/Light mode with persistence
-  * Responsive header: hamburger + logo; “Glass Keep” title hidden on small screens
+  * Responsive header: hamburger + logo; "Glass Keep" title hidden on small screens
+  * **Improved color picker** — circular color indicator showing selected color ✅ NEW
+  * **Colorful emoji icons** — enhanced icons for checklist (✅), drawing (🖌️), and images (🖼️) ✅ NEW
+  * **Better visual feedback** — cleaner UI elements with improved spacing and colors ✅ NEW
+
+---
+
+## 🐛 Recent Bug Fixes ✅
+
+* **Collaboration fixes**
+  * Fixed issue where opening notes in view mode would overwrite edits made in edit mode
+  * Improved conflict resolution — only saves when user actually makes edits, not just opening/closing notes
+  * Fixed token expiration handling — automatic logout and redirect when session expires
+  * Added connection timeout handling for better reliability after long idle periods
+
+* **UI/UX improvements**
+  * Fixed metadata changes (color, tags, images) not saving for collaborative notes
+  * Improved auto-save for collaborative notes — metadata changes save immediately
+  * Better error handling for network failures and expired sessions
 
 ---
 
@@ -264,8 +288,10 @@ docker compose up -d
 
 * **Create a note**
 
-  * Choose **Note / Checklist** in the composer toggle.
-  * Enter a *Title* and content.
+  * Choose **Text / Checklist / Drawing** in the composer toggle. ✅ NEW
+  * For text notes: Enter a *Title* and content.
+  * For checklists: Add checklist items and toggle them as needed.
+  * For drawings: Draw freehand with customizable brush sizes and colors. ✅ NEW
   * Add **tags** (comma-separated) — they become chips.
   * Choose a **color**, attach **images**, then click **Add Note**.
 
@@ -291,6 +317,8 @@ docker compose up -d
 
   * Use the pin icon on a card or modal header.
   * Drag cards to reorder within **Pinned** or **Others**.
+  * **Drag checklist items** to reorder them within a checklist note. ✅ NEW
+  * **Toggle checklist items** directly from the notes grid without opening the modal. ✅ NEW
 
 * **Tags & Filters**
 
@@ -310,6 +338,13 @@ docker compose up -d
 
   * Header **⋮** → **Download secret key (.txt)**.
   * On login screen, choose **Forgot username/password? → Sign in with Secret Key**.
+
+* **Collaboration**
+
+  * Open a note and click the **collaboration icon** (👥) in the modal header.
+  * Add collaborators by username or email — they can view and edit the note.
+  * View current collaborators and remove them if needed. ✅ NEW
+  * Changes sync in real-time across all collaborators.
 
 ---
 
