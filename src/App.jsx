@@ -4654,6 +4654,53 @@ export default function App() {
     );
   }, [activeId, mTitle, mBody, mTagList, mImages, mColor]);
   
+  // Save metadata (color, tags, images) immediately for collaborative notes
+  // This works even in view mode since these are metadata changes, not content changes
+  const saveCollaborativeMetadata = useCallback(async () => {
+    if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId) || !isOnline) return;
+    
+    const base = {
+      id: activeId,
+      title: mTitle.trim(),
+      tags: mTagList,
+      images: mImages,
+      color: mColor,
+      pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+    };
+    const payload = { ...base, type: "text", content: mBody, items: [] };
+
+    try {
+      await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
+      invalidateNotesCache();
+      
+      // Update local state
+      const nowIso = new Date().toISOString();
+      setNotes((prev) => prev.map((n) =>
+        (String(n.id) === String(activeId) ? { 
+          ...n, 
+          ...payload, 
+          updated_at: nowIso,
+          lastEditedBy: currentUser?.email || currentUser?.name,
+          lastEditedAt: nowIso
+        } : n)
+      ));
+      
+      // Update initial state so hasNoteBeenModified doesn't think it's changed
+      if (initialModalStateRef.current) {
+        initialModalStateRef.current = {
+          title: mTitle.trim(),
+          content: mBody,
+          tags: mTagList,
+          images: mImages,
+          color: mColor,
+        };
+      }
+    } catch (e) {
+      console.error("Failed to save metadata:", e);
+      // Don't show error toast to avoid interrupting user
+    }
+  }, [activeId, mType, mTitle, mTagList, mImages, mColor, mBody, notes, token, currentUser, isCollaborativeNote, isOnline]);
+
   // Auto-save for collaborative text notes - must be defined before useEffect that uses it
   const autoSaveCollaborativeNote = useCallback(async () => {
     if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId) || viewMode || !hasNoteBeenModified()) return;
@@ -4697,7 +4744,25 @@ export default function App() {
     }, 1000); // 1 second debounce
   }, [activeId, mType, mTitle, mTagList, mImages, mColor, mBody, notes, token, currentUser, isCollaborativeNote, viewMode, hasNoteBeenModified]);
 
-  // Auto-save for collaborative text notes when content changes
+  // Auto-save metadata (color, tags, images) immediately for collaborative notes
+  // This works in both view and edit mode since these are metadata changes
+  useEffect(() => {
+    if (activeId && mType === "text" && isCollaborativeNote(activeId) && isOnline) {
+      // Only save if color, tags, or images changed (not title or body)
+      const initial = initialModalStateRef.current;
+      if (initial) {
+        const colorChanged = initial.color !== mColor;
+        const tagsChanged = JSON.stringify(initial.tags) !== JSON.stringify(mTagList);
+        const imagesChanged = JSON.stringify(initial.images) !== JSON.stringify(mImages);
+        
+        if (colorChanged || tagsChanged || imagesChanged) {
+          saveCollaborativeMetadata();
+        }
+      }
+    }
+  }, [mColor, mTagList, mImages, activeId, mType, isCollaborativeNote, isOnline, saveCollaborativeMetadata]);
+
+  // Auto-save for collaborative text notes when content changes (title/body)
   useEffect(() => {
     if (activeId && mType === "text" && isCollaborativeNote(activeId) && isOnline && !viewMode && hasNoteBeenModified()) {
       autoSaveCollaborativeNote();
@@ -4709,7 +4774,7 @@ export default function App() {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [mBody, mTitle, mTagList, mColor, mImages, activeId, mType, isCollaborativeNote, isOnline, viewMode, hasNoteBeenModified, autoSaveCollaborativeNote]);
+  }, [mBody, mTitle, activeId, mType, isCollaborativeNote, isOnline, viewMode, hasNoteBeenModified, autoSaveCollaborativeNote]);
   
   // Update initial state reference when note is updated from server (for collaborative notes)
   // This prevents overwriting server changes when user hasn't edited locally
