@@ -2578,7 +2578,7 @@ function NotesUI({
                     ref={colorBtnRef}
                     type="button"
                     onClick={() => setShowColorPop((v) => !v)}
-                    className="w-8 h-8 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
+                    className="w-6 h-6 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
                     title="Color"
                     style={{
                       backgroundColor: composerColor === "default" ? "transparent" : solid(bgFor(composerColor, dark)),
@@ -5790,7 +5790,7 @@ export default function App() {
                     ref={modalColorBtnRef}
                     type="button"
                     onClick={() => setShowModalColorPop((v) => !v)}
-                    className="w-8 h-8 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
+                    className="w-6 h-6 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
                     title="Color"
                     style={{
                       backgroundColor: mColor === "default" ? "transparent" : solid(bgFor(mColor, dark)),
