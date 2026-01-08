@@ -2578,10 +2578,16 @@ function NotesUI({
                     ref={colorBtnRef}
                     type="button"
                     onClick={() => setShowColorPop((v) => !v)}
-                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                    className="w-8 h-8 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
                     title="Color"
+                    style={{
+                      backgroundColor: composerColor === "default" ? "transparent" : solid(bgFor(composerColor, dark)),
+                      borderColor: composerColor === "default" ? "#d1d5db" : solid(bgFor(composerColor, dark)),
+                    }}
                   >
-                    🎨 Color
+                    {composerColor === "default" && (
+                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: dark ? "#1f2937" : "#fff" }} />
+                    )}
                   </button>
                   <Popover
                     anchorRef={colorBtnRef}
@@ -5784,10 +5790,16 @@ export default function App() {
                     ref={modalColorBtnRef}
                     type="button"
                     onClick={() => setShowModalColorPop((v) => !v)}
-                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
+                    className="w-8 h-8 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
                     title="Color"
+                    style={{
+                      backgroundColor: mColor === "default" ? "transparent" : solid(bgFor(mColor, dark)),
+                      borderColor: mColor === "default" ? "#d1d5db" : solid(bgFor(mColor, dark)),
+                    }}
                   >
-                    🎨 Color
+                    {mColor === "default" && (
+                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: dark ? "#1f2937" : "#fff" }} />
+                    )}
                   </button>
                   <Popover
                     anchorRef={modalColorBtnRef}
