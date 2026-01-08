@@ -216,6 +216,18 @@ const ImageIcon = () => (
     <circle cx="8" cy="8" r="1.5" />
   </svg>
 );
+const GalleryIcon = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="8" height="8" rx="1"/>
+    <rect x="13" y="3" width="8" height="8" rx="1"/>
+    <rect x="3" y="13" width="8" height="8" rx="1"/>
+    <rect x="13" y="13" width="8" height="8" rx="1"/>
+    <circle cx="6" cy="6" r="1" fill="currentColor"/>
+    <circle cx="16" cy="6" r="1" fill="currentColor"/>
+    <circle cx="6" cy="16" r="1" fill="currentColor"/>
+    <circle cx="16" cy="16" r="1" fill="currentColor"/>
+  </svg>
+);
 const CloseIcon = () => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
@@ -2557,7 +2569,7 @@ function NotesUI({
                       }`}
                       title="Checklist"
                     >
-                      ☑
+                      ✅
                     </button>
                     <button
                       type="button"
@@ -2635,10 +2647,10 @@ function NotesUI({
                   />
                   <button
                     onClick={() => composerFileRef.current?.click()}
-                    className="p-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex-shrink-0"
+                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex-shrink-0 text-lg"
                     title="Add images"
                   >
-                    <ImageIcon />
+                    🖼️
                   </button>
 
                   {/* Add Note */}
@@ -5905,10 +5917,10 @@ export default function App() {
                   />
                   <button
                     onClick={() => modalFileRef.current?.click()}
-                    className="p-2 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10"
+                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-lg"
                     title="Add images"
                   >
-                    <ImageIcon />
+                    🖼️
                   </button>
                 </>
               )}
