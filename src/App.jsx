@@ -25,24 +25,77 @@ const setAuth = (obj) => {
 async function api(path, { method = "GET", body, token } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (res.status === 204) return null;
-  let data = null;
+  
   try {
-    data = await res.json();
-  } catch (e) {
-    data = null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (res.status === 204) return null;
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (e) {
+      data = null;
+    }
+    
+    // Handle token expiration (401 Unauthorized)
+    if (res.status === 401) {
+      // Clear auth from localStorage
+      try {
+        localStorage.removeItem(AUTH_KEY);
+      } catch (e) {
+        console.error("Error clearing auth:", e);
+      }
+      
+      // Dispatch a custom event so the app can handle it
+      window.dispatchEvent(new CustomEvent('auth-expired'));
+      
+      const err = new Error(data?.error || "Session expired. Please log in again.");
+      err.status = res.status;
+      err.isAuthError = true;
+      throw err;
+    }
+    
+    if (!res.ok) {
+      const err = new Error(data?.error || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  } catch (error) {
+    // Handle network errors, timeouts, etc.
+    if (error.name === 'AbortError') {
+      const err = new Error("Request timeout. Please check your connection.");
+      err.status = 408;
+      err.isNetworkError = true;
+      throw err;
+    }
+    
+    // Re-throw auth errors as-is
+    if (error.isAuthError) {
+      throw error;
+    }
+    
+    // Handle fetch failures (network errors, CORS, etc.)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      const err = new Error("Network error. Please check your connection.");
+      err.status = 0;
+      err.isNetworkError = true;
+      throw err;
+    }
+    
+    // Re-throw other errors
+    throw error;
   }
-  if (!res.ok) {
-    const err = new Error(data?.error || `HTTP ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  return data;
 }
 
 /** ---------- Colors ---------- */
@@ -3502,6 +3555,9 @@ export default function App() {
     checkRegistrationSetting();
   }, []);
   
+  // Handle token expiration globally - must be after signOut is defined
+  // This will be added after signOut is defined below
+  
   useEffect(() => {
     if (token) {
       loadNotes().catch(() => {});
@@ -3557,14 +3613,35 @@ export default function App() {
         es.onerror = (error) => {
           console.log("SSE error, attempting reconnect...", error);
           setSseConnected(false);
+          
+          // Check if SSE is in a failed state (readyState 2 = CLOSED, usually means 401/auth error)
+          if (es.readyState === EventSource.CLOSED) {
+            // If it's closed due to auth error, check if token is still valid
+            // The event source might have been closed due to 401
+            const currentAuth = getAuth();
+            if (!currentAuth || !currentAuth.token) {
+              // Token is missing, don't try to reconnect
+              console.log("SSE closed - no valid token, stopping reconnection");
+              return;
+            }
+          }
+          
           es.close();
           
           if (reconnectAttempts < maxReconnectAttempts) {
             const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
             reconnectTimeout = setTimeout(() => {
               reconnectAttempts++;
+              // Check token before reconnecting
+              const currentAuth = getAuth();
+              if (!currentAuth || !currentAuth.token) {
+                console.log("SSE reconnection cancelled - no valid token");
+                return;
+              }
               connectSSE();
             }, delay);
+          } else {
+            console.log("SSE reconnection attempts exhausted");
           }
         };
         
@@ -3596,17 +3673,39 @@ export default function App() {
 
     
     // Handle page visibility changes (PWA background/foreground)
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        // Page became visible, reconnect if needed
-        if (es && es.readyState === EventSource.CLOSED) {
-          connectSSE();
-        }
-        // Also refresh notes when page becomes visible
-        if (tagFilter === 'ARCHIVED') {
-          loadArchivedNotes().catch(() => {});
-        } else {
-          loadNotes().catch(() => {});
+        // Page became visible, validate token first
+        try {
+          // Quick health check - this will fail with 401 if token is expired
+          await api("/health", { token });
+          
+          // Token is valid, reconnect if needed
+          if (es && es.readyState === EventSource.CLOSED) {
+            connectSSE();
+          }
+          
+          // Also refresh notes when page becomes visible
+          if (tagFilter === 'ARCHIVED') {
+            loadArchivedNotes().catch(() => {});
+          } else {
+            loadNotes().catch(() => {});
+          }
+        } catch (error) {
+          // If health check fails with 401, the api function will handle auth expiration
+          // Otherwise, just log and try to reconnect anyway
+          if (error.status !== 401) {
+            console.error("Error checking connection:", error);
+            // Still try to reconnect SSE and refresh notes on other errors
+            if (es && es.readyState === EventSource.CLOSED) {
+              connectSSE();
+            }
+            if (tagFilter === 'ARCHIVED') {
+              loadArchivedNotes().catch(() => {});
+            } else {
+              loadNotes().catch(() => {});
+            }
+          }
         }
       }
     };
@@ -3872,6 +3971,35 @@ export default function App() {
     navigate("#/notes");
     return { ok: true };
   };
+  
+  // Handle token expiration globally
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      console.log("Auth expired, signing out...");
+      // Clear auth and redirect to login
+      setAuth(null);
+      setSession(null);
+      setNotes([]);
+      // Clear all cached data
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.includes('glass-keep-')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (error) {
+        console.error("Error clearing cache on auth expiration:", error);
+      }
+      navigate("#/login");
+    };
+    
+    window.addEventListener('auth-expired', handleAuthExpired);
+    
+    return () => {
+      window.removeEventListener('auth-expired', handleAuthExpired);
+    };
+  }, [navigate]);
 
   /** -------- Composer helpers -------- */
   const addComposerItem = () => {
