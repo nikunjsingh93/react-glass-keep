@@ -35,7 +35,6 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 * **Admin Panel**
 
   * New Admin Panel Sidebar in 3 dots Dropdown with many features like Add new uesr, Toggle new account creation ✅ NEW
-  * (OLD WAY) Visit: `http://localhost:5173/#/admin` (dev) or `http://localhost:8080/#/admin` (Docker/prod) to view full list and delete only
   * View **all users** with: Name, Email/Username, **Is Admin**, **Notes count**, **Storage used**, Created at
   * **Delete user** (also deletes their notes; protected against deleting the last admin)
 * **Notes**
