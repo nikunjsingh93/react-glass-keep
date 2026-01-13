@@ -38,8 +38,8 @@ async function initServerAI() {
     console.error("Failed to load AI on server:", err);
   }
 }
-// Start loading AI in background
-initServerAI().catch(console.error);
+// Start loading AI in background (disabled by default - will load on first use)
+// initServerAI().catch(console.error);
 
 const app = express();
 const PORT = Number(process.env.API_PORT || process.env.PORT || 8080);
@@ -1182,6 +1182,35 @@ app.patch("/api/admin/users/:id", auth, adminOnly, (req, res) => {
 
 
 // ---------- AI Assistant (Server side) ----------
+// Check AI status
+app.get("/api/ai/status", auth, (req, res) => {
+  res.json({
+    initialized: !!aiGenerator,
+    modelSize: "~700MB",
+    modelName: "Llama-3.2-1B-Instruct-ONNX"
+  });
+});
+
+// Initialize AI (on-demand)
+app.post("/api/ai/initialize", auth, async (req, res) => {
+  try {
+    if (aiGenerator) {
+      return res.json({ ok: true, message: "AI already initialized" });
+    }
+
+    await initServerAI();
+
+    if (!aiGenerator) {
+      return res.status(500).json({ error: "Failed to initialize AI model" });
+    }
+
+    res.json({ ok: true, message: "AI initialized successfully" });
+  } catch (err) {
+    console.error("AI initialization error:", err);
+    res.status(500).json({ error: "Failed to initialize AI model" });
+  }
+});
+
 app.post("/api/ai/ask", auth, async (req, res) => {
   const { question, notes } = req.body || {};
   if (!question) return res.status(400).json({ error: "Missing question" });

@@ -1629,7 +1629,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
 }
 
 /** ---------- Settings Panel ---------- */
-function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled }) {
+function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled, showGenericConfirm, showToast }) {
   // Prevent body scroll when settings panel is open
   React.useEffect(() => {
     if (open) {
@@ -1724,14 +1724,33 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">Local AI Assistant</div>
-                  <div className="text-sm text-gray-500">Ask questions about your notes (tiny local model)</div>
+                  <div className="text-sm text-gray-500">Ask questions about your notes (server-side model)</div>
                 </div>
                 <button
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localAiEnabled
                     ? 'bg-indigo-600'
                     : 'bg-gray-300 dark:bg-gray-600'
                     }`}
-                  onClick={() => setLocalAiEnabled(!localAiEnabled)}
+                  onClick={() => {
+                    if (!localAiEnabled) {
+                      // Show confirmation dialog when enabling
+                      showGenericConfirm({
+                        title: "Enable AI Assistant?",
+                        message: "This will download a ~700MB AI model (Llama-3.2-1B) to the server and may use significant CPU resources. The download will happen in the background. Continue?",
+                        confirmText: "Enable AI",
+                        cancelText: "Cancel",
+                        danger: false,
+                        onConfirm: async () => {
+                          setLocalAiEnabled(true);
+                          showToast("AI Assistant enabled. Model will download on first use.", "success");
+                        }
+                      });
+                    } else {
+                      // Disable without confirmation
+                      setLocalAiEnabled(false);
+                      showToast("AI Assistant disabled", "info");
+                    }
+                  }}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localAiEnabled ? 'translate-x-6' : 'translate-x-1'
@@ -3028,8 +3047,8 @@ export default function App() {
   const [localAiEnabled, setLocalAiEnabled] = useState(() => {
     try {
       const stored = localStorage.getItem("localAiEnabled");
-      return stored === null ? true : stored === "true";
-    } catch (e) { return true; }
+      return stored === null ? false : stored === "true";
+    } catch (e) { return false; }
   });
   const [aiResponse, setAiResponse] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -6467,6 +6486,8 @@ export default function App() {
         setAlwaysShowSidebarOnWide={setAlwaysShowSidebarOnWide}
         localAiEnabled={localAiEnabled}
         setLocalAiEnabled={setLocalAiEnabled}
+        showGenericConfirm={showGenericConfirm}
+        showToast={showToast}
       />
 
       {/* Admin Panel */}
