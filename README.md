@@ -25,10 +25,16 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 ## ✨ Features
 
 * **Auth & Multi-user**
-
   * Register, Login (username + password), Sign out
   * **Secret recovery key** download + **Sign in with Secret Key**
   * Each user sees **only their notes**
+
+* **Private AI Assistant (Llama 3.2)** ✅ NEW
+  * **100% Local & Private** — Runs entirely on your own server. No data ever leaves your hardware.
+  * **Note-Aware (RAG)** — The AI reads your own notes to answer questions factually.
+  * **Smart Search** — Ask questions like "What are my AWS commands?" or "How old am I?" and get direct answers based on your private data.
+  * **Privacy First** — Uses an optimized Llama 3.2 (1B) model running inside your Docker container.
+
 * **Collaboration (real-time)** ✅ NEW
 
   * Real-time collaboration for checklists — multiple people can add/tick items together and see updates instantly.
@@ -328,9 +334,11 @@ docker compose up -d
   * Open the **hamburger menu** → sidebar lists all tags + counts.
   * Quick filters: **Notes (All)**, **All Images**.
 
-* **Search**
-
-  * Searches title, Markdown text, tags, checklist items, and image names.
+* **Search & AI Assistance** ✅ NEW
+  * **Deep Search**: Searches across title, Markdown text, tags, checklist items, and image names.
+  * **AI Assistant**: Press **Enter** in the search bar to ask questions about your notes.
+  * **Smart Grounding**: The AI analyzes your relevant notes to give you accurate, private answers.
+  * **One-Click Clear**: Closing the AI response box automatically clears your search query.
 
 * **Export / Import**
 
