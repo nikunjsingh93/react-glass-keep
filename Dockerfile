@@ -22,10 +22,18 @@ FROM node:18-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Install runtime dependencies for sharp
+RUN apt-get update && apt-get install -y \
+    libvips-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY ["server", "server"]
 COPY --from=builder /app/dist ./dist
 COPY ["package.json", "package-lock.json", "./"]
+
+# Rebuild sharp for the correct platform
+RUN npm rebuild sharp
 
 RUN mkdir -p /app/data
 
