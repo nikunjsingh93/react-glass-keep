@@ -26,5 +26,6 @@ docker run -d \
 
 echo "✅ Local Deployment complete!"
 echo "🌐 Application should be available at http://localhost:8080"
-echo "📊 View logs: docker logs -f glass-keep"
-echo "🛑 Stop container: docker stop glass-keep"
+echo "� Stop container: docker stop glass-keep"
+echo "� Streaming logs (Press Ctrl+C to stop viewing logs, container will keep running)..."
+docker logs -f glass-keep

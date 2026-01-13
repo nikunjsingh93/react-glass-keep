@@ -1,7 +1,7 @@
 # --- Build stage
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 WORKDIR /app
-RUN apk add --no-cache python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++ 
 
 COPY ["package.json", "package-lock.json", "./"]
 RUN npm ci
@@ -18,7 +18,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # --- Runtime
-FROM node:18-alpine
+FROM node:18-slim
 WORKDIR /app
 ENV NODE_ENV=production
 

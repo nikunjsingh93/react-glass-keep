@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { askAI } from "./ai";
 import { marked as markedParser } from "marked";
 import DrawingCanvas from "./DrawingCanvas";
 
@@ -25,20 +26,20 @@ const setAuth = (obj) => {
 async function api(path, { method = "GET", body, token } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  
+
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-    
+
     const res = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (res.status === 204) return null;
     let data = null;
     try {
@@ -46,7 +47,7 @@ async function api(path, { method = "GET", body, token } = {}) {
     } catch (e) {
       data = null;
     }
-    
+
     // Handle token expiration (401 Unauthorized)
     if (res.status === 401) {
       // Clear auth from localStorage
@@ -55,16 +56,16 @@ async function api(path, { method = "GET", body, token } = {}) {
       } catch (e) {
         console.error("Error clearing auth:", e);
       }
-      
+
       // Dispatch a custom event so the app can handle it
       window.dispatchEvent(new CustomEvent('auth-expired'));
-      
+
       const err = new Error(data?.error || "Session expired. Please log in again.");
       err.status = res.status;
       err.isAuthError = true;
       throw err;
     }
-    
+
     if (!res.ok) {
       const err = new Error(data?.error || `HTTP ${res.status}`);
       err.status = res.status;
@@ -79,12 +80,12 @@ async function api(path, { method = "GET", body, token } = {}) {
       err.isNetworkError = true;
       throw err;
     }
-    
+
     // Re-throw auth errors as-is
     if (error.isAuthError) {
       throw error;
     }
-    
+
     // Handle fetch failures (network errors, CORS, etc.)
     if (error instanceof TypeError && error.message.includes('fetch')) {
       const err = new Error("Network error. Please check your connection.");
@@ -92,7 +93,7 @@ async function api(path, { method = "GET", body, token } = {}) {
       err.isNetworkError = true;
       throw err;
     }
-    
+
     // Re-throw other errors
     throw error;
   }
@@ -174,13 +175,13 @@ const ALL_IMAGES = "__ALL_IMAGES__";
 /** ---------- Icons ---------- */
 const PinOutline = () => (
   <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-       fill="none" stroke="currentColor" strokeWidth="1.5">
+    fill="none" stroke="currentColor" strokeWidth="1.5">
     <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.5V22H12.5V16H18V14L16,12Z" />
   </svg>
 );
 const PinFilled = () => (
   <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-       fill="currentColor">
+    fill="currentColor">
     <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.5V22H12.5V16H18V14L16,12Z" />
   </svg>
 );
@@ -206,7 +207,7 @@ const Sun = () => (
 const Moon = () => (
   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9 9 0 008.354-5.646z"/>
+      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9 9 0 008.354-5.646z" />
   </svg>
 );
 const ImageIcon = () => (
@@ -218,19 +219,19 @@ const ImageIcon = () => (
 );
 const GalleryIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="8" height="8" rx="1"/>
-    <rect x="13" y="3" width="8" height="8" rx="1"/>
-    <rect x="3" y="13" width="8" height="8" rx="1"/>
-    <rect x="13" y="13" width="8" height="8" rx="1"/>
-    <circle cx="6" cy="6" r="1" fill="currentColor"/>
-    <circle cx="16" cy="6" r="1" fill="currentColor"/>
-    <circle cx="6" cy="16" r="1" fill="currentColor"/>
-    <circle cx="16" cy="16" r="1" fill="currentColor"/>
+    <rect x="3" y="3" width="8" height="8" rx="1" />
+    <rect x="13" y="3" width="8" height="8" rx="1" />
+    <rect x="3" y="13" width="8" height="8" rx="1" />
+    <rect x="13" y="13" width="8" height="8" rx="1" />
+    <circle cx="6" cy="6" r="1" fill="currentColor" />
+    <circle cx="16" cy="6" r="1" fill="currentColor" />
+    <circle cx="6" cy="16" r="1" fill="currentColor" />
+    <circle cx="16" cy="16" r="1" fill="currentColor" />
   </svg>
 );
 const CloseIcon = () => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6l-12 12" />
   </svg>
 );
 const DownloadIcon = () => (
@@ -293,51 +294,61 @@ const ListIcon = () => (
 // Sun icon (light mode)
 const SunIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="5"/>
+    <circle cx="12" cy="12" r="5" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+  </svg>
+);
+
+const Sparkles = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    <path d="M5 3v4" />
+    <path d="M19 17v4" />
+    <path d="M3 5h4" />
+    <path d="M17 19h4" />
   </svg>
 );
 
 // Moon icon (dark mode)
 const MoonIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9 9 0 008.354-5.646z"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9 9 0 008.354-5.646z" />
   </svg>
 );
 
 // Multi-select icon (checkbox)
 const CheckSquareIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 11l3 3L22 4"/>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 11l3 3L22 4" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
   </svg>
 );
 
 // Admin/Shield icon
 const ShieldIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
   </svg>
 );
 
 // Sign out/Logout icon
 const LogOutIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
   </svg>
 );
 
 // Archive icon
 const ArchiveIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
   </svg>
 );
 
 // Pin icon (using the same icon as individual notes)
 const PinIcon = () => (
   <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-       fill="none" stroke="currentColor" strokeWidth="1.5">
+    fill="none" stroke="currentColor" strokeWidth="1.5">
     <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.5V22H12.5V16H18V14L16,12Z" />
   </svg>
 );
@@ -684,15 +695,15 @@ function ChecklistRow({
     size === "lg"
       ? "h-7 w-7 md:h-6 md:w-6"
       : size === "sm"
-      ? "h-4 w-4 md:h-3.5 md:w-3.5"
-      : "h-5 w-5 md:h-4 md:w-4";
+        ? "h-4 w-4 md:h-3.5 md:w-3.5"
+        : "h-5 w-5 md:h-4 md:w-4";
 
   const removeSize =
     size === "lg"
       ? "w-7 h-7 text-base md:w-6 md:h-6"
       : size === "sm"
-      ? "w-5 h-5 text-xs md:w-4 md:h-4"
-      : "w-6 h-6 text-sm md:w-5 md:h-5";
+        ? "w-5 h-5 text-xs md:w-4 md:h-4"
+        : "w-6 h-6 text-sm md:w-5 md:h-5";
 
   const removeVisibility = showRemove
     ? "opacity-80 hover:opacity-100"
@@ -1064,15 +1075,15 @@ function DrawingPreview({ data, width, height, darkMode = false }) {
     const scaleX = width / originalWidth;
     const scaleY = height / firstPageHeight;
     const scale = Math.min(scaleX, scaleY);
-    
+
     // Calculate preview dimensions (only first page, no blank space)
     const previewWidth = width;
     const previewHeight = firstPageHeight * scale;
-    
+
     // Set canvas dimensions to match preview size (no blank space below)
     canvas.width = previewWidth;
     canvas.height = previewHeight;
-    
+
     // Clear canvas with calculated dimensions
     ctx.clearRect(0, 0, previewWidth, previewHeight);
 
@@ -1137,7 +1148,7 @@ function NoteCard({
   // multi-select
   multiMode = false,
   selected = false,
-  onToggleSelect = () => {},
+  onToggleSelect = () => { },
   disablePin = false,
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
   // online status
@@ -1146,7 +1157,7 @@ function NoteCard({
   onUpdateChecklistItem,
   currentUser,
 }) {
-  
+
   const isChecklist = n.type === "checklist";
   const isDraw = n.type === "draw";
   const previewText = useMemo(() => mdToPlain(n.content || ""), [n.content]);
@@ -1192,9 +1203,8 @@ function NoteCard({
           openModal(n.id);
         }
       }}
-      className={`note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative min-h-[54px] group ${
-        multiMode && selected ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-transparent' : ''
-      }`}
+      className={`note-card glass-card rounded-xl p-4 mb-6 cursor-pointer transform hover:scale-[1.02] transition-transform duration-200 relative min-h-[54px] group ${multiMode && selected ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-transparent' : ''
+        }`}
       style={{ backgroundColor: bgFor(n.color, dark) }}
       data-id={n.id}
       data-group={group}
@@ -1203,11 +1213,10 @@ function NoteCard({
         <div className="absolute top-3 right-3 flex items-center gap-2">
           {/* Modern checkbox */}
           <div
-            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center cursor-pointer transition-all ${
-              selected
-                ? 'bg-indigo-500 border-indigo-500 text-white'
-                : 'border-gray-300 dark:border-gray-500 bg-white/80 dark:bg-gray-700/80 hover:border-indigo-400'
-            }`}
+            className={`w-6 h-6 rounded-md border-2 flex items-center justify-center cursor-pointer transition-all ${selected
+              ? 'bg-indigo-500 border-indigo-500 text-white'
+              : 'border-gray-300 dark:border-gray-500 bg-white/80 dark:bg-gray-700/80 hover:border-indigo-400'
+              }`}
             onClick={(e) => {
               e.stopPropagation();
               onToggleSelect?.(n.id, !selected);
@@ -1230,10 +1239,10 @@ function NoteCard({
             title="Collaborated note"
           >
             <svg className="w-5 h-5 text-black dark:text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
             </svg>
             <svg className="w-3 h-3 absolute -top-1 -right-1 text-black dark:text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+              <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
             </svg>
           </div>
         </div>
@@ -1386,9 +1395,9 @@ function LoginView({ dark, onToggleDark, onLogin, goRegister, goSecret, allowReg
 
       <div className="mt-4 text-sm flex justify-between items-center">
         {allowRegistration && (
-        <button className="text-indigo-600 hover:underline" onClick={goRegister}>
-          Create account
-        </button>
+          <button className="text-indigo-600 hover:underline" onClick={goRegister}>
+            Create account
+          </button>
         )}
         <button className="text-indigo-600 hover:underline" onClick={goSecret}>
           Forgot username/password?
@@ -1620,7 +1629,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
 }
 
 /** ---------- Settings Panel ---------- */
-function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide }) {
+function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled }) {
   // Prevent body scroll when settings panel is open
   React.useEffect(() => {
     if (open) {
@@ -1714,21 +1723,38 @@ function SettingsPanel({ open, onClose, dark, onExportAll, onImportAll, onImport
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
+                  <div className="font-medium">Local AI Assistant</div>
+                  <div className="text-sm text-gray-500">Ask questions about your notes (tiny local model)</div>
+                </div>
+                <button
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localAiEnabled
+                    ? 'bg-indigo-600'
+                    : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                  onClick={() => setLocalAiEnabled(!localAiEnabled)}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localAiEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
                   <div className="font-medium">Always show sidebar on wide screens</div>
                   <div className="text-sm text-gray-500">Keep tags panel visible on screens wider than 700px</div>
                 </div>
                 <button
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    alwaysShowSidebarOnWide
-                      ? 'bg-indigo-600'
-                      : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${alwaysShowSidebarOnWide
+                    ? 'bg-indigo-600'
+                    : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
                   onClick={() => setAlwaysShowSidebarOnWide(!alwaysShowSidebarOnWide)}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      alwaysShowSidebarOnWide ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${alwaysShowSidebarOnWide ? 'translate-x-6' : 'translate-x-1'
+                      }`}
                   />
                 </button>
               </div>
@@ -1756,7 +1782,7 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
       showToast("Please fill in all required fields", "error");
       return;
     }
-    
+
     setIsCreatingUser(true);
     try {
       await createUser(newUserForm);
@@ -1853,7 +1879,7 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
             <CloseIcon />
           </button>
         </div>
-        
+
         <div className="p-4 overflow-y-auto h-[calc(100%-64px)]">
           {/* Settings Section */}
           <div className="mb-8">
@@ -1862,17 +1888,15 @@ function AdminPanel({ open, onClose, dark, adminSettings, allUsers, newUserForm,
               <div className="flex items-center justify-between">
                 <span className="text-sm">Allow New Account Creation</span>
                 <button
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    adminSettings.allowNewAccounts 
-                      ? 'bg-indigo-600' 
-                      : 'bg-gray-300 dark:bg-gray-600'
-                  }`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${adminSettings.allowNewAccounts
+                    ? 'bg-indigo-600'
+                    : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
                   onClick={() => updateAdminSettings({ allowNewAccounts: !adminSettings.allowNewAccounts })}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      adminSettings.allowNewAccounts ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${adminSettings.allowNewAccounts ? 'translate-x-6' : 'translate-x-1'
+                      }`}
                   />
                 </button>
               </div>
@@ -2065,7 +2089,7 @@ function NotesUI({
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
   togglePin,
   addImagesToState,
-    onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, importFileRef, gkeepFileRef, mdFileRef, signOut,
+  onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, importFileRef, gkeepFileRef, mdFileRef, signOut,
   filteredEmptyWithSearch, allEmpty,
   headerMenuOpen, setHeaderMenuOpen,
   headerMenuRef, headerBtnRef,
@@ -2085,20 +2109,20 @@ function NotesUI({
   // color popover
   colorBtnRef, showColorPop, setShowColorPop,
   // loading state
-    notesLoading,
-    // multi-select
-    multiMode,
-    selectedIds,
-    onStartMulti,
-    onExitMulti,
-    onToggleSelect,
-    onSelectAllPinned,
-    onSelectAllOthers,
-    onBulkDelete,
-    onBulkPin,
-    onBulkArchive,
-    onBulkColor,
-    onBulkDownloadZip,
+  notesLoading,
+  // multi-select
+  multiMode,
+  selectedIds,
+  onStartMulti,
+  onExitMulti,
+  onToggleSelect,
+  onSelectAllPinned,
+  onSelectAllOthers,
+  onBulkDelete,
+  onBulkPin,
+  onBulkArchive,
+  onBulkColor,
+  onBulkDownloadZip,
   // view mode
   listView,
   onToggleViewMode,
@@ -2113,14 +2137,16 @@ function NotesUI({
   openAdminPanel,
   // Settings panel
   openSettingsPanel,
+  // AI props
+  localAiEnabled, aiResponse, setAiResponse, isAiLoading, aiLoadingProgress, onAiSearch
 }) {
-    // Multi-select color popover (local UI state)
-    const multiColorBtnRef = useRef(null);
-    const [showMultiColorPop, setShowMultiColorPop] = useState(false);
+  // Multi-select color popover (local UI state)
+  const multiColorBtnRef = useRef(null);
+  const [showMultiColorPop, setShowMultiColorPop] = useState(false);
   const tagLabel =
     activeTagFilter === ALL_IMAGES ? "All Images" :
-    activeTagFilter === 'ARCHIVED' ? "Archived Notes" :
-    activeTagFilter;
+      activeTagFilter === 'ARCHIVED' ? "Archived Notes" :
+        activeTagFilter;
 
   // Close header menu when scrolling
   React.useEffect(() => {
@@ -2232,7 +2258,7 @@ function NotesUI({
               {tagLabel === "All Images" || tagLabel === "Archived Notes" ? tagLabel : `Tag: ${tagLabel}`}
             </span>
           )}
-          
+
           {/* Offline indicator */}
           {!isOnline && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/10 text-orange-700 dark:text-orange-300 border border-orange-600/20">
@@ -2245,21 +2271,38 @@ function NotesUI({
           <div className="relative w-full max-w-lg">
             <input
               type="text"
-              placeholder="Search..."
-              className="w-full bg-transparent border border-[var(--border-light)] rounded-lg pl-4 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+              placeholder={localAiEnabled ? "Search or Ask AI..." : "Search..."}
+              className={`w-full bg-transparent border border-[var(--border-light)] rounded-lg pl-4 ${localAiEnabled ? 'pr-14' : 'pr-8'} py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && localAiEnabled && search.trim().length > 0) {
+                  onAiSearch?.(search);
+                }
+              }}
             />
-            {search && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
-                onClick={() => setSearch("")}
-              >
-                ×
-              </button>
-            )}
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {localAiEnabled && search.trim().length > 0 && (
+                <button
+                  type="button"
+                  title="Ask AI"
+                  className="h-7 w-7 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-600/10 transition-colors"
+                  onClick={() => onAiSearch?.(search)}
+                >
+                  <Sparkles />
+                </button>
+              )}
+              {search && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  className="h-6 w-6 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white"
+                  onClick={() => setSearch("")}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -2294,51 +2337,51 @@ function NotesUI({
                 onClick={(e) => e.stopPropagation()}
               >
 
-              <button
-                className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); openSettingsPanel?.(); }}
-              >
-                <SettingsIcon />
-                Settings
-              </button>
-              <button
-                className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); onToggleViewMode?.(); }}
-              >
-                {listView ? <GridIcon /> : <ListIcon />}
-                {listView ? "Grid View" : "List View"}
-              </button>
-              {/* Theme toggle text item */}
-              <button
-                className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); toggleDark?.(); }}
-              >
-                {dark ? <SunIcon /> : <MoonIcon />}
-                {dark ? "Light Mode" : "Dark Mode"}
-              </button>
-              <button
-                className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); onStartMulti?.(); }}
-              >
-                <CheckSquareIcon />
-                Multi select
-              </button>
-              {currentUser?.is_admin && (
                 <button
                   className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
-                  onClick={() => { setHeaderMenuOpen(false); openAdminPanel?.(); }}
+                  onClick={() => { setHeaderMenuOpen(false); openSettingsPanel?.(); }}
                 >
-                  <ShieldIcon />
-                  Admin Panel
+                  <SettingsIcon />
+                  Settings
                 </button>
-              )}
-              <button
-                className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
-                onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
-              >
-                <LogOutIcon />
-                Sign out
-              </button>
+                <button
+                  className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                  onClick={() => { setHeaderMenuOpen(false); onToggleViewMode?.(); }}
+                >
+                  {listView ? <GridIcon /> : <ListIcon />}
+                  {listView ? "Grid View" : "List View"}
+                </button>
+                {/* Theme toggle text item */}
+                <button
+                  className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                  onClick={() => { setHeaderMenuOpen(false); toggleDark?.(); }}
+                >
+                  {dark ? <SunIcon /> : <MoonIcon />}
+                  {dark ? "Light Mode" : "Dark Mode"}
+                </button>
+                <button
+                  className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                  onClick={() => { setHeaderMenuOpen(false); onStartMulti?.(); }}
+                >
+                  <CheckSquareIcon />
+                  Multi select
+                </button>
+                {currentUser?.is_admin && (
+                  <button
+                    className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
+                    onClick={() => { setHeaderMenuOpen(false); openAdminPanel?.(); }}
+                  >
+                    <ShieldIcon />
+                    Admin Panel
+                  </button>
+                )}
+                <button
+                  className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "text-red-400 hover:bg-white/10" : "text-red-600 hover:bg-gray-100"}`}
+                  onClick={() => { setHeaderMenuOpen(false); signOut?.(); }}
+                >
+                  <LogOutIcon />
+                  Sign out
+                </button>
               </div>
             </>
           )}
@@ -2387,392 +2430,431 @@ function NotesUI({
         </div>
       </header>
 
+      {/* AI Response Box */}
+      {localAiEnabled && (aiResponse || isAiLoading) && (
+        <div className="px-4 sm:px-6 md:px-8 lg:px-12 mb-6">
+          <div className="max-w-2xl mx-auto glass-card rounded-xl shadow-lg p-5 border border-indigo-500/30 relative overflow-hidden">
+            {isAiLoading && (
+              <div className="absolute top-0 left-0 h-1 bg-indigo-500 transition-all duration-300"
+                style={{ width: aiLoadingProgress ? `${aiLoadingProgress}%` : '5%' }}
+              />
+            )}
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="text-indigo-600 dark:text-indigo-400" />
+              <h3 className="font-semibold text-indigo-700 dark:text-indigo-300">AI Assistant</h3>
+              {aiResponse && !isAiLoading && (
+                <button
+                  onClick={() => { setAiResponse(null); setSearch(''); }}
+                  className="ml-auto p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
+                  title="Clear response"
+                >
+                  <CloseIcon />
+                </button>
+              )}
+            </div>
+            <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+              {isAiLoading ? (
+                <p className="animate-pulse text-gray-500 italic flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" />
+                  AI Assistant is thinking...
+                </p>
+              ) : (
+                <div className="text-gray-800 dark:text-gray-200">
+                  {aiResponse}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Composer */}
       <div className="px-4 sm:px-6 md:px-8 lg:px-12">
         <div className="max-w-2xl mx-auto">
-        {!isOnline ? (
-          <div className="glass-card rounded-xl shadow-lg p-6 mb-8 text-center">
-            <div className="text-orange-600 dark:text-orange-400 mb-2">
-              <svg className="w-8 h-8 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+          {!isOnline ? (
+            <div className="glass-card rounded-xl shadow-lg p-6 mb-8 text-center">
+              <div className="text-orange-600 dark:text-orange-400 mb-2">
+                <svg className="w-8 h-8 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">You're offline</h3>
+              <p className="text-gray-600 dark:text-gray-400">Please go back online to add notes.</p>
             </div>
-            <h3 className="text-lg font-semibold mb-2">You're offline</h3>
-            <p className="text-gray-600 dark:text-gray-400">Please go back online to add notes.</p>
-          </div>
-        ) : (
-          <div
-            className="glass-card rounded-xl shadow-lg p-4 mb-8 relative"
-            style={{ backgroundColor: bgFor(composerColor, dark) }}
-          >
-            {/* Collapsed single input */}
-            {composerCollapsed ? (
-              <input
-                value={content}
-                onChange={(e) => {}}
-                onFocus={() => {
-                  // expand and focus title
-                  setComposerCollapsed(false);
-                  setTimeout(() => titleRef.current?.focus(), 10);
-                }}
-                placeholder="Write a note..."
-                className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
-              />
-            ) : (
-            <>
-              {/* Title */}
-              <input
-                ref={titleRef}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Title"
-                disabled={!isOnline}
-                className={`w-full bg-transparent text-lg font-semibold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-2 p-2 ${
-                  !isOnline ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              />
-
-              {/* Body, Checklist, or Drawing */}
-              {composerType === "text" ? (
-                <textarea
-                  ref={contentRef}
+          ) : (
+            <div
+              className="glass-card rounded-xl shadow-lg p-4 mb-8 relative"
+              style={{ backgroundColor: bgFor(composerColor, dark) }}
+            >
+              {/* Collapsed single input */}
+              {composerCollapsed ? (
+                <input
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  onKeyDown={onComposerKeyDown}
+                  onChange={(e) => { }}
+                  onFocus={() => {
+                    // expand and focus title
+                    setComposerCollapsed(false);
+                    setTimeout(() => titleRef.current?.focus(), 10);
+                  }}
                   placeholder="Write a note..."
-                  disabled={!isOnline}
-                  className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2 ${
-                    !isOnline ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  rows={1}
+                  className="w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2"
                 />
-              ) : composerType === "checklist" ? (
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <input
-                      value={clInput}
-                      onChange={(e) => setClInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addComposerItem(); } }}
-                      placeholder="List item…"
-                      disabled={!isOnline}
-                      className={`flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)] ${
-                        !isOnline ? 'opacity-50 cursor-not-allowed' : ''
+              ) : (
+                <>
+                  {/* Title */}
+                  <input
+                    ref={titleRef}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Title"
+                    disabled={!isOnline}
+                    className={`w-full bg-transparent text-lg font-semibold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none mb-2 p-2 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''
                       }`}
+                  />
+
+                  {/* Body, Checklist, or Drawing */}
+                  {composerType === "text" ? (
+                    <textarea
+                      ref={contentRef}
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      onKeyDown={onComposerKeyDown}
+                      placeholder="Write a note..."
+                      disabled={!isOnline}
+                      className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none p-2 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                      rows={1}
                     />
-                    <button
-                      onClick={addComposerItem}
-                      disabled={!isOnline}
-                      className={`px-3 py-1.5 rounded-lg whitespace-nowrap ${
-                        isOnline
-                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                          : 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                      }`}
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {clItems.length > 0 && (
-                    <div className="space-y-2">
-                      {clItems.map((it) => (
-                        <ChecklistRow key={it.id} item={it} readOnly disableToggle />
+                  ) : composerType === "checklist" ? (
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <input
+                          value={clInput}
+                          onChange={(e) => setClInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addComposerItem(); } }}
+                          placeholder="List item…"
+                          disabled={!isOnline}
+                          className={`flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)] ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                        />
+                        <button
+                          onClick={addComposerItem}
+                          disabled={!isOnline}
+                          className={`px-3 py-1.5 rounded-lg whitespace-nowrap ${isOnline
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                            }`}
+                        >
+                          Add
+                        </button>
+                      </div>
+                      {clItems.length > 0 && (
+                        <div className="space-y-2">
+                          {clItems.map((it) => (
+                            <ChecklistRow key={it.id} item={it} readOnly disableToggle />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <DrawingCanvas
+                      data={composerDrawingData}
+                      onChange={setComposerDrawingData}
+                      width={650}
+                      height={450}
+                      readOnly={!isOnline}
+                      darkMode={dark}
+                      hideModeToggle={true}
+                    />
+                  )}
+
+                  {/* Composer image thumbnails */}
+                  {composerImages.length > 0 && (
+                    <div className="mt-3 flex gap-2 overflow-x-auto">
+                      {composerImages.map((im) => (
+                        <div key={im.id} className="relative">
+                          <img src={im.src} alt={im.name} className="h-16 w-24 object-cover rounded-md border border-[var(--border-light)]" />
+                          <button
+                            title="Remove image"
+                            className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
+                            onClick={() => setComposerImages((prev) => prev.filter((x) => x.id !== im.id))}
+                          >
+                            ×
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
-                </div>
-              ) : (
-                <DrawingCanvas
-                  data={composerDrawingData}
-                  onChange={setComposerDrawingData}
-                  width={650}
-                  height={450}
-                  readOnly={!isOnline}
-                  darkMode={dark}
-                  hideModeToggle={true}
-                />
-              )}
 
-              {/* Composer image thumbnails */}
-              {composerImages.length > 0 && (
-                <div className="mt-3 flex gap-2 overflow-x-auto">
-                  {composerImages.map((im) => (
-                    <div key={im.id} className="relative">
-                      <img src={im.src} alt={im.name} className="h-16 w-24 object-cover rounded-md border border-[var(--border-light)]" />
+                  {/* Responsive composer footer */}
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-3 relative">
+                    <input
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      type="text"
+                      placeholder="Add tags (comma-separated)"
+                      disabled={!isOnline}
+                      className={`w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                    />
+
+                    <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none relative">
+                      {/* Formatting button (composer) - only for text mode */}
+                      {composerType === "text" && (
+                        <>
+                          <button
+                            ref={composerFmtBtnRef}
+                            type="button"
+                            onClick={() => setShowComposerFmt((v) => !v)}
+                            className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-2 text-sm"
+                            title="Formatting"
+                          >
+                            <FormatIcon /> Formatting
+                          </button>
+                          <Popover
+                            anchorRef={composerFmtBtnRef}
+                            open={showComposerFmt}
+                            onClose={() => setShowComposerFmt(false)}
+                          >
+                            <FormatToolbar dark={dark} onAction={(t) => { setShowComposerFmt(false); formatComposer(t); }} />
+                          </Popover>
+                        </>
+                      )}
+
+                      {/* Type selection buttons */}
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setComposerType("text")}
+                          className={`px-2 py-1 rounded-lg border text-sm ${composerType === "text"
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
+                            }`}
+                          title="Text note"
+                        >
+                          📝
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setComposerType("checklist")}
+                          className={`px-2 py-1 rounded-lg border text-sm ${composerType === "checklist"
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
+                            }`}
+                          title="Checklist"
+                        >
+                          ✅
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setComposerType("draw")}
+                          className={`px-2 py-1 rounded-lg border text-sm ${composerType === "draw"
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
+                            }`}
+                          title="Drawing"
+                        >
+                          🖌️
+                        </button>
+                      </div>
+
+                      {/* Color dropdown (composer) */}
                       <button
-                        title="Remove image"
-                        className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
-                        onClick={() => setComposerImages((prev) => prev.filter((x) => x.id !== im.id))}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Responsive composer footer */}
-              <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-3 relative">
-                <input
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  type="text"
-                  placeholder="Add tags (comma-separated)"
-                  disabled={!isOnline}
-                  className={`w-full sm:flex-1 bg-transparent text-sm placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 ${
-                    !isOnline ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                />
-
-                <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap sm:flex-none relative">
-                  {/* Formatting button (composer) - only for text mode */}
-                  {composerType === "text" && (
-                    <>
-                      <button
-                        ref={composerFmtBtnRef}
+                        ref={colorBtnRef}
                         type="button"
-                        onClick={() => setShowComposerFmt((v) => !v)}
-                        className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex items-center gap-2 text-sm"
-                        title="Formatting"
+                        onClick={() => setShowColorPop((v) => !v)}
+                        className="w-6 h-6 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
+                        title="Color"
+                        style={{
+                          backgroundColor: composerColor === "default" ? "transparent" : solid(bgFor(composerColor, dark)),
+                          borderColor: composerColor === "default" ? "#d1d5db" : solid(bgFor(composerColor, dark)),
+                        }}
                       >
-                        <FormatIcon /> Formatting
+                        {composerColor === "default" && (
+                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: dark ? "#1f2937" : "#fff" }} />
+                        )}
                       </button>
                       <Popover
-                        anchorRef={composerFmtBtnRef}
-                        open={showComposerFmt}
-                        onClose={() => setShowComposerFmt(false)}
+                        anchorRef={colorBtnRef}
+                        open={showColorPop}
+                        onClose={() => setShowColorPop(false)}
                       >
-                        <FormatToolbar dark={dark} onAction={(t) => { setShowComposerFmt(false); formatComposer(t); }} />
+                        <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
+                          <div className="grid grid-cols-6 gap-2">
+                            {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
+                              <ColorDot
+                                key={name}
+                                name={name}
+                                darkMode={dark}
+                                selected={composerColor === name}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setComposerColor(name);
+                                  setShowColorPop(false);
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
                       </Popover>
-                    </>
-                  )}
 
-                  {/* Type selection buttons */}
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setComposerType("text")}
-                      className={`px-2 py-1 rounded-lg border text-sm ${
-                        composerType === "text"
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      title="Text note"
-                    >
-                      📝
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setComposerType("checklist")}
-                      className={`px-2 py-1 rounded-lg border text-sm ${
-                        composerType === "checklist"
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      title="Checklist"
-                    >
-                      ✅
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setComposerType("draw")}
-                      className={`px-2 py-1 rounded-lg border text-sm ${
-                        composerType === "draw"
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10'
-                      }`}
-                      title="Drawing"
-                    >
-                      🖌️
-                    </button>
-                  </div>
+                      {/* Add Image (composer) */}
+                      <input
+                        ref={composerFileRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []);
+                          const results = [];
+                          for (const f of files) {
+                            try {
+                              const src = await fileToCompressedDataURL(f);
+                              results.push({ id: uid(), src, name: f.name });
+                            } catch (e) { }
+                          }
+                          if (results.length) setComposerImages((prev) => [...prev, ...results]);
+                          e.target.value = "";
+                        }}
+                      />
+                      <button
+                        onClick={() => composerFileRef.current?.click()}
+                        className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex-shrink-0 text-lg"
+                        title="Add images"
+                      >
+                        🖼️
+                      </button>
 
-                  {/* Color dropdown (composer) */}
-                  <button
-                    ref={colorBtnRef}
-                    type="button"
-                    onClick={() => setShowColorPop((v) => !v)}
-                    className="w-6 h-6 rounded-full border-2 border-[var(--border-light)] hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 flex items-center justify-center"
-                    title="Color"
-                    style={{
-                      backgroundColor: composerColor === "default" ? "transparent" : solid(bgFor(composerColor, dark)),
-                      borderColor: composerColor === "default" ? "#d1d5db" : solid(bgFor(composerColor, dark)),
-                    }}
-                  >
-                    {composerColor === "default" && (
-                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: dark ? "#1f2937" : "#fff" }} />
-                    )}
-                  </button>
-                  <Popover
-                    anchorRef={colorBtnRef}
-                    open={showColorPop}
-                    onClose={() => setShowColorPop(false)}
-                  >
-                    <div className={`fmt-pop ${dark ? "bg-gray-800 text-gray-100" : "bg-white text-gray-800"}`}>
-                      <div className="grid grid-cols-6 gap-2">
-                        {COLOR_ORDER.filter((name) => LIGHT_COLORS[name]).map((name) => (
-                          <ColorDot
-                            key={name}
-                            name={name}
-                            darkMode={dark}
-                            selected={composerColor === name}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setComposerColor(name);
-                              setShowColorPop(false);
-                            }}
-                          />
-                        ))}
-                      </div>
+                      {/* Add Note */}
+                      <button
+                        onClick={addNote}
+                        disabled={!isOnline}
+                        className={`px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap flex-shrink-0 ${isOnline
+                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                          : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          }`}
+                      >
+                        Add Note
+                      </button>
                     </div>
-                  </Popover>
-
-                  {/* Add Image (composer) */}
-                  <input
-                    ref={composerFileRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={async (e) => {
-                      const files = Array.from(e.target.files || []);
-                      const results = [];
-                      for (const f of files) {
-                        try {
-                          const src = await fileToCompressedDataURL(f);
-                          results.push({ id: uid(), src, name: f.name });
-                        } catch (e) {}
-                      }
-                      if (results.length) setComposerImages((prev) => [...prev, ...results]);
-                      e.target.value = "";
-                    }}
-                  />
-                  <button
-                    onClick={() => composerFileRef.current?.click()}
-                    className="px-2 py-1 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 flex-shrink-0 text-lg"
-                    title="Add images"
-                  >
-                    🖼️
-                  </button>
-
-                  {/* Add Note */}
-                  <button
-                    onClick={addNote}
-                    disabled={!isOnline}
-                    className={`px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 transition-colors whitespace-nowrap flex-shrink-0 ${
-                      isOnline 
-                        ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-                        : 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    }`}
-                  >
-                    Add Note
-                  </button>
-                </div>
-              </div>
-            </>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
-        )}
-        </div>
-      </div>
+      </div >
 
       {/* Notes lists */}
-      <main className="px-4 sm:px-6 md:px-8 lg:px-12 pb-12">
-        {pinned.length > 0 && (
-          <section className="mb-10">
-            {listView ? (
-              <div className="max-w-2xl mx-auto">
-            <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-              Pinned
-            </h2>
-              </div>
-            ) : (
-              <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-                Pinned
-              </h2>
-            )}
-            <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
-              {pinned.map((n) => (
-                <NoteCard
-                  key={n.id}
-                  n={n}
-                  dark={dark}
-                  openModal={openModal}
-                  togglePin={togglePin}
-              multiMode={multiMode}
-              selected={selectedIds.includes(String(n.id))}
-              onToggleSelect={onToggleSelect}
-                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || activeTagFilter === 'ARCHIVED'}
-                  onDragStart={onDragStart}
-                  onDragOver={onDragOver}
-                  onDragLeave={onDragLeave}
-                  onDrop={onDrop}
-                  onDragEnd={onDragEnd}
-                  isOnline={isOnline}
-                  onUpdateChecklistItem={onUpdateChecklistItem}
-                  currentUser={currentUser}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {others.length > 0 && (
-          <section>
-            {pinned.length > 0 && (
-              listView ? (
+      < main className="px-4 sm:px-6 md:px-8 lg:px-12 pb-12" >
+        {
+          pinned.length > 0 && (
+            <section className="mb-10">
+              {listView ? (
                 <div className="max-w-2xl mx-auto">
-              <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-                Others
-              </h2>
+                  <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                    Pinned
+                  </h2>
                 </div>
               ) : (
                 <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
-                  Others
+                  Pinned
                 </h2>
-              )
-            )}
-            <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
-              {others.map((n) => (
-                <NoteCard
-                  key={n.id}
-                  n={n}
-                  dark={dark}
-                  openModal={openModal}
-                  togglePin={togglePin}
-              multiMode={multiMode}
-              selected={selectedIds.includes(String(n.id))}
-              onToggleSelect={onToggleSelect}
-                  disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || activeTagFilter === 'ARCHIVED'}
-                  onDragStart={onDragStart}
-                  onDragOver={onDragOver}
-                  onDragLeave={onDragLeave}
-                  onDrop={onDrop}
-                  onDragEnd={onDragEnd}
-                  isOnline={isOnline}
-                  onUpdateChecklistItem={onUpdateChecklistItem}
-                  currentUser={currentUser}
-                />
-              ))}
-            </div>
-          </section>
-        )}
+              )}
+              <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
+                {pinned.map((n) => (
+                  <NoteCard
+                    key={n.id}
+                    n={n}
+                    dark={dark}
+                    openModal={openModal}
+                    togglePin={togglePin}
+                    multiMode={multiMode}
+                    selected={selectedIds.includes(String(n.id))}
+                    onToggleSelect={onToggleSelect}
+                    disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || activeTagFilter === 'ARCHIVED'}
+                    onDragStart={onDragStart}
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                    onDragEnd={onDragEnd}
+                    isOnline={isOnline}
+                    onUpdateChecklistItem={onUpdateChecklistItem}
+                    currentUser={currentUser}
+                  />
+                ))}
+              </div>
+            </section>
+          )
+        }
 
-        {notesLoading && (pinned.length + others.length === 0) && (
-          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
-            Loading Notes…
-          </p>
-        )}
-        {!notesLoading && filteredEmptyWithSearch && (
-          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
-            No matching notes found.
-          </p>
-        )}
-        {!notesLoading && allEmpty && (
-          <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
-            No notes yet. Add one to get started!
-          </p>
-        )}
-      </main>
-    </div>
+        {
+          others.length > 0 && (
+            <section>
+              {pinned.length > 0 && (
+                listView ? (
+                  <div className="max-w-2xl mx-auto">
+                    <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                      Others
+                    </h2>
+                  </div>
+                ) : (
+                  <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">
+                    Others
+                  </h2>
+                )
+              )}
+              <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
+                {others.map((n) => (
+                  <NoteCard
+                    key={n.id}
+                    n={n}
+                    dark={dark}
+                    openModal={openModal}
+                    togglePin={togglePin}
+                    multiMode={multiMode}
+                    selected={selectedIds.includes(String(n.id))}
+                    onToggleSelect={onToggleSelect}
+                    disablePin={('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || activeTagFilter === 'ARCHIVED'}
+                    onDragStart={onDragStart}
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                    onDragEnd={onDragEnd}
+                    isOnline={isOnline}
+                    onUpdateChecklistItem={onUpdateChecklistItem}
+                    currentUser={currentUser}
+                  />
+                ))}
+              </div>
+            </section>
+          )
+        }
+
+        {
+          notesLoading && (pinned.length + others.length === 0) && (
+            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+              Loading Notes…
+            </p>
+          )
+        }
+        {
+          !notesLoading && filteredEmptyWithSearch && (
+            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+              No matching notes found.
+            </p>
+          )
+        }
+        {
+          !notesLoading && allEmpty && (
+            <p className="text-center text-gray-500 dark:text-gray-400 mt-10">
+              No notes yet. Add one to get started!
+            </p>
+          )
+        }
+      </main >
+    </div >
   );
 }
 
@@ -2785,7 +2867,7 @@ function AdminView({ dark }) {
 
   const formatBytes = (n = 0) => {
     if (!Number.isFinite(n) || n <= 0) return "0 B";
-    const units = ["B","KB","MB","GB","TB"];
+    const units = ["B", "KB", "MB", "GB", "TB"];
     const e = Math.min(Math.floor(Math.log10(n) / 3), units.length - 1);
     const v = n / Math.pow(1024, e);
     return `${v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2)} ${units[e]}`;
@@ -2871,11 +2953,10 @@ function AdminView({ dark }) {
                   <td className="py-2 pr-3">{formatBytes(u.storage_bytes ?? 0)}</td>
                   <td className="py-2 pr-3">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.is_admin
-                          ? "bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30"
-                          : "bg-gray-500/10 text-gray-700 dark:text-gray-300 border border-gray-500/20"
-                      }`}
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.is_admin
+                        ? "bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30"
+                        : "bg-gray-500/10 text-gray-700 dark:text-gray-300 border border-gray-500/20"
+                        }`}
                     >
                       {u.is_admin ? "Yes" : "No"}
                     </span>
@@ -2942,6 +3023,17 @@ export default function App() {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     try { return parseInt(localStorage.getItem("sidebarWidth")) || 288; } catch (e) { return 288; }
   });
+
+  // Local AI
+  const [localAiEnabled, setLocalAiEnabled] = useState(() => {
+    try {
+      const stored = localStorage.getItem("localAiEnabled");
+      return stored === null ? true : stored === "true";
+    } catch (e) { return true; }
+  });
+  const [aiResponse, setAiResponse] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiLoadingProgress, setAiLoadingProgress] = useState(null);
 
   // Composer
   const [composerType, setComposerType] = useState("text");
@@ -3112,18 +3204,23 @@ export default function App() {
     try { return localStorage.getItem("viewMode") === "list"; } catch (e) { return false; }
   });
   useEffect(() => {
-    try { localStorage.setItem("viewMode", listView ? "list" : "grid"); } catch (e) {}
+    try { localStorage.setItem("viewMode", listView ? "list" : "grid"); } catch (e) { }
   }, [listView]);
   const onToggleViewMode = () => setListView((v) => !v);
 
   // Save sidebar settings
   useEffect(() => {
-    try { localStorage.setItem("sidebarAlwaysVisible", String(alwaysShowSidebarOnWide)); } catch (e) {}
+    try { localStorage.setItem("sidebarAlwaysVisible", String(alwaysShowSidebarOnWide)); } catch (e) { }
   }, [alwaysShowSidebarOnWide]);
 
   useEffect(() => {
-    try { localStorage.setItem("sidebarWidth", String(sidebarWidth)); } catch (e) {}
+    try { localStorage.setItem("sidebarWidth", String(sidebarWidth)); } catch (e) { }
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    try { localStorage.setItem("localAiEnabled", String(localAiEnabled)); } catch (e) { }
+    if (!localAiEnabled) setAiResponse(null);
+  }, [localAiEnabled]);
 
   // Window resize listener for responsive sidebar behavior
   useEffect(() => {
@@ -3168,17 +3265,17 @@ export default function App() {
       invalidateArchivedNotesCache();
       // Reload fresh data since we invalidated caches
       if (tagFilter === 'ARCHIVED') {
-        loadArchivedNotes().catch(() => {});
+        loadArchivedNotes().catch(() => { });
       } else {
-        loadNotes().catch(() => {});
+        loadNotes().catch(() => { });
       }
     } catch (e) {
       console.error("Bulk pin failed", e);
       // Reload appropriate notes based on current view
       if (tagFilter === 'ARCHIVED') {
-        loadArchivedNotes().catch(() => {});
+        loadArchivedNotes().catch(() => { });
       } else {
-        loadNotes().catch(() => {});
+        loadNotes().catch(() => { });
       }
     }
   };
@@ -3213,9 +3310,9 @@ export default function App() {
       console.error(`Bulk ${isArchiving ? 'archive' : 'unarchive'} failed`, e);
       // Reload notes on failure
       if (tagFilter === 'ARCHIVED') {
-        loadArchivedNotes().catch(() => {});
+        loadArchivedNotes().catch(() => { });
       } else {
-        loadNotes().catch(() => {});
+        loadNotes().catch(() => { });
       }
     }
   };
@@ -3265,7 +3362,7 @@ export default function App() {
       }
     } catch (e) {
       console.error("Bulk color failed", e);
-      loadNotes().catch(() => {});
+      loadNotes().catch(() => { });
     }
   };
 
@@ -3279,7 +3376,7 @@ export default function App() {
       chosen.forEach((n, idx) => {
         const md = mdForDownload(n);
         const base = sanitizeFilename(n.title || `note-${String(n.id).slice(-6)}`);
-        zip.file(`${base || `note-${idx+1}`}.md`, md);
+        zip.file(`${base || `note-${idx + 1}`}.md`, md);
       });
       const blob = await zip.generateAsync({ type: "blob" });
       const ts = new Date().toISOString().replace(/[:.]/g, "-");
@@ -3292,7 +3389,7 @@ export default function App() {
   // NEW: modal scroll container ref + state to place Edited at bottom when not scrollable
   const modalScrollRef = useRef(null);
   const [modalScrollable, setModalScrollable] = useState(false);
-  
+
   // SSE connection status
   const [sseConnected, setSseConnected] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -3315,14 +3412,14 @@ export default function App() {
   const editedStamp = useMemo(() => {
     const ts = activeNoteObj?.updated_at || activeNoteObj?.timestamp;
     const baseStamp = ts ? formatEditedStamp(ts) : "";
-    
+
     // Add collaborator info if available
     if (activeNoteObj?.lastEditedBy && activeNoteObj?.lastEditedAt) {
       const editorName = activeNoteObj.lastEditedBy;
       const editTime = formatEditedStamp(activeNoteObj.lastEditedAt);
       return `${editorName}, ${editTime}`;
     }
-    
+
     return baseStamp;
   }, [activeNoteObj]);
 
@@ -3472,10 +3569,34 @@ export default function App() {
 
 
   // Load notes
+  const handleAiSearch = async (question) => {
+    if (!question || question.trim().length < 3) return;
+    setIsAiLoading(true);
+    setAiResponse(null);
+    setAiLoadingProgress(0);
+
+    try {
+      const answer = await askAI(question, notes, (progress) => {
+        if (progress.status === 'progress') {
+          setAiLoadingProgress(progress.progress);
+        } else if (progress.status === 'ready') {
+          setAiLoadingProgress(100);
+        }
+      });
+      setAiResponse(answer);
+    } catch (err) {
+      console.error("AI Error:", err);
+      setAiResponse("Sorry, I encountered an error while processing your request.");
+    } finally {
+      setIsAiLoading(false);
+      setAiLoadingProgress(null);
+    }
+  };
+
   const loadNotes = async () => {
     if (!token) return;
     setNotesLoading(true);
-    
+
     try {
       const data = await api("/notes", { token });
       console.log("Notes loaded from server:", data);
@@ -3572,66 +3693,66 @@ export default function App() {
   useEffect(() => {
     checkRegistrationSetting();
   }, []);
-  
+
   // Handle token expiration globally - must be after signOut is defined
   // This will be added after signOut is defined below
-  
+
   useEffect(() => {
     if (token) {
-      loadNotes().catch(() => {});
+      loadNotes().catch(() => { });
     }
     if (!token) return;
-    
+
     let es;
     let reconnectTimeout;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 10;
     const baseReconnectDelay = 1000;
-    
+
     const connectSSE = () => {
       try {
         const url = new URL(`${window.location.origin}/api/events`);
         url.searchParams.set("token", token);
         url.searchParams.set("_t", Date.now()); // Cache buster for PWA
         es = new EventSource(url.toString());
-        
+
         es.onopen = () => {
           console.log("SSE connected");
           setSseConnected(true);
           reconnectAttempts = 0;
         };
-        
+
         es.onmessage = (e) => {
           try {
             const msg = JSON.parse(e.data || '{}');
             if (msg && msg.type === 'note_updated') {
               // Refresh notes list on any note update relevant to this user
               if (tagFilter === 'ARCHIVED') {
-                loadArchivedNotes().catch(() => {});
+                loadArchivedNotes().catch(() => { });
               } else {
-                loadNotes().catch(() => {});
+                loadNotes().catch(() => { });
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         };
-        
+
         es.addEventListener('note_updated', (e) => {
           try {
             const msg = JSON.parse(e.data || '{}');
             if (msg && msg.noteId) {
               if (tagFilter === 'ARCHIVED') {
-                loadArchivedNotes().catch(() => {});
+                loadArchivedNotes().catch(() => { });
               } else {
-                loadNotes().catch(() => {});
+                loadNotes().catch(() => { });
               }
             }
-          } catch (e) {}
+          } catch (e) { }
         });
-        
+
         es.onerror = (error) => {
           console.log("SSE error, attempting reconnect...", error);
           setSseConnected(false);
-          
+
           // Check if SSE is in a failed state (readyState 2 = CLOSED, usually means 401/auth error)
           if (es.readyState === EventSource.CLOSED) {
             // If it's closed due to auth error, check if token is still valid
@@ -3643,9 +3764,9 @@ export default function App() {
               return;
             }
           }
-          
+
           es.close();
-          
+
           if (reconnectAttempts < maxReconnectAttempts) {
             const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
             reconnectTimeout = setTimeout(() => {
@@ -3662,14 +3783,14 @@ export default function App() {
             console.log("SSE reconnection attempts exhausted");
           }
         };
-        
+
       } catch (error) {
         console.error("Failed to create EventSource:", error);
       }
     };
-    
+
     connectSSE();
-    
+
     // Fallback polling mechanism in case SSE fails
     let pollInterval;
     const startPolling = () => {
@@ -3677,19 +3798,19 @@ export default function App() {
         // Only poll if SSE is not connected
         if (!es || es.readyState === EventSource.CLOSED) {
           if (tagFilter === 'ARCHIVED') {
-            loadArchivedNotes().catch(() => {});
+            loadArchivedNotes().catch(() => { });
           } else {
-            loadNotes().catch(() => {});
+            loadNotes().catch(() => { });
           }
         }
       }, 30000); // Poll every 30 seconds as fallback
     };
-    
+
     // Start polling after a delay
     const pollTimeout = setTimeout(startPolling, 10000);
-    
 
-    
+
+
     // Handle page visibility changes (PWA background/foreground)
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
@@ -3697,17 +3818,17 @@ export default function App() {
         try {
           // Quick health check - this will fail with 401 if token is expired
           await api("/health", { token });
-          
+
           // Token is valid, reconnect if needed
           if (es && es.readyState === EventSource.CLOSED) {
             connectSSE();
           }
-          
+
           // Also refresh notes when page becomes visible
           if (tagFilter === 'ARCHIVED') {
-            loadArchivedNotes().catch(() => {});
+            loadArchivedNotes().catch(() => { });
           } else {
-            loadNotes().catch(() => {});
+            loadNotes().catch(() => { });
           }
         } catch (error) {
           // If health check fails with 401, the api function will handle auth expiration
@@ -3719,36 +3840,36 @@ export default function App() {
               connectSSE();
             }
             if (tagFilter === 'ARCHIVED') {
-              loadArchivedNotes().catch(() => {});
+              loadArchivedNotes().catch(() => { });
             } else {
-              loadNotes().catch(() => {});
+              loadNotes().catch(() => { });
             }
           }
         }
       }
     };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     // Handle online/offline events
     const handleOnline = () => {
       console.log("App went online");
       setIsOnline(true);
     };
-    
+
     const handleOffline = () => {
       console.log("App went offline");
       setIsOnline(false);
     };
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       setSseConnected(false);
-      try { 
-        if (es) es.close(); 
-      } catch (e) {}
+      try {
+        if (es) es.close();
+      } catch (e) { }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
@@ -3818,7 +3939,7 @@ export default function App() {
     try {
       const serverDrawingData = JSON.parse(n.content || "[]");
       // Handle backward compatibility: if it's an array, convert to new format
-      const normalizedData = Array.isArray(serverDrawingData) 
+      const normalizedData = Array.isArray(serverDrawingData)
         ? { paths: serverDrawingData, dimensions: null }
         : serverDrawingData;
       const prevJson = JSON.stringify(prevDrawingRef.current || []);
@@ -3831,7 +3952,7 @@ export default function App() {
       // Invalid JSON, ignore
     }
   }, [notes, open, activeId]);
-  
+
   // No infinite scroll
 
   // Lock body scroll on modal & image viewer
@@ -3881,14 +4002,14 @@ export default function App() {
   const resizeModalTextarea = useMemo(() => {
     let timeoutId = null;
     return () => {
-    const el = mBodyRef.current;
-    if (!el) return;
-      
+      const el = mBodyRef.current;
+      if (!el) return;
+
       // Clear previous timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      
+
       // Debounce the resize to prevent excessive updates
       timeoutId = setTimeout(() => {
         const modalScrollEl = modalScrollRef.current;
@@ -3989,7 +4110,7 @@ export default function App() {
     navigate("#/notes");
     return { ok: true };
   };
-  
+
   // Handle token expiration globally
   useEffect(() => {
     const handleAuthExpired = () => {
@@ -4011,9 +4132,9 @@ export default function App() {
       }
       navigate("#/login");
     };
-    
+
     window.addEventListener('auth-expired', handleAuthExpired);
-    
+
     return () => {
       window.removeEventListener('auth-expired', handleAuthExpired);
     };
@@ -4056,12 +4177,12 @@ export default function App() {
       timestamp: nowIso,
       updated_at: nowIso,
     };
-    
+
     try {
       const created = await api("/notes", { method: "POST", body: newNote, token });
-      setNotes((prev) => sortNotesByRecency([created, ...(Array.isArray(prev)?prev:[])]));
+      setNotes((prev) => sortNotesByRecency([created, ...(Array.isArray(prev) ? prev : [])]));
       invalidateNotesCache();
-      
+
       // Reset composer after successful add
       setTitle("");
       setContent("");
@@ -4090,11 +4211,11 @@ export default function App() {
   const handleArchiveNote = async (noteId, archived) => {
     try {
       await api(`/notes/${noteId}/archive`, { method: "POST", token, body: { archived } });
-      
+
       // Invalidate both caches since archiving affects both regular and archived notes
       invalidateNotesCache();
       invalidateArchivedNotesCache();
-      
+
       // Reload appropriate notes based on current view
       if (tagFilter === 'ARCHIVED') {
         if (!archived) {
@@ -4107,7 +4228,7 @@ export default function App() {
       } else {
         await loadNotes();
       }
-      
+
       if (archived) {
         closeModal();
       }
@@ -4279,7 +4400,7 @@ export default function App() {
             position: ms,
             timestamp,
           });
-        } catch (e) {}
+        } catch (e) { }
       }
       if (!notesArr.length) { alert("No valid Google Keep notes found."); return; }
       await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
@@ -4296,16 +4417,16 @@ export default function App() {
       const files = Array.from(fileList || []);
       if (!files.length) return;
       const notesArr = [];
-      
+
       for (const file of files) {
         try {
           const text = await file.text();
           const lines = text.split('\n');
-          
+
           // Extract title from first line if it starts with #
           let title = "";
           let contentStartIndex = 0;
-          
+
           if (lines[0] && lines[0].trim().startsWith('#')) {
             // Remove # symbols and trim
             title = lines[0].replace(/^#+\s*/, '').trim();
@@ -4314,10 +4435,10 @@ export default function App() {
             // Use filename as title (without .md extension)
             title = file.name.replace(/\.md$/i, '');
           }
-          
+
           // Join remaining lines as content
           const content = lines.slice(contentStartIndex).join('\n').trim();
-          
+
           if (title || content) {
             notesArr.push({
               id: uid(),
@@ -4336,12 +4457,12 @@ export default function App() {
           console.error(`Failed to process file ${file.name}:`, e);
         }
       }
-      
-      if (!notesArr.length) { 
-        alert("No valid markdown files found."); 
-        return; 
+
+      if (!notesArr.length) {
+        alert("No valid markdown files found.");
+        return;
       }
-      
+
       await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
       await loadNotes();
       alert(`Imported ${notesArr.length} markdown file(s) successfully.`);
@@ -4360,7 +4481,7 @@ export default function App() {
     try {
       const collaborators = await api(`/notes/${noteId}/collaborators`, { token });
       setNoteCollaborators(collaborators || []);
-      
+
       // Check if current user is the owner
       // Try to get note from current notes list
       const note = notes.find(n => String(n.id) === String(noteId));
@@ -4425,7 +4546,7 @@ export default function App() {
       const users = await api(`/users/search?q=${encodeURIComponent(searchQuery)}`, { token });
       // Filter out current user and existing collaborators
       const existingCollaboratorIds = new Set(addModalCollaborators.map(c => c.id));
-      const filtered = users.filter(u => 
+      const filtered = users.filter(u =>
         u.id !== currentUser?.id && !existingCollaboratorIds.has(u.id)
       );
       setFilteredUsers(filtered);
@@ -4489,26 +4610,26 @@ export default function App() {
   const addCollaborator = async (username) => {
     try {
       if (!activeId) return;
-      
+
       // Add collaborator to the note
-      const result = await api(`/notes/${activeId}/collaborate`, { 
-        method: "POST", 
-        token, 
-        body: { username } 
+      const result = await api(`/notes/${activeId}/collaborate`, {
+        method: "POST",
+        token,
+        body: { username }
       });
-      
+
       // Update local note with collaborator info
-      setNotes((prev) => prev.map((n) => 
-        String(n.id) === String(activeId) 
-          ? { 
-              ...n, 
-              collaborators: [...(n.collaborators || []), username],
-              lastEditedBy: currentUser?.email || currentUser?.name,
-              lastEditedAt: new Date().toISOString()
-            }
+      setNotes((prev) => prev.map((n) =>
+        String(n.id) === String(activeId)
+          ? {
+            ...n,
+            collaborators: [...(n.collaborators || []), username],
+            lastEditedBy: currentUser?.email || currentUser?.name,
+            lastEditedAt: new Date().toISOString()
+          }
           : n
       ));
-      
+
       showToast(`Added ${username} as collaborator successfully!`, "success");
       setCollaboratorUsername("");
       setShowUserDropdown(false);
@@ -4617,7 +4738,7 @@ export default function App() {
     setMImages(Array.isArray(n.images) ? n.images : []);
     setTagInput("");
     setMColor(n.color || "default");
-    
+
     // Store initial state to detect if user actually edited
     initialModalStateRef.current = {
       title: n.title || "",
@@ -4626,12 +4747,12 @@ export default function App() {
       images: Array.isArray(n.images) ? n.images : [],
       color: n.color || "default",
     };
-    
+
     setViewMode(true);
     setModalMenuOpen(false);
     setOpen(true);
   };
-  
+
   // Check if note is collaborative (has collaborators or is owned by someone else)
   const isCollaborativeNote = useCallback((noteId) => {
     if (!noteId) return false;
@@ -4641,10 +4762,10 @@ export default function App() {
     const isOwnedByOther = note.user_id && currentUser && note.user_id !== currentUser.id;
     return hasCollaborators || isOwnedByOther;
   }, [notes, currentUser]);
-  
+
   // Auto-save timeout ref - must be defined before closeModal
   const autoSaveTimeoutRef = useRef(null);
-  
+
   // Check if the note has been modified from initial state
   const hasNoteBeenModified = useCallback(() => {
     if (!initialModalStateRef.current || !activeId) return false;
@@ -4665,38 +4786,38 @@ export default function App() {
       initial.color !== current.color
     );
   }, [activeId, mTitle, mBody, mTagList, mImages, mColor]);
-  
+
   // Save metadata (color, tags, images) immediately for collaborative notes
   // This works even in view mode since these are metadata changes, not content changes
   const saveCollaborativeMetadata = useCallback(async () => {
     if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId) || !isOnline) return;
-    
+
     const base = {
       id: activeId,
       title: mTitle.trim(),
       tags: mTagList,
       images: mImages,
       color: mColor,
-      pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+      pinned: !!notes.find(n => String(n.id) === String(activeId))?.pinned,
     };
     const payload = { ...base, type: "text", content: mBody, items: [] };
 
     try {
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
       invalidateNotesCache();
-      
+
       // Update local state
       const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
-        (String(n.id) === String(activeId) ? { 
-          ...n, 
-          ...payload, 
-          updated_at: nowIso,
-          lastEditedBy: currentUser?.email || currentUser?.name,
-          lastEditedAt: nowIso
-        } : n)
+      (String(n.id) === String(activeId) ? {
+        ...n,
+        ...payload,
+        updated_at: nowIso,
+        lastEditedBy: currentUser?.email || currentUser?.name,
+        lastEditedAt: nowIso
+      } : n)
       ));
-      
+
       // Update initial state so hasNoteBeenModified doesn't think it's changed
       if (initialModalStateRef.current) {
         initialModalStateRef.current = {
@@ -4716,12 +4837,12 @@ export default function App() {
   // Auto-save for collaborative text notes - must be defined before useEffect that uses it
   const autoSaveCollaborativeNote = useCallback(async () => {
     if (activeId == null || mType !== "text" || !isCollaborativeNote(activeId) || viewMode || !hasNoteBeenModified()) return;
-    
+
     // Clear existing timeout
     if (autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
     }
-    
+
     // Set new timeout for debounced save
     autoSaveTimeoutRef.current = setTimeout(async () => {
       const base = {
@@ -4730,24 +4851,24 @@ export default function App() {
         tags: mTagList,
         images: mImages,
         color: mColor,
-        pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+        pinned: !!notes.find(n => String(n.id) === String(activeId))?.pinned,
       };
       const payload = { ...base, type: "text", content: mBody, items: [] };
 
       try {
         await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
         invalidateNotesCache();
-        
+
         // Update local state
         const nowIso = new Date().toISOString();
         setNotes((prev) => prev.map((n) =>
-          (String(n.id) === String(activeId) ? { 
-            ...n, 
-            ...payload, 
-            updated_at: nowIso,
-            lastEditedBy: currentUser?.email || currentUser?.name,
-            lastEditedAt: nowIso
-          } : n)
+        (String(n.id) === String(activeId) ? {
+          ...n,
+          ...payload,
+          updated_at: nowIso,
+          lastEditedBy: currentUser?.email || currentUser?.name,
+          lastEditedAt: nowIso
+        } : n)
         ));
       } catch (e) {
         console.error("Auto-save failed:", e);
@@ -4766,7 +4887,7 @@ export default function App() {
         const colorChanged = initial.color !== mColor;
         const tagsChanged = JSON.stringify(initial.tags) !== JSON.stringify(mTagList);
         const imagesChanged = JSON.stringify(initial.images) !== JSON.stringify(mImages);
-        
+
         if (colorChanged || tagsChanged || imagesChanged) {
           saveCollaborativeMetadata();
         }
@@ -4779,7 +4900,7 @@ export default function App() {
     if (activeId && mType === "text" && isCollaborativeNote(activeId) && isOnline && !viewMode && hasNoteBeenModified()) {
       autoSaveCollaborativeNote();
     }
-    
+
     // Cleanup timeout on unmount or when dependencies change
     return () => {
       if (autoSaveTimeoutRef.current) {
@@ -4787,7 +4908,7 @@ export default function App() {
       }
     };
   }, [mBody, mTitle, activeId, mType, isCollaborativeNote, isOnline, viewMode, hasNoteBeenModified, autoSaveCollaborativeNote]);
-  
+
   // Update initial state reference when note is updated from server (for collaborative notes)
   // This prevents overwriting server changes when user hasn't edited locally
   // Must be after hasNoteBeenModified is defined
@@ -4795,7 +4916,7 @@ export default function App() {
     if (!open || !activeId || !initialModalStateRef.current) return;
     const n = notes.find((x) => String(x.id) === String(activeId));
     if (!n || n.type === "draw") return;
-    
+
     // Check if server version is different from our initial state
     const serverState = {
       title: n.title || "",
@@ -4804,7 +4925,7 @@ export default function App() {
       images: Array.isArray(n.images) ? n.images : [],
       color: n.color || "default",
     };
-    
+
     const initial = initialModalStateRef.current;
     const serverChanged = (
       initial.title !== serverState.title ||
@@ -4813,7 +4934,7 @@ export default function App() {
       JSON.stringify(initial.images) !== JSON.stringify(serverState.images) ||
       initial.color !== serverState.color
     );
-    
+
     // If server changed and user hasn't edited locally, update initial state to server state
     // This prevents overwriting server changes when user closes without editing
     if (serverChanged && !hasNoteBeenModified()) {
@@ -4826,7 +4947,7 @@ export default function App() {
       setMColor(serverState.color);
     }
   }, [notes, open, activeId, hasNoteBeenModified]);
-  
+
   const closeModal = () => {
     // Save any pending changes for collaborative text notes before closing
     // Only save if NOT in view mode AND user has actually edited - don't overwrite with stale data
@@ -4842,27 +4963,27 @@ export default function App() {
         tags: mTagList,
         images: mImages,
         color: mColor,
-        pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+        pinned: !!notes.find(n => String(n.id) === String(activeId))?.pinned,
       };
       const payload = { ...base, type: "text", content: mBody, items: [] };
-      
+
       api(`/notes/${activeId}`, { method: "PUT", token, body: payload })
         .then(() => {
           invalidateNotesCache();
           const nowIso = new Date().toISOString();
           setNotes((prev) => prev.map((n) =>
-            (String(n.id) === String(activeId) ? { 
-              ...n, 
-              ...payload, 
-              updated_at: nowIso,
-              lastEditedBy: currentUser?.email || currentUser?.name,
-              lastEditedAt: nowIso
-            } : n)
+          (String(n.id) === String(activeId) ? {
+            ...n,
+            ...payload,
+            updated_at: nowIso,
+            lastEditedBy: currentUser?.email || currentUser?.name,
+            lastEditedAt: nowIso
+          } : n)
           ));
         })
         .catch((e) => console.error("Final save on close failed:", e));
     }
-    
+
     setOpen(false);
     setActiveId(null);
     setViewMode(true);
@@ -4879,33 +5000,33 @@ export default function App() {
       tags: mTagList,
       images: mImages,
       color: mColor,
-      pinned: !!notes.find(n=>String(n.id)===String(activeId))?.pinned,
+      pinned: !!notes.find(n => String(n.id) === String(activeId))?.pinned,
     };
     const payload =
       mType === "text"
         ? { ...base, type: "text", content: mBody, items: [] }
         : mType === "checklist"
-        ? { ...base, type: "checklist", content: "", items: mItems }
-        : { ...base, type: "draw", content: JSON.stringify(mDrawingData), items: [] };
+          ? { ...base, type: "checklist", content: "", items: mItems }
+          : { ...base, type: "draw", content: JSON.stringify(mDrawingData), items: [] };
 
     try {
       setSavingModal(true);
-      
+
       await api(`/notes/${activeId}`, { method: "PUT", token, body: payload });
       invalidateNotesCache();
-      
+
       prevItemsRef.current = mType === "checklist" ? (Array.isArray(mItems) ? mItems : []) : [];
       prevDrawingRef.current = mType === "draw" ? (mDrawingData || { paths: [], dimensions: null }) : { paths: [], dimensions: null };
       // Also update updated_at locally so the Edited stamp updates immediately
       const nowIso = new Date().toISOString();
       setNotes((prev) => prev.map((n) =>
-        (String(n.id) === String(activeId) ? { 
-          ...n, 
-          ...payload, 
-          updated_at: nowIso,
-          lastEditedBy: currentUser?.email || currentUser?.name,
-          lastEditedAt: nowIso
-        } : n)
+      (String(n.id) === String(activeId) ? {
+        ...n,
+        ...payload,
+        updated_at: nowIso,
+        lastEditedBy: currentUser?.email || currentUser?.name,
+        lastEditedAt: nowIso
+      } : n)
       ));
       closeModal();
     } catch (e) {
@@ -4923,10 +5044,10 @@ export default function App() {
         showToast("You can't delete this note as you don't own it", "error");
         return;
       }
-      
+
       await api(`/notes/${activeId}`, { method: "DELETE", token });
       invalidateNotesCache();
-      
+
       setNotes((prev) => prev.filter((n) => String(n.id) !== String(activeId)));
       closeModal();
       showToast("Note deleted successfully", "success");
@@ -4942,7 +5063,7 @@ export default function App() {
     try {
       await api(`/notes/${id}`, { method: "PATCH", token, body: { pinned: !!toPinned } });
       invalidateNotesCache();
-      
+
       setNotes((prev) => prev.map((n) => (String(n.id) === String(id) ? { ...n, pinned: !!toPinned } : n)));
     } catch (e) {
       alert(e.message || "Failed to toggle pin");
@@ -5001,7 +5122,7 @@ export default function App() {
       await api("/notes/reorder", { method: "POST", token, body: { pinnedIds: newPinned, otherIds: newOthers } });
     } catch (e) {
       console.error("Reorder failed:", e);
-      loadNotes().catch(() => {});
+      loadNotes().catch(() => { });
     }
     dragGroup.current = null;
   };
@@ -5158,7 +5279,7 @@ export default function App() {
       setter(snippet);
       requestAnimationFrame(() => {
         el.focus();
-        try { el.setSelectionRange(snippet.length, snippet.length); } catch (e) {}
+        try { el.setSelectionRange(snippet.length, snippet.length); } catch (e) { }
       });
       return;
     }
@@ -5170,7 +5291,7 @@ export default function App() {
       setter(newValue);
       requestAnimationFrame(() => {
         el.focus();
-        try { el.setSelectionRange(start + snippet.length, start + snippet.length); } catch (e) {}
+        try { el.setSelectionRange(start + snippet.length, start + snippet.length); } catch (e) { }
       });
       return;
     }
@@ -5196,7 +5317,7 @@ export default function App() {
       el.focus();
       try {
         el.setSelectionRange(result.range[0], result.range[1]);
-      } catch (e) {}
+      } catch (e) { }
     });
   };
   const formatComposer = (type) => runFormat(() => content, setContent, contentRef, type);
@@ -5215,7 +5336,7 @@ export default function App() {
       e.preventDefault();
       setContent(res.text);
       requestAnimationFrame(() => {
-        try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) {}
+        try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) { }
         el.style.height = "auto";
         el.style.height = el.scrollHeight + "px";
       });
@@ -5288,7 +5409,7 @@ export default function App() {
     const mo = new MutationObserver(() => attach());
     try {
       mo.observe(root, { childList: true, subtree: true });
-    } catch (e) {}
+    } catch (e) { }
 
     return () => {
       clearTimeout(t1);
@@ -5333,9 +5454,8 @@ export default function App() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <input
-                  className={`flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2 ${
-                    !isOnline ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   value={mTitle}
                   onChange={(e) => { if (isOnline) setMTitle(e.target.value) }}
                   placeholder="Title"
@@ -5354,10 +5474,10 @@ export default function App() {
                     }}
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"/>
+                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z" />
                     </svg>
                     <svg className="w-3 h-3 absolute -top-1 -right-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"/>
+                      <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
                     </svg>
                   </button>
 
@@ -5510,9 +5630,8 @@ export default function App() {
                   <div className="relative min-h-[160px]">
                     <textarea
                       ref={mBodyRef}
-                      className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px] ${
-                        !isOnline ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px] ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                       style={{ scrollBehavior: 'unset' }}
                       value={mBody}
                       onChange={(e) => { if (isOnline) { setMBody(e.target.value); resizeModalTextarea(); } }}
@@ -5533,7 +5652,7 @@ export default function App() {
                             e.preventDefault();
                             setMBody(res.text);
                             requestAnimationFrame(() => {
-                              try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) {}
+                              try { el.setSelectionRange(res.range[0], res.range[1]); } catch (e) { }
                               resizeModalTextarea();
 
                               // If we were on the last line, scroll down a bit to ensure cursor visibility
@@ -5578,14 +5697,14 @@ export default function App() {
                               const newItems = [...mItems, { id: uid(), text: t, done: false }];
                               setMItems(newItems);
                               setMInput("");
-                                                              try {
-                                    if (activeId) {
-                                      await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                      prevItemsRef.current = newItems;
-                                    }
-                                  } catch (e) {
-                                    // Handle error silently
-                                  }
+                              try {
+                                if (activeId) {
+                                  await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                  prevItemsRef.current = newItems;
+                                }
+                              } catch (e) {
+                                // Handle error silently
+                              }
                             }
                           }
                         }}
@@ -5593,9 +5712,9 @@ export default function App() {
                         className="flex-1 bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none p-2 border-b border-[var(--border-light)]"
                       />
                       <button
-                        onClick={async () => { 
+                        onClick={async () => {
                           const t = mInput.trim();
-                          if (t) { 
+                          if (t) {
                             const newItems = [...mItems, { id: uid(), text: t, done: false }];
                             setMItems(newItems);
                             setMInput("");
@@ -5604,8 +5723,8 @@ export default function App() {
                                 await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                 prevItemsRef.current = newItems;
                               }
-                            } catch (e) {}
-                          } 
+                            } catch (e) { }
+                          }
                         }}
                         className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                       >
@@ -5692,53 +5811,53 @@ export default function App() {
                           </div>
 
                           <div className="flex-1">
-                          <ChecklistRow
-                            item={it}
-                            readOnly={!isOnline}
-                            disableToggle={!isOnline}      /* disable toggle when offline */
-                            showRemove={isOnline && true}  /* show delete X only when online */
-                            size="lg"                  /* bigger checkboxes and X in modal */
-                            onToggle={async (checked, e) => {
-                              e?.stopPropagation(); // Prevent any unwanted event bubbling
-                              if (!isOnline) return;
-                              const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
-                              setMItems(newItems);
-                                                        try {
-                              if (activeId) {
-                                await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                prevItemsRef.current = newItems;
-                              }
-                            } catch (e) {
-                              // Handle error silently
-                            }
-                            }}
-                            onChange={async (txt) => {
-                              if (!isOnline) return;
-                              const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
-                              setMItems(newItems);
-                              try {
-                                if (activeId) {
-                                  await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                  prevItemsRef.current = newItems;
+                            <ChecklistRow
+                              item={it}
+                              readOnly={!isOnline}
+                              disableToggle={!isOnline}      /* disable toggle when offline */
+                              showRemove={isOnline && true}  /* show delete X only when online */
+                              size="lg"                  /* bigger checkboxes and X in modal */
+                              onToggle={async (checked, e) => {
+                                e?.stopPropagation(); // Prevent any unwanted event bubbling
+                                if (!isOnline) return;
+                                const newItems = mItems.map(p => p.id === it.id ? { ...p, done: checked } : p);
+                                setMItems(newItems);
+                                try {
+                                  if (activeId) {
+                                    await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                    prevItemsRef.current = newItems;
+                                  }
+                                } catch (e) {
+                                  // Handle error silently
                                 }
-                              } catch (e) {}
-                            }}
-                            onRemove={async () => {
-                              if (!isOnline) return;
-                              const newItems = mItems.filter(p => p.id !== it.id);
-                              setMItems(newItems);
-                              try {
-                                if (activeId) {
-                                  await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
-                                  prevItemsRef.current = newItems;
-                                }
-                              } catch (e) {}
-                            }}
-                          />
+                              }}
+                              onChange={async (txt) => {
+                                if (!isOnline) return;
+                                const newItems = mItems.map(p => p.id === it.id ? { ...p, text: txt } : p);
+                                setMItems(newItems);
+                                try {
+                                  if (activeId) {
+                                    await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                    prevItemsRef.current = newItems;
+                                  }
+                                } catch (e) { }
+                              }}
+                              onRemove={async () => {
+                                if (!isOnline) return;
+                                const newItems = mItems.filter(p => p.id !== it.id);
+                                setMItems(newItems);
+                                try {
+                                  if (activeId) {
+                                    await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
+                                    prevItemsRef.current = newItems;
+                                  }
+                                } catch (e) { }
+                              }}
+                            />
                           </div>
                         </div>
                       ))}
-                      
+
                       {/* Done section */}
                       {mItems.filter(it => it.done).length > 0 && (
                         <>
@@ -5762,7 +5881,7 @@ export default function App() {
                                       await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                       prevItemsRef.current = newItems;
                                     }
-                                  } catch (e) {}
+                                  } catch (e) { }
                                 }}
                                 onChange={async (txt) => {
                                   if (!isOnline) return;
@@ -5773,7 +5892,7 @@ export default function App() {
                                       await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                       prevItemsRef.current = newItems;
                                     }
-                                  } catch (e) {}
+                                  } catch (e) { }
                                 }}
                                 onRemove={async () => {
                                   if (!isOnline) return;
@@ -5784,10 +5903,10 @@ export default function App() {
                                       await api(`/notes/${activeId}`, { method: "PATCH", token, body: { items: newItems, type: "checklist", content: "" } });
                                       prevItemsRef.current = newItems;
                                     }
-                                  } catch (e) {}
+                                  } catch (e) { }
                                 }}
-                        />
-                      ))}
+                              />
+                            ))}
                           </div>
                         </>
                       )}
@@ -5964,7 +6083,7 @@ export default function App() {
                   </button>
                   <button
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                    onClick={async () => { setConfirmDeleteOpen(false); await deleteModal();}}
+                    onClick={async () => { setConfirmDeleteOpen(false); await deleteModal(); }}
                   >
                     Delete
                   </button>
@@ -5995,13 +6114,13 @@ export default function App() {
                   // Check if user owns the note (or if it's a new note)
                   const note = activeId ? notes.find(n => String(n.id) === String(activeId)) : null;
                   const isOwner = !activeId || note?.user_id === currentUser?.id;
-                  
+
                   return (
                     <>
                       <h3 className="text-lg font-semibold mb-4">
                         {isOwner ? "Add Collaborator" : "Collaborators"}
                       </h3>
-                      
+
                       {/* Show existing collaborators with remove option */}
                       {addModalCollaborators.length > 0 && (
                         <div className="mb-4">
@@ -6009,7 +6128,7 @@ export default function App() {
                           <div className="space-y-2 max-h-48 overflow-y-auto">
                             {addModalCollaborators.map((collab) => {
                               const canRemove = isOwner || collab.id === currentUser?.id;
-                              
+
                               return (
                                 <div
                                   key={collab.id}
@@ -6036,7 +6155,7 @@ export default function App() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Only show add collaborator input/button if user owns the note */}
                       {isOwner && (
                         <>
@@ -6100,7 +6219,7 @@ export default function App() {
                           </div>
                         </>
                       )}
-                      
+
                       {/* If user doesn't own the note, show only cancel button */}
                       {!isOwner && (
                         <div className="mt-5 flex justify-end gap-3">
@@ -6221,14 +6340,14 @@ export default function App() {
           {/* Image */}
           <img
             src={mImages[imgViewIndex].src}
-            alt={mImages[imgViewIndex].name || `image-${imgViewIndex+1}`}
+            alt={mImages[imgViewIndex].name || `image-${imgViewIndex + 1}`}
             className="max-w-[92vw] max-h-[92vh] object-contain rounded-lg shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
           {/* Caption */}
           <div className="absolute bottom-6 px-3 py-1 rounded bg-black/50 text-white text-xs">
-            {mImages[imgViewIndex].name || `image-${imgViewIndex+1}`}
-            {mImages.length > 1 ? `  (${imgViewIndex+1}/${mImages.length})` : ""}
+            {mImages[imgViewIndex].name || `image-${imgViewIndex + 1}`}
+            {mImages.length > 1 ? `  (${imgViewIndex + 1}/${mImages.length})` : ""}
           </div>
         </div>
       )}
@@ -6346,6 +6465,8 @@ export default function App() {
         onDownloadSecretKey={downloadSecretKey}
         alwaysShowSidebarOnWide={alwaysShowSidebarOnWide}
         setAlwaysShowSidebarOnWide={setAlwaysShowSidebarOnWide}
+        localAiEnabled={localAiEnabled}
+        setLocalAiEnabled={setLocalAiEnabled}
       />
 
       {/* Admin Panel */}
@@ -6423,6 +6544,13 @@ export default function App() {
         activeTagFilter={tagFilter}
         sidebarPermanent={alwaysShowSidebarOnWide && windowWidth >= 700}
         sidebarWidth={sidebarWidth}
+        // AI props
+        localAiEnabled={localAiEnabled}
+        aiResponse={aiResponse}
+        setAiResponse={setAiResponse}
+        isAiLoading={isAiLoading}
+        aiLoadingProgress={aiLoadingProgress}
+        onAiSearch={handleAiSearch}
         // formatting props
         formatComposer={formatComposer}
         showComposerFmt={showComposerFmt}
@@ -6514,13 +6642,12 @@ export default function App() {
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`px-4 py-2 rounded-lg shadow-lg max-w-sm animate-in slide-in-from-right-2 ${
-                toast.type === 'success'
-                  ? 'bg-green-600 text-white'
-                  : toast.type === 'error'
+              className={`px-4 py-2 rounded-lg shadow-lg max-w-sm animate-in slide-in-from-right-2 ${toast.type === 'success'
+                ? 'bg-green-600 text-white'
+                : toast.type === 'error'
                   ? 'bg-red-600 text-white'
                   : 'bg-blue-600 text-white'
-              }`}
+                }`}
             >
               {toast.message}
             </div>

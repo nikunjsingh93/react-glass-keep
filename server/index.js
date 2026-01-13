@@ -10,6 +10,37 @@ const Database = require("better-sqlite3");
 const cors = require("cors");
 const crypto = require("crypto");
 
+// Transformers.js for server-side AI
+let pipeline;
+let env;
+let aiGenerator = null;
+
+async function initServerAI() {
+  if (aiGenerator) return;
+  try {
+    // Dynamic import since transformers is ESM and this is CJS
+    const transformers = await import('@huggingface/transformers');
+    pipeline = transformers.pipeline;
+    env = transformers.env;
+
+    // Configure env for server
+    env.allowLocalModels = false;
+    // Cache directory in Docker
+    env.cacheDir = path.join(__dirname, '..', 'data', 'ai-cache');
+
+    console.log("Loading high-stability AI model (Llama-3.2-1B)...");
+    // Llama-3.2-1B-Instruct-ONNX is highly compatible and excels at instruction following
+    aiGenerator = await pipeline('text-generation', 'onnx-community/Llama-3.2-1B-Instruct-ONNX', {
+      dtype: 'q4', // 4-bit quantization (~0.7GB RAM)
+    });
+    console.log("Llama AI model loaded on server.");
+  } catch (err) {
+    console.error("Failed to load AI on server:", err);
+  }
+}
+// Start loading AI in background
+initServerAI().catch(console.error);
+
 const app = express();
 const PORT = Number(process.env.API_PORT || process.env.PORT || 8080);
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-please-change";
@@ -376,7 +407,7 @@ function broadcastNoteUpdated(noteId) {
     const recipientIds = new Set([note.user_id, ...getCollaboratorUserIdsForNote(noteId)]);
     const evt = { type: "note_updated", noteId };
     for (const uid of recipientIds) sendEventToUser(uid, evt);
-  } catch {}
+  } catch { }
 }
 
 app.get("/api/events", authFromQueryOrHeader, (req, res) => {
@@ -385,10 +416,10 @@ app.get("/api/events", authFromQueryOrHeader, (req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-transform");
   res.setHeader("Connection", "keep-alive");
   // Help Nginx/Proxies not to buffer SSE
-  try { res.setHeader("X-Accel-Buffering", "no"); } catch {}
+  try { res.setHeader("X-Accel-Buffering", "no"); } catch { }
   // If served cross-origin (e.g. static site + separate API host), allow EventSource
   if (req.headers.origin) {
-    try { res.setHeader("Access-Control-Allow-Origin", req.headers.origin); } catch {}
+    try { res.setHeader("Access-Control-Allow-Origin", req.headers.origin); } catch { }
   }
   res.flushHeaders?.();
 
@@ -400,19 +431,19 @@ app.get("/api/events", authFromQueryOrHeader, (req, res) => {
 
   // Keepalive ping
   const ping = setInterval(() => {
-    try { 
-      res.write("event: ping\ndata: {}\n\n"); 
+    try {
+      res.write("event: ping\ndata: {}\n\n");
     } catch (error) {
       clearInterval(ping);
       removeSseClient(req.user.id, res);
-      try { res.end(); } catch {}
+      try { res.end(); } catch { }
     }
   }, 25000);
 
   req.on("close", () => {
     clearInterval(ping);
     removeSseClient(req.user.id, res);
-    try { res.end(); } catch {}
+    try { res.end(); } catch { }
   });
 });
 
@@ -422,7 +453,7 @@ app.post("/api/register", (req, res) => {
   if (!adminSettings.allowNewAccounts) {
     return res.status(403).json({ error: "New account creation is currently disabled." });
   }
-  
+
   const { name, email, password } = req.body || {};
   if (!email || !password)
     return res.status(400).json({ error: "Email and password are required." });
@@ -431,10 +462,10 @@ app.post("/api/register", (req, res) => {
 
   const hash = bcrypt.hashSync(password, 10);
   const info = insertUser.run(name?.trim() || "User", email.trim(), hash, nowISO());
-  
+
   // Check if this user should be promoted to admin
   const promoted = promoteToAdminIfNeeded(email.trim());
-  
+
   const user = getUserById.get(info.lastInsertRowid);
   const token = signToken(user);
   res.json({
@@ -506,7 +537,7 @@ app.get("/api/notes", auth, (req, res) => {
   const off = Number(req.query.offset ?? 0);
   const lim = Number(req.query.limit ?? 0);
   const usePaging = Number.isFinite(lim) && lim > 0 && Number.isFinite(off) && off >= 0;
-  
+
   // Get all notes (own + collaborated) in a single query to avoid duplicates
   const allNotesQuery = db.prepare(`
     SELECT DISTINCT n.* FROM notes n
@@ -516,7 +547,7 @@ app.get("/api/notes", auth, (req, res) => {
     )) AND n.archived = 0
     ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
   `);
-  
+
   const allNotesWithPagingQuery = db.prepare(`
     SELECT DISTINCT n.* FROM notes n
     WHERE (n.user_id = ? OR EXISTS(
@@ -526,16 +557,16 @@ app.get("/api/notes", auth, (req, res) => {
     ORDER BY n.pinned DESC, n.position DESC, n.timestamp DESC
     LIMIT ? OFFSET ?
   `);
-  
-  const rows = usePaging 
+
+  const rows = usePaging
     ? allNotesWithPagingQuery.all(req.user.id, req.user.id, lim, off)
     : allNotesQuery.all(req.user.id, req.user.id);
-  
+
   // Get collaborators for each note
   const getNoteCollaboratorsCount = db.prepare(`
     SELECT COUNT(*) as count FROM note_collaborators WHERE note_id = ?
   `);
-  
+
   res.json(
     rows.map((r) => {
       const collabCount = getNoteCollaboratorsCount.get(r.id);
@@ -617,11 +648,11 @@ app.put("/api/notes/:id", auth, (req, res) => {
   };
   // Use collaboration-aware update
   const result = updateNoteWithCollaboration.run(updated);
-  
+
   if (result.changes === 0) {
     return res.status(404).json({ error: "Note not found or access denied" });
   }
-  
+
   // Update editor tracking (store display name)
   updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
   broadcastNoteUpdated(id);
@@ -646,15 +677,15 @@ app.patch("/api/notes/:id", auth, (req, res) => {
   };
   // Use collaboration-aware patch
   const result = patchPartialWithCollaboration.run(p);
-  
+
   if (result.changes === 0) {
     return res.status(404).json({ error: "Note not found or access denied" });
   }
-  
+
   // Update editor tracking (store display name)
   updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
   broadcastNoteUpdated(id);
-  
+
   res.json({ ok: true });
 });
 
@@ -694,38 +725,38 @@ app.post("/api/notes/reorder", auth, (req, res) => {
 app.post("/api/notes/:id/collaborate", auth, (req, res) => {
   const noteId = req.params.id;
   const { username } = req.body || {};
-  
+
   if (!username || typeof username !== "string") {
     return res.status(400).json({ error: "Username is required" });
   }
-  
+
   // Check if note exists and user owns it
   const note = getNote.get(noteId, req.user.id);
   if (!note) {
     return res.status(404).json({ error: "Note not found" });
   }
-  
+
   // Find user to collaborate with (by email or name)
   const collaborator = getUserByEmail.get(username) || getUserByName.get(username);
   if (!collaborator) {
     return res.status(404).json({ error: "User not found" });
   }
-  
+
   // Don't allow self-collaboration
   if (collaborator.id === req.user.id) {
     return res.status(400).json({ error: "Cannot collaborate with yourself" });
   }
-  
+
   try {
     // Add collaborator
     addCollaborator.run(noteId, collaborator.id, req.user.id, nowISO());
-    
+
     // Update note with editor info
     updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), noteId);
     broadcastNoteUpdated(noteId);
-    
-    res.json({ 
-      ok: true, 
+
+    res.json({
+      ok: true,
       message: `Added ${collaborator.name} as collaborator`,
       collaborator: {
         id: collaborator.id,
@@ -743,13 +774,13 @@ app.post("/api/notes/:id/collaborate", auth, (req, res) => {
 
 app.get("/api/notes/:id/collaborators", auth, (req, res) => {
   const noteId = req.params.id;
-  
+
   // Check if note exists and user owns it or is a collaborator
   const note = getNoteWithCollaboration.get(req.user.id, noteId, req.user.id);
   if (!note) {
     return res.status(404).json({ error: "Note not found" });
   }
-  
+
   const collaborators = getNoteCollaborators.all(noteId);
   res.json(collaborators.map(c => ({
     id: c.id,
@@ -763,37 +794,37 @@ app.get("/api/notes/:id/collaborators", auth, (req, res) => {
 app.delete("/api/notes/:id/collaborate/:userId", auth, (req, res) => {
   const noteId = req.params.id;
   const userIdToRemove = req.params.userId;
-  
+
   // Check if note exists
   const note = getNoteWithCollaboration.get(req.user.id, noteId, req.user.id);
   if (!note) {
     return res.status(404).json({ error: "Note not found" });
   }
-  
+
   // Check if user is the owner (can remove anyone) or is removing themselves
   const isOwner = note.user_id === req.user.id;
   const isRemovingSelf = String(userIdToRemove) === String(req.user.id);
-  
+
   if (!isOwner && !isRemovingSelf) {
     return res.status(403).json({ error: "Only note owner can remove other collaborators" });
   }
-  
+
   // Remove collaborator
   const removeCollaborator = db.prepare(`
     DELETE FROM note_collaborators 
     WHERE note_id = ? AND user_id = ?
   `);
-  
+
   const result = removeCollaborator.run(noteId, userIdToRemove);
-  
+
   if (result.changes === 0) {
     return res.status(404).json({ error: "Collaborator not found" });
   }
-  
+
   // Update note with editor info
   updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), noteId);
   broadcastNoteUpdated(noteId);
-  
+
   res.json({ ok: true, message: "Collaborator removed" });
 });
 
@@ -823,28 +854,28 @@ app.get("/api/notes/collaborated", auth, (req, res) => {
 app.post("/api/notes/:id/archive", auth, (req, res) => {
   const id = req.params.id;
   const { archived } = req.body || {};
-  
+
   // Check if note exists and user owns it
   const existing = getNote.get(id, req.user.id);
   if (!existing) {
     return res.status(404).json({ error: "Note not found" });
   }
-  
+
   // Update archived status
   const updateArchived = db.prepare(`
     UPDATE notes SET archived = ? WHERE id = ? AND user_id = ?
   `);
-  
+
   const result = updateArchived.run(archived ? 1 : 0, id, req.user.id);
-  
+
   if (result.changes === 0) {
     return res.status(404).json({ error: "Note not found or access denied" });
   }
-  
+
   // Update editor tracking
   updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
   broadcastNoteUpdated(id);
-  
+
   res.json({ ok: true });
 });
 
@@ -901,8 +932,8 @@ app.post("/api/notes/import", auth, (req, res) => {
   const src = Array.isArray(payload.notes)
     ? payload.notes
     : Array.isArray(payload)
-    ? payload
-    : [];
+      ? payload
+      : [];
   if (!src.length) return res.status(400).json({ error: "No notes to import." });
 
   const rows = listNotes.all(req.user.id);
@@ -952,11 +983,11 @@ app.get("/api/admin/settings", auth, adminOnly, (_req, res) => {
 // Update admin settings
 app.patch("/api/admin/settings", auth, adminOnly, (req, res) => {
   const { allowNewAccounts } = req.body || {};
-  
+
   if (typeof allowNewAccounts === 'boolean') {
     adminSettings.allowNewAccounts = allowNewAccounts;
   }
-  
+
   res.json(adminSettings);
 });
 
@@ -1147,6 +1178,62 @@ app.patch("/api/admin/users/:id", auth, adminOnly, (req, res) => {
     is_admin: !!updatedUser.is_admin,
     created_at: updatedUser.created_at,
   });
+});
+
+
+// ---------- AI Assistant (Server side) ----------
+app.post("/api/ai/ask", auth, async (req, res) => {
+  const { question, notes } = req.body || {};
+  if (!question) return res.status(400).json({ error: "Missing question" });
+
+  try {
+    if (!aiGenerator) {
+      // Try to init if not ready
+      await initServerAI();
+      if (!aiGenerator) {
+        return res.status(503).json({ error: "AI Assistant is still initializing or failed to load." });
+      }
+    }
+
+    // Limit context strictly - better search logic
+    const relevantNotes = (notes || []).filter(n => {
+      const q = question.toLowerCase().replace(/[^\w\s]/g, ' '); // Strip punctuation for searching
+      const words = q.split(/\s+/).filter(w => w.length >= 2); // At least 2 chars
+      const t = (n.title || "").toLowerCase();
+      const c = (n.content || "").toLowerCase();
+
+      return words.some(word => t.includes(word) || c.includes(word) || word.includes(t) && t.length > 2);
+    }).slice(0, 5); // Take up to 5 relevant notes
+
+    const notesToUse = relevantNotes.length > 0 ? relevantNotes : (notes || []).slice(0, 4);
+    const context = notesToUse
+      .map(n => `TITLE: ${n.title}\nCONTENT: ${n.content.substring(0, 1500)}`)
+      .join('\n\n---\n\n');
+
+    const prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+You are a private assistant for the Glass Keep notes app.
+Use ONLY the provided Note Context to answer the user. 
+If the answer is not in the notes, say "I couldn't find any information about that in your notes."
+Be direct, helpful, and concise.
+
+Note Context:
+${context}<|eot_id|><|start_header_id|>user<|end_header_id|>
+${question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+`;
+
+    const output = await aiGenerator(prompt, {
+      max_new_tokens: 300,
+      temperature: 0.1,
+      repetition_penalty: 1.1,
+      do_sample: false,
+      return_full_text: false,
+    });
+
+    res.json({ answer: output[0].generated_text.trim() });
+  } catch (err) {
+    console.error("Server AI Error:", err);
+    res.status(500).json({ error: "AI processing failed on server." });
+  }
 });
 
 // ---------- Health ----------
