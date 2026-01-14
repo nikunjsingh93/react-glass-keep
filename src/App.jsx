@@ -4340,7 +4340,7 @@ export default function App() {
       setAllowRegistration(response.allowNewAccounts);
     } catch (e) {
       console.error("Failed to check registration setting:", e);
-      setAllowRegistration(true); // Default to true if check fails
+      setAllowRegistration(false); // Default to false if check fails
     }
   };
 

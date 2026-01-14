@@ -257,6 +257,20 @@ function authFromQueryOrHeader(req, res, next) {
 const insertUser = db.prepare(
   "INSERT INTO users (name,email,password_hash,created_at) VALUES (?,?,?,?)"
 );
+
+// Seed default admin user if none exist
+(function seedDefaultAdmin() {
+  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
+  if (userCount === 0) {
+    const adminEmail = "admin";
+    const adminPass = "admin";
+    const hash = bcrypt.hashSync(adminPass, 10);
+    const info = insertUser.run("Admin", adminEmail, hash, nowISO());
+    const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE id=?");
+    mkAdmin.run(info.lastInsertRowid);
+    console.log(`Default admin user created: ${adminEmail} / ${adminPass}`);
+  }
+})();
 const getUserById = db.prepare("SELECT * FROM users WHERE id = ?");
 const getNoteById = db.prepare("SELECT * FROM notes WHERE id = ?");
 
@@ -972,7 +986,7 @@ function adminOnly(req, res, next) {
 
 // Admin settings storage (in-memory for now, could be moved to DB)
 let adminSettings = {
-  allowNewAccounts: true
+  allowNewAccounts: process.env.ALLOW_REGISTRATION === "true" || false
 };
 
 // Get admin settings

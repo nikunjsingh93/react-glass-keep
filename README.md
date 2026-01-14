@@ -26,6 +26,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 * **Auth & Multi-user**
   * Register, Login (username + password), Sign out
+  * **Default Admin Account:** `admin` / `admin` (if no users exist) ✅ NEW
   * **Secret recovery key** download + **Sign in with Secret Key**
   * Each user sees **only their notes**
 
@@ -44,7 +45,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * Automatic conflict resolution — prevents stale data from overwriting recent edits.  
 * **Admin Panel**
 
-  * New Admin Panel Sidebar in 3 dots Dropdown with many features like Add new uesr, Toggle new account creation ✅ NEW
+  * New Admin Panel Sidebar in 3 dots Dropdown with many features like Add new uesr, Toggle new account creation (**off by default**) ✅ NEW
   * View **all users** with: Name, Email/Username, **Is Admin**, **Notes count**, **Storage used**, Created at
   * **Delete user** (also deletes their notes; protected against deleting the last admin)
 * **Notes**
@@ -198,11 +199,17 @@ docker run -d \
   -e JWT_SECRET=dev-please-change \
   -e DB_FILE=/app/data/notes.db \
   -e ADMIN_EMAILS=admin \
+  -e ALLOW_REGISTRATION=false \
   -v "$HOME/.glass-keep:/app/data" \ # Change path according to OS (e.g., %USERPROFILE%\.glass-keep on Windows)
   glass-keep:local
 ```
 
 ---
+
+> [!IMPORTANT]
+> **Default Admin Credentials** (for fresh installations):
+> - **Username:** `admin`
+> - **Password:** `admin`
 
 ## 🐳 Docker Deploy to Server(single image: API + built frontend)
 
@@ -232,6 +239,7 @@ docker run -d \
   -e JWT_SECRET="replace-with-a-long-random-string" \
   -e DB_FILE="/app/data/notes.db" \
   -e ADMIN_EMAILS="your-admin-username" \
+  -e ALLOW_REGISTRATION=false \
   -v ~/.glass-keep:/app/data \
   nikunjsingh/glass-keep:latest
 
@@ -256,6 +264,7 @@ services:
       JWT_SECRET: replace-with-a-long-random-string
       DB_FILE: /app/data/notes.db
       ADMIN_EMAILS: your-admin-username  # <— change this to your admin user
+      ALLOW_REGISTRATION: "false"        # <— set to "true" to allow new account creation
     ports:
       - "8080:8080"
     volumes:
@@ -285,6 +294,11 @@ docker compose up -d
     ```sql
     UPDATE users SET is_admin=1 WHERE email='your-admin-username';
     ```
+> **Note:** If registration is disabled (default), you can use the default admin account to log in for the first time:
+> - **Username:** `admin`
+> - **Password:** `admin`
+> 
+> After logging in, you can create new users or change the admin password in the Admin Panel.
 - **What you can do**
   - View all users with: **Is Admin**, **Notes count**, **Storage used**, **Created at**
   - **Delete** a user (also removes their notes; cannot delete the last admin)
