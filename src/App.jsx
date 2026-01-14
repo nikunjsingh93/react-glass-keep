@@ -2452,7 +2452,7 @@ function NotesUI({
       {/* AI Response Box */}
       {localAiEnabled && (aiResponse || isAiLoading) && (
         <div className="px-4 sm:px-6 md:px-8 lg:px-12 mb-6">
-          <div className="max-w-2xl mx-auto glass-card rounded-xl shadow-lg p-5 border border-indigo-500/30 relative overflow-hidden">
+          <div className="max-w-2xl mx-auto glass-card rounded-xl shadow-lg p-5 border border-indigo-500/30 relative overflow-hidden bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-950/30 dark:to-purple-950/30">
             {isAiLoading && (
               <div className="absolute top-0 left-0 h-1 bg-indigo-500 transition-all duration-300"
                 style={{ width: aiLoadingProgress ? `${aiLoadingProgress}%` : '5%' }}
@@ -2478,9 +2478,10 @@ function NotesUI({
                   AI Assistant is thinking...
                 </p>
               ) : (
-                <div className="text-gray-800 dark:text-gray-200">
-                  {aiResponse}
-                </div>
+                <div
+                  className="text-gray-800 dark:text-gray-200 note-content"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(aiResponse || "") }}
+                />
               )}
             </div>
           </div>
