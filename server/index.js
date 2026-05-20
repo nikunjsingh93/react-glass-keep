@@ -44,6 +44,7 @@ async function initServerAI() {
 // initServerAI().catch(console.error);
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = Number(process.env.API_PORT || process.env.PORT || 8080);
 const NODE_ENV = process.env.NODE_ENV || "development";
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -708,6 +709,7 @@ app.post("/api/notes", auth, (req, res) => {
   insertNote.run(n);
   res.status(201).json({
     id: n.id,
+    user_id: n.user_id,
     type: n.type,
     title: n.title,
     content: n.content,
@@ -784,6 +786,11 @@ app.patch("/api/notes/:id", auth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.delete("/api/notes/trash", auth, (req, res) => {
+  emptyTrash.run(req.user.id);
+  res.json({ ok: true });
+});
+
 app.delete("/api/notes/:id", auth, (req, res) => {
   deleteNote.run(req.params.id, req.user.id);
   res.json({ ok: true });
@@ -804,11 +811,6 @@ app.delete("/api/notes/:id/permanent", auth, (req, res) => {
   if (result.changes === 0) {
     return res.status(404).json({ error: "Note not found" });
   }
-  res.json({ ok: true });
-});
-
-app.delete("/api/notes/trash", auth, (req, res) => {
-  emptyTrash.run(req.user.id);
   res.json({ ok: true });
 });
 

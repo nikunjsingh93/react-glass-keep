@@ -2216,6 +2216,7 @@ function NotesUI({
   pendingCount,
   loadNotes,
   loadArchivedNotes,
+  forceSync,
   // checklist update
   onUpdateChecklistItem,
   // Admin panel
@@ -2358,16 +2359,6 @@ function NotesUI({
             </button>
           )}
 
-          {/* Offline / Pending indicator */}
-          {pendingCount > 0 ? (
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300 border border-blue-600/20">
-              {isOnline ? `${pendingCount} pending` : `${pendingCount} pending`}
-            </span>
-          ) : !isOnline ? (
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-orange-600/10 text-orange-700 dark:text-orange-300 border border-orange-600/20">
-              Offline
-            </span>
-          ) : null}
         </div>
 
         <div className="flex-grow flex justify-center px-4 sm:px-8">
@@ -2532,6 +2523,31 @@ function NotesUI({
           />
         </div>
       </header>
+
+      {/* Offline / Pending indicator bar */}
+      {(pendingCount > 0 || !isOnline) && (
+        <div className="px-4 sm:px-6 md:px-8 lg:px-12 mb-4">
+          <div className="max-w-2xl mx-auto flex items-center justify-center gap-2">
+            {pendingCount > 0 ? (
+              <span className="text-xs px-3 py-1 rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300 border border-blue-600/20">
+                {isOnline ? `${pendingCount} pending` : `${pendingCount} pending`}
+              </span>
+            ) : (
+              <span className="text-xs px-3 py-1 rounded-full bg-orange-600/10 text-orange-700 dark:text-orange-300 border border-orange-600/20">
+                Offline
+              </span>
+            )}
+            {pendingCount > 0 && (
+              <button
+                onClick={forceSync}
+                className="text-xs px-3 py-1 rounded-full bg-green-600/10 text-green-700 dark:text-green-300 border border-green-600/20 hover:bg-green-600/20 transition-colors"
+              >
+                Sync now
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* AI Response Box */}
       {localAiEnabled && (aiResponse || isAiLoading) && (
@@ -3535,6 +3551,28 @@ export default function App() {
     }
   }, []);
 
+  const forceSync = useCallback(async () => {
+    if (!token) return;
+    try {
+      const result = await processPendingOps(api, token);
+      if (result.synced > 0) {
+        showToast(`Synced ${result.synced} change(s)`, 'success');
+        if (tagFilter === 'ARCHIVED') {
+          loadArchivedNotes().catch(() => {});
+        } else if (tagFilter === TRASH) {
+          loadTrashNotes().catch(() => {});
+        } else {
+          loadNotes().catch(() => {});
+        }
+      } else if (result.total > 0 && result.synced === 0) {
+        showToast('Sync pending — will retry automatically', 'info');
+      }
+    } catch (e) {
+      showToast('Sync failed', 'error');
+    }
+    refreshPendingCount();
+  }, [token, tagFilter]);
+
   // Admin panel state
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [adminSettings, setAdminSettings] = useState({ allowNewAccounts: true });
@@ -3773,9 +3811,12 @@ export default function App() {
       const data = await api("/notes", { token });
       if (reqId !== loadNotesReqId.current) return;
       const notesArray = Array.isArray(data) ? data : [];
-      setNotes(sortNotesByRecency(notesArray));
-      // Persist to IndexedDB
-      await saveNotesToDb(notesArray);
+      // Merge in offline notes the server doesn't know about yet
+      const fromDb = await getAllNotesFromDb().catch(() => []);
+      const offlineNotes = fromDb.filter(n => n._offline && !notesArray.some(m => String(m.id) === String(n.id)));
+      const merged = [...offlineNotes, ...notesArray];
+      setNotes(sortNotesByRecency(merged));
+      await saveNotesToDb(merged);
     } catch (error) {
       if (reqId !== loadNotesReqId.current) return;
       // If IndexedDB had nothing, keep empty
@@ -3812,11 +3853,15 @@ export default function App() {
       const data = await api("/notes/archived", { token });
       if (reqId !== loadNotesReqId.current) return;
       const notesArray = Array.isArray(data) ? data : [];
-      setNotes(sortNotesByRecency(notesArray));
+      // Preserve offline notes in React state
+      const fromDb = await getAllNotesFromDb().catch(() => []);
+      const offlineNotes = fromDb.filter(n => n._offline && !notesArray.some(m => String(m.id) === String(n.id)));
+      const merged = [...offlineNotes, ...notesArray];
+      setNotes(sortNotesByRecency(merged));
       // Merge into IndexedDB (archived are a subset)
       const existing = await getAllNotesFromDb().catch(() => []);
-      const merged = existing.filter((n) => !notesArray.some((m) => m.id === n.id));
-      await saveNotesToDb([...merged, ...notesArray]);
+      const dbMerged = existing.filter((n) => !notesArray.some((m) => m.id === n.id));
+      await saveNotesToDb([...dbMerged, ...notesArray]);
     } catch (error) {
       if (reqId !== loadNotesReqId.current) return;
       if (!hasCachedData) {
@@ -3849,10 +3894,14 @@ export default function App() {
       const data = await api("/notes/trash", { token });
       if (reqId !== loadNotesReqId.current) return;
       const notesArray = Array.isArray(data) ? data : [];
-      setNotes(sortNotesByRecency(notesArray));
+      // Merge in offline notes the server doesn't know about yet
+      const fromDb = await getAllNotesFromDb().catch(() => []);
+      const offlineNotes = fromDb.filter(n => n._offline && !notesArray.some(m => String(m.id) === String(n.id)));
+      const merged = [...offlineNotes, ...notesArray];
+      setNotes(sortNotesByRecency(merged));
       const existing = await getAllNotesFromDb().catch(() => []);
-      const merged = existing.filter((n) => !notesArray.some((m) => m.id === n.id));
-      await saveNotesToDb([...merged, ...notesArray]);
+      const dbMerged = existing.filter((n) => !n.deleted && !notesArray.some((m) => m.id === n.id));
+      await saveNotesToDb([...dbMerged, ...notesArray]);
     } catch (error) {
       if (reqId !== loadNotesReqId.current) return;
       if (!hasCachedData) {
@@ -3993,23 +4042,39 @@ export default function App() {
 
     connectSSE();
 
-    // Fallback polling mechanism in case SSE fails
-    let pollInterval;
-    const startPolling = () => {
-      pollInterval = setInterval(() => {
-        // Only poll if SSE is not connected
+    // Periodic sync: process pending ops every 15s regardless of connectivity
+    let syncInterval;
+    const startSync = () => {
+      syncInterval = setInterval(() => {
+        processPendingOps(api, token).then(result => {
+          if (result.synced > 0) {
+            showToast(`Synced ${result.synced} change(s)`, 'success');
+            if (tagFilter === 'ARCHIVED') {
+              loadArchivedNotes().catch(() => {});
+            } else if (tagFilter === TRASH) {
+              loadTrashNotes().catch(() => {});
+            } else {
+              loadNotes().catch(() => {});
+            }
+          }
+          refreshPendingCount();
+        }).catch(() => {});
+
+        // Fallback: refresh notes from server if SSE is disconnected
         if (!es || es.readyState === EventSource.CLOSED) {
           if (tagFilter === 'ARCHIVED') {
             loadArchivedNotes().catch(() => { });
+          } else if (tagFilter === TRASH) {
+            loadTrashNotes().catch(() => { });
           } else {
             loadNotes().catch(() => { });
           }
         }
-      }, 30000); // Poll every 30 seconds as fallback
+      }, 15000);
     };
 
-    // Start polling after a delay
-    const pollTimeout = setTimeout(startPolling, 10000);
+    // Start sync after a delay
+    const syncStartTimeout = setTimeout(startSync, 10000);
 
 
 
@@ -4037,6 +4102,8 @@ export default function App() {
           // Also refresh notes when page becomes visible
           if (tagFilter === 'ARCHIVED') {
             loadArchivedNotes().catch(() => { });
+          } else if (tagFilter === TRASH) {
+            loadTrashNotes().catch(() => { });
           } else {
             loadNotes().catch(() => { });
           }
@@ -4051,6 +4118,8 @@ export default function App() {
             }
             if (tagFilter === 'ARCHIVED') {
               loadArchivedNotes().catch(() => { });
+            } else if (tagFilter === TRASH) {
+              loadTrashNotes().catch(() => { });
             } else {
               loadNotes().catch(() => { });
             }
@@ -4098,11 +4167,11 @@ export default function App() {
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
-      if (pollTimeout) {
-        clearTimeout(pollTimeout);
+      if (syncStartTimeout) {
+        clearTimeout(syncStartTimeout);
       }
-      if (pollInterval) {
-        clearInterval(pollInterval);
+      if (syncInterval) {
+        clearInterval(syncInterval);
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('online', handleOnline);
@@ -5368,6 +5437,9 @@ export default function App() {
         try {
           await api("/notes/trash", { method: "DELETE", token });
           invalidateTrashCache();
+          const allNotes = await getAllNotesFromDb();
+          const remaining = allNotes.filter((n) => !n.deleted);
+          await saveNotesToDb(remaining);
           loadTrashNotes();
           showToast("Trash emptied", "success");
         } catch (e) {
@@ -5776,12 +5848,12 @@ export default function App() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <input
-                  className={`flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2 ${!isOnline || tagFilter === TRASH ? 'opacity-50 cursor-not-allowed' : ''
+                  className={`flex-[1_0_50%] min-w-[240px] shrink-0 bg-transparent text-2xl font-bold placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none pr-2 ${tagFilter === TRASH ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   value={mTitle}
-                  onChange={(e) => { if (isOnline && tagFilter !== TRASH) setMTitle(e.target.value) }}
+                  onChange={(e) => { if (tagFilter !== TRASH) setMTitle(e.target.value) }}
                   placeholder="Title"
-                  disabled={!isOnline || tagFilter === TRASH}
+                  disabled={tagFilter === TRASH}
                 />
                 <div className="flex items-center gap-2 flex-none ml-auto">
                   {/* Collaboration button - always visible */}
@@ -5804,8 +5876,8 @@ export default function App() {
                   </button>
 
 
-                  {/* View/Edit toggle only for TEXT notes - hidden when offline or in trash */}
-                  {isOnline && mType === "text" && tagFilter !== TRASH && (
+                  {/* View/Edit toggle only for TEXT notes - hidden in trash */}
+                  {mType === "text" && tagFilter !== TRASH && (
                     <button
                       className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
                       onClick={() => { setViewMode((v) => !v); setShowModalFmt(false); }}
@@ -5815,7 +5887,7 @@ export default function App() {
                     </button>
                   )}
 
-                  {isOnline && mType === "text" && !viewMode && tagFilter !== TRASH && (
+                  {mType === "text" && !viewMode && tagFilter !== TRASH && (
                     <>
                       <button
                         ref={modalFmtBtnRef}
@@ -5838,10 +5910,9 @@ export default function App() {
                     </>
                   )}
 
-                  {/* 3-dots menu - hidden when offline */}
-                  {isOnline && (
-                    <>
-                      <button
+                  {/* 3-dots menu */}
+                  <>
+                    <button
                         ref={modalMenuBtnRef}
                         className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         title="More options"
@@ -5910,10 +5981,9 @@ export default function App() {
                         </div>
                       </Popover>
                     </>
-                  )}
 
-                  {/* Pin button - hidden when offline or in archived/trash view */}
-                  {isOnline && tagFilter !== 'ARCHIVED' && tagFilter !== TRASH && (
+                  {/* Pin button - hidden in archived/trash view */}
+                  {tagFilter !== 'ARCHIVED' && tagFilter !== TRASH && (
                     <button
                       className="rounded-full p-2 opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       title="Pin/unpin"
@@ -5947,7 +6017,7 @@ export default function App() {
                         className="h-40 md:h-56 w-auto object-cover rounded-md border border-[var(--border-light)] cursor-zoom-in"
                         onClick={(e) => { e.stopPropagation(); openImageViewer(idx); }}
                       />
-                      {isOnline && (
+                      {(
                         <button
                           title="Remove image"
                           className="absolute -top-2 -right-2 bg-black/70 text-white rounded-full w-5 h-5 text-xs"
@@ -5973,13 +6043,13 @@ export default function App() {
                   <div className="relative min-h-[160px]">
                     <textarea
                       ref={mBodyRef}
-                      className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px] ${!isOnline || tagFilter === TRASH ? 'opacity-50 cursor-not-allowed' : ''
+                      className={`w-full bg-transparent placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none resize-none overflow-hidden min-h-[160px] ${tagFilter === TRASH ? 'opacity-50 cursor-not-allowed' : ''
                         }`}
                       style={{ scrollBehavior: 'unset' }}
                       value={mBody}
-                      onChange={(e) => { if (isOnline && tagFilter !== TRASH) { setMBody(e.target.value); resizeModalTextarea(); } }}
+                      onChange={(e) => { if (tagFilter !== TRASH) { setMBody(e.target.value); resizeModalTextarea(); } }}
                       onKeyDown={(e) => {
-                        if (!isOnline || tagFilter === TRASH) return;
+                        if (tagFilter === TRASH) return;
                         if (e.key === "Enter" && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
                           const el = mBodyRef.current;
                           const value = mBody;
@@ -6020,14 +6090,14 @@ export default function App() {
                         }
                       }}
                       placeholder={tagFilter === TRASH ? "" : "Write your note…"}
-                      disabled={!isOnline || tagFilter === TRASH}
+                      disabled={tagFilter === TRASH}
                     />
                   </div>
                 )
               ) : mType === "checklist" ? (
                 <div className="space-y-4 md:space-y-2">
                   {/* Add new item row - hidden when offline */}
-                  {isOnline && (
+                  {(
                     <div className="flex gap-2">
                       <input
                         value={mInput}
@@ -6295,7 +6365,7 @@ export default function App() {
                 >
                   {tag}
                   {/* Tag removal button - hidden when offline */}
-                  {isOnline && (
+                  {(
                     <button
                       className="ml-1 opacity-70 hover:opacity-100 focus:outline-none"
                       title="Remove tag"
@@ -6307,7 +6377,7 @@ export default function App() {
                 </span>
               ))}
               {/* Tag input - hidden when offline */}
-              {isOnline && (
+              {(
                 <input
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
@@ -6323,7 +6393,7 @@ export default function App() {
             {/* Right controls */}
             <div className="w-full sm:w-auto flex items-center gap-3 flex-wrap justify-end">
               {/* Color dropdown (modal) - hidden when offline */}
-              {isOnline && (
+              {(
                 <>
                   <button
                     ref={modalColorBtnRef}
@@ -6389,8 +6459,8 @@ export default function App() {
                 </>
               )}
 
-              {/* Save button - hidden when offline or for collaborative text notes (they auto-save) */}
-              {isOnline && modalHasChanges && !(mType === "text" && isCollaborativeNote(activeId)) && (
+              {/* Save button - hidden for collaborative text notes (they auto-save) */}
+              {modalHasChanges && !(mType === "text" && isCollaborativeNote(activeId)) && (
                 <button
                   onClick={saveModal}
                   disabled={savingModal}
@@ -6940,6 +7010,7 @@ export default function App() {
         sseConnected={sseConnected}
         isOnline={isOnline}
         pendingCount={pendingCount}
+        forceSync={forceSync}
         loadNotes={loadNotes}
         loadArchivedNotes={loadArchivedNotes}
         // checklist update
