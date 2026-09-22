@@ -249,6 +249,14 @@ docker run -d \
 - **Admin Panel (Docker/prod):** http://localhost:8080/#/admin  
   *(Make sure `ADMIN_EMAILS` matches the username exactly when creating the admin account)*
 
+### Easypanel
+
+[Easypanel](https://easypanel.io) is a self-hosted Docker deployment platform, and Glass Keep has a one-click deployment template there:
+
+[![Deploy on Easypanel](https://easypanel.io/img/deploy-on-easypanel-40.svg)](https://easypanel.io/templates/glasskeep)
+
+Easypanel generates the `JWT_SECRET` and sets up the persistent data volume for you - just deploy the template and set `ADMIN_EMAILS` to your admin username.
+
 ### docker-compose.yml
 
 ```yaml
