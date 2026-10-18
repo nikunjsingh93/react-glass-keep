@@ -1,0 +1,30 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Only the bundled Glass Keep interface can access native dialogs, selected save destinations, clipboard and external links.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-save",
+    "fs:allow-write-file",
+    "clipboard-manager:allow-write-text",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "mailto:*"
+        }
+      ]
+    },
+    "dialog:allow-ask",
+    "dialog:allow-message"
+  ]
+}

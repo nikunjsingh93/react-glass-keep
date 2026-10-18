@@ -5,6 +5,7 @@ import {importNoteBatches} from './importBackup';
 import {renderMarkdown} from './markdown';
 import {getLanguage,setLanguage,t} from './i18n';
 import DrawingCanvas from './DrawingCanvas';
+import {copyText,serverLink,confirmAction} from './platform';
 
 function SharedDrawing({content}) {
   let data;try{data=JSON.parse(content);}catch{return <p>{t('Drawing unavailable')}</p>;}
@@ -45,7 +46,7 @@ export function DuplicateDialog({api,token,onClose,onChanged}) {
   return <Dialog title={t('Find duplicates')} onClose={onClose}><p>{t('Review duplicate groups before deleting copies. The first note in each group is kept by Select extra copies.')}</p><button className="underline my-3" onClick={()=>setSelected(groups.flatMap(group=>group.slice(1).map(n=>n.id)))}>{t('Select extra copies')}</button>
     {groups.length===0 && <p>{t('No duplicate notes found.')}</p>}
     {groups.map((group,index)=><fieldset key={index} className="border rounded p-3 my-3"><legend>{t('Duplicate group')} {index+1}</legend>{group.map(n=><label key={n.id} className="block"><input type="checkbox" checked={selected.includes(n.id)} onChange={e=>setSelected(prev=>e.target.checked?[...prev,n.id]:prev.filter(id=>id!==n.id))}/> {n.title || t('Untitled')} {n.archived?`(${t('Archived')})`:''}</label>)}</fieldset>)}
-    {error && <p role="alert">{error}</p>}<button disabled={!selected.length} className="bg-red-700 text-white p-2 rounded disabled:opacity-50" onClick={async()=>{if(!window.confirm(t('Delete selected duplicate copies? This cannot be undone.')))return;try{for(const id of selected)await api(`/notes/${id}`,{method:'DELETE',token});setSelected([]);await load();await onChanged();}catch(e){setError(e.message);}}}>{t('Delete selected copies')}</button>
+    {error && <p role="alert">{error}</p>}<button disabled={!selected.length} className="bg-red-700 text-white p-2 rounded disabled:opacity-50" onClick={async()=>{if(!await confirmAction(t('Delete selected duplicate copies? This cannot be undone.')))return;try{for(const id of selected)await api(`/notes/${id}`,{method:'DELETE',token});setSelected([]);await load();await onChanged();}catch(e){setError(e.message);}}}>{t('Delete selected copies')}</button>
   </Dialog>;
 }
 
@@ -59,8 +60,8 @@ export function NoteActions({note,api,token,onCopied,children}) {
     } catch(e){setError(e.message);}
   };
   const copyLink=async()=>{
-    const url=`${location.origin}${location.pathname}#/notes/${encodeURIComponent(note.id)}`;
-    try {await navigator.clipboard.writeText(url);}catch{setPrivateLink(url);}
+    const url=serverLink(`#/notes/${encodeURIComponent(note.id)}`);
+    try {await copyText(url);}catch{setPrivateLink(url);}
   };
   if(!note)return null;
   return <>
@@ -74,7 +75,7 @@ export function NoteActions({note,api,token,onCopied,children}) {
         </select>
       </label>
       {share.days==='never' && <p className="text-sm">{t('This link stays active until you revoke or replace it.')}</p>}
-      <button className="block my-3 border rounded p-2" onClick={async()=>{try{const result=await api(`/notes/${note.id}/share-link`,{method:'POST',token,body:{days:share.days==='never'?null:Number(share.days)}});setShare({...share,url:`${location.origin}${location.pathname}#/share/${result.token}`});setError('');}catch(e){setError(e.message);}}}>{t('Create or replace public link')}</button>
+      <button className="block my-3 border rounded p-2" onClick={async()=>{try{const result=await api(`/notes/${note.id}/share-link`,{method:'POST',token,body:{days:share.days==='never'?null:Number(share.days)}});setShare({...share,url:serverLink(`#/share/${result.token}`)});setError('');}catch(e){setError(e.message);}}}>{t('Create or replace public link')}</button>
       {share.url && <input aria-label={t('Public link')} className="border rounded bg-transparent w-full p-2" readOnly value={share.url} onFocus={e=>e.target.select()}/>}
       <button className="underline my-3" onClick={async()=>{try{await api(`/notes/${note.id}/share-link`,{method:'DELETE',token});setShare(null);setError('');}catch(e){setError(e.message);}}}>{t('Revoke public link')}</button>
       {error && <p role="alert">{error}</p>}

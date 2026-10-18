@@ -45,3 +45,10 @@ server/*.sqlite-journal
 
 # Personal cloud OAuth encryption key (stored beside the database)
 cloud-backup.key
+dist-native/
+src-tauri/target/
+src-tauri/gen/
+.native-secrets/
+.native-tools/
+*.jks
+*.keystore

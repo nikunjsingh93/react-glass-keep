@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {Dialog} from './FeaturePanels';
 import {t} from './i18n';
+import {appFetch,isNative,serverLink,openExternal,saveBlob,confirmAction} from './platform';
 
 export default function CloudBackupDialog({api,token,onClose,onImport}) {
   const [connections,setConnections]=useState(null),[days,setDays]=useState({}),[error,setError]=useState(()=>new URLSearchParams(window.location.hash.split('?')[1] || '').has('cloudBackupError') ? t('Cloud connection could not be completed. Try again or ask the server owner to check the cloud setup.') : ''),[message,setMessage]=useState(''),[busy,setBusy]=useState('');
@@ -37,21 +38,22 @@ export default function CloudBackupDialog({api,token,onClose,onImport}) {
       </div>}
       <div className="flex flex-wrap gap-3 mt-3">
         <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!connection.available || !!busy || connection.running} onClick={()=>action(connection.provider,async()=>{
+          if(isNative){await openExternal(serverLink('#/notes?cloudBackup=manage'));setMessage('Sign in to the same account in your browser to connect your cloud provider, then return here.');return;}
           const result=await api(`/cloud-backup/connect/${connection.provider}`,{method:'POST',token,body:{days:days[connection.provider] || 7}});
           window.location.assign(result.url);
         })}>{t(connection.connected?'Reconnect':'Connect')}</button>
         {connection.connected && <>
           <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!!busy || connection.running} onClick={()=>action(connection.provider,async()=>{await api(`/cloud-backup/${connection.provider}`,{method:'PUT',token,body:{days:days[connection.provider]}});setMessage(t('Backup schedule saved.'));})}>{t('Save schedule')}</button>
           <button className="bg-indigo-600 text-white rounded px-3 py-2 disabled:opacity-50" disabled={!connection.available || !!busy || connection.running} onClick={()=>action(connection.provider,async()=>{await api(`/cloud-backup/${connection.provider}/run`,{method:'POST',token});setMessage(t('Backup started. Status updates automatically.'));})}>{t(busy===connection.provider?'Working…':'Back up now')}</button>
-          <button className="underline disabled:opacity-50" disabled={!!busy} onClick={()=>action(connection.provider,async()=>{if(!window.confirm(t('Disconnect this cloud account? Existing cloud backups will be kept.')))return;await api(`/cloud-backup/${connection.provider}`,{method:'DELETE',token});})}>{t('Disconnect')}</button>
+          <button className="underline disabled:opacity-50" disabled={!!busy} onClick={()=>action(connection.provider,async()=>{if(!await confirmAction(t('Disconnect this cloud account? Existing cloud backups will be kept.')))return;await api(`/cloud-backup/${connection.provider}`,{method:'DELETE',token});})}>{t('Disconnect')}</button>
         </>}
       </div>
     </section>)}
     <div className="flex flex-wrap gap-3 my-4">
       <button className="border rounded px-3 py-2 disabled:opacity-50" disabled={!!busy} onClick={()=>action('download',async()=>{
-        const response=await fetch('/api/cloud-backup/download',{headers:{Authorization:`Bearer ${token}`}});
+        const response=await appFetch('/api/cloud-backup/download',{headers:{Authorization:`Bearer ${token}`}});
         if(!response.ok){const result=await response.json();throw new Error(result.error || t('Backup download failed.'));}
-        const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=`glass-keep-notes-${new Date().toISOString().slice(0,10)}.zip`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+        await saveBlob(await response.blob(),`glass-keep-notes-${new Date().toISOString().slice(0,10)}.zip`);
       })}>{t('Download backup ZIP')}</button>
       <button className="border rounded px-3 py-2" onClick={()=>{onClose();onImport();}}>{t('Import backup')}</button>
     </div>

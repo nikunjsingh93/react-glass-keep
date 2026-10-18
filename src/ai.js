@@ -3,8 +3,9 @@
  * This calls the backend AI endpoint instead of running inference in the browser.
  */
 
+import {appFetch,storageKey} from './platform';
 const API_BASE = "/api";
-const AUTH_KEY = "glass-keep-auth";
+const AUTH_KEY = storageKey("glass-keep-auth");
 
 const getAuthToken = () => {
   try {
@@ -37,7 +38,7 @@ export async function askAI(question, notes, onProgress) {
   if (onProgress) onProgress({ status: 'init' });
 
   try {
-    const response = await fetch(`${API_BASE}/ai/ask`, {
+    const response = await appFetch(`${API_BASE}/ai/ask`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

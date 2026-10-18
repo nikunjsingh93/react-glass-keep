@@ -12,7 +12,12 @@
     "api": "cross-env NODE_ENV=development API_PORT=8080 node --watch server/index.js",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "tauri": "tauri",
+    "native:dev": "vite --config vite.native.config.js",
+    "native:build": "vite build --config vite.native.config.js",
+    "app:windows": "tauri build",
+    "app:android": "tauri android build --apk --target aarch64"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -21,6 +26,11 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@huggingface/transformers": "^4.3.1",
     "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
+    "@tauri-apps/plugin-fs": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2.7.2",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^13.0.3",
     "cors": "^2.8.6",
@@ -39,6 +49,7 @@
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4.3.3",
+    "@tauri-apps/cli": "^2.12.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^4.7.0",

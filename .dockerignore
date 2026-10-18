@@ -2,6 +2,10 @@
 **/cloud-backup.key
 dist
 data
+dist-native
+src-tauri
+.native-secrets
+.native-tools
 .git
 .gitignore
 Dockerfile

@@ -14,12 +14,13 @@ import { createOfflineClient } from "./offline";
 import OfflineStatus from "./OfflineStatus";
 import NoteLayout from "./NoteLayout";
 import {readBackup} from "./readBackup";
+import {appFetch, isNative, storageKey, saveBlob, openExternal, copyText, confirmAction, ownsStorageKey} from './platform';
 
 const CloudBackupDialog = React.lazy(() => import('./CloudBackupDialog'));
 
 /** ---------- API Helpers ---------- */
 const API_BASE = "/api";
-const AUTH_KEY = "glass-keep-auth";
+const AUTH_KEY = storageKey("glass-keep-auth");
 
 const getAuth = () => {
   try {
@@ -41,7 +42,7 @@ async function networkApi(path, { method = "GET", body, token, operationId } = {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await appFetch(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -411,42 +412,27 @@ const sanitizeFilename = (name, fallback = "note") =>
   (name || fallback).toString().trim().replace(/[\/\\?%*:|"<>]/g, "-").slice(0, 64);
 const downloadText = (filename, content) => {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; document.body.appendChild(a);
-  a.click(); a.remove(); URL.revokeObjectURL(url);
+  void saveBlob(blob, filename).catch(e => alert(e.message));
 };
 const downloadDataUrl = async (filename, dataUrl) => {
   const res = await fetch(dataUrl);
   const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
+  await saveBlob(blob, filename);
 };
 
 // Download arbitrary blob
 const triggerBlobDownload = (filename, blob) => {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename; document.body.appendChild(a);
-  a.click(); a.remove(); URL.revokeObjectURL(url);
+  void saveBlob(blob, filename).catch(e => alert(e.message));
 };
 
 // Lazy-load JSZip for generating ZIP files client-side
 async function ensureJSZip() {
-  if (window.JSZip) return window.JSZip;
-  await new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
-    s.async = true;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error("Failed to load JSZip."));
-    document.head.appendChild(s);
-  });
-  if (!window.JSZip) throw new Error("JSZip not available");
-  return window.JSZip;
+  const {zip,strToU8} = await import('fflate');
+  return class PortableZip {
+    files = {};
+    file(name,content) {this.files[name]=strToU8(content);}
+    async generateAsync() {return new Promise((resolve,reject)=>zip(this.files,{level:6},(error,bytes)=>error?reject(error):resolve(new Blob([bytes],{type:'application/zip'}))));}
+  };
 }
 
 // --- Image filename helpers (fix double extensions) ---
@@ -2844,7 +2830,7 @@ function AdminView({ dark }) {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/users`, {
+      const res = await appFetch(`${API_BASE}/admin/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -2860,7 +2846,7 @@ function AdminView({ dark }) {
 
   async function removeUser(id) {
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${id}`, {
+      const res = await appFetch(`${API_BASE}/admin/users/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -3501,9 +3487,9 @@ export default function App() {
   }, [sidebarOpen]);
 
   // Cache keys for localStorage
-  const NOTES_CACHE_KEY = `glass-keep-notes-${currentUser?.id || 'anonymous'}`;
-  const ARCHIVED_NOTES_CACHE_KEY = `glass-keep-archived-${currentUser?.id || 'anonymous'}`;
-  const CACHE_TIMESTAMP_KEY = `glass-keep-cache-timestamp-${currentUser?.id || 'anonymous'}`;
+  const NOTES_CACHE_KEY = storageKey(`glass-keep-notes-${currentUser?.id || 'anonymous'}`);
+  const ARCHIVED_NOTES_CACHE_KEY = storageKey(`glass-keep-archived-${currentUser?.id || 'anonymous'}`);
+  const CACHE_TIMESTAMP_KEY = storageKey(`glass-keep-cache-timestamp-${currentUser?.id || 'anonymous'}`);
 
   // Cache invalidation functions
   const invalidateNotesCache = () => {
@@ -3702,6 +3688,12 @@ export default function App() {
     if (!token) return;
 
     let es;
+    if (isNative) {
+      const poll = () => { if (document.visibilityState !== 'hidden') (tagFilterRef.current === 'ARCHIVED' ? loadArchivedNotes() : loadNotes()).catch(() => {}); };
+      const timer = setInterval(poll, 10000);
+      window.addEventListener('focus', poll);
+      return () => {clearInterval(timer); window.removeEventListener('focus', poll);};
+    }
     let reconnectTimeout;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 10;
@@ -4087,7 +4079,7 @@ export default function App() {
     try {
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
-        if (key.includes('glass-keep-')) {
+        if (ownsStorageKey(key)) {
           localStorage.removeItem(key);
         }
       });
@@ -4137,7 +4129,7 @@ export default function App() {
       try {
         const keys = Object.keys(localStorage);
         keys.forEach(key => {
-          if (key.includes('glass-keep-')) {
+          if (ownsStorageKey(key)) {
             localStorage.removeItem(key);
           }
         });
@@ -4342,10 +4334,7 @@ export default function App() {
   /** -------- Export / Import All -------- */
   const triggerJSONDownload = (filename, jsonText) => {
     const blob = new Blob([jsonText], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = filename; document.body.appendChild(a);
-    a.click(); a.remove(); URL.revokeObjectURL(url);
+    void saveBlob(blob, filename).catch(e => alert(e.message));
   };
 
   const exportAll = async () => {
@@ -5134,7 +5123,7 @@ export default function App() {
       if (/^(https?:|mailto:|tel:)/i.test(href)) {
         e.preventDefault();
         e.stopPropagation();
-        window.open(href, "_blank", "noopener,noreferrer");
+        void openExternal(href);
         return;
       }
     }
@@ -5254,7 +5243,7 @@ export default function App() {
           e.stopPropagation();
           const codeEl = pre.querySelector("code");
           const text = codeEl ? codeEl.textContent : pre.textContent;
-          navigator.clipboard?.writeText(text || "");
+          copyText(text || "");
           btn.textContent = "Copied";
           setTimeout(() => (btn.textContent = "Copy"), 1200);
         });
@@ -5276,7 +5265,7 @@ export default function App() {
         btn.setAttribute("data-copy-btn", "1");
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          navigator.clipboard?.writeText(code.textContent || "");
+          copyText(code.textContent || "");
           btn.textContent = "Copied";
           setTimeout(() => (btn.textContent = "Copy"), 1200);
         });
@@ -6304,7 +6293,7 @@ export default function App() {
             triggerJSONDownload("glass-keep-unsaved-draft.json", JSON.stringify({ notes: [draft] }, null, 2));
           }}>{t("Download my draft")}</button>}
           <button className="underline ml-4" onClick={async () => {
-            if (open && !window.confirm("Discard this draft and reload the latest note? Download your draft first to keep a copy.")) return;
+            if (open && !await confirmAction("Discard this draft and reload the latest note? Download your draft first to keep a copy.")) return;
             setOpen(false); setActiveId(null); setSaveError(""); await loadNotes();
           }}>{t("Reload latest notes")}</button>
         </div>

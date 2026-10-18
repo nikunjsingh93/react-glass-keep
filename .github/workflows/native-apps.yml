@@ -1,0 +1,90 @@
+name: Native apps
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-apps-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            architecture: x64
+          - runner: windows-11-arm
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci --ignore-scripts
+      - run: npm run app:windows
+      - name: Verify origin restrictions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Keep-Windows-${{ matrix.architecture }}
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci --ignore-scripts
+      - name: Configure Android SDK
+        shell: bash
+        run: |
+          sdkmanager 'platforms;36' 'build-tools;36.0.0'
+          echo "NDK_HOME=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)" >> "$GITHUB_ENV"
+      - run: npx tauri android init --ci --skip-targets-install
+      - name: Configure release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: node scripts/prepare-android.mjs
+      - name: Build signed APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: npm run app:android -- --ci
+      - name: Verify APK signature
+        shell: bash
+        env:
+          HAS_SIGNING_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: |
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          if [ "$HAS_SIGNING_KEY" = true ]; then
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+          else
+            echo 'Unsigned build: signing approval is required before installation/distribution.'
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Keep-Android-arm64
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error

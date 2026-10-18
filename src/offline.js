@@ -1,4 +1,5 @@
-const DB_NAME='glass-keep-offline-v1';
+import {storageKey} from './platform.js';
+const DB_NAME=storageKey('glass-keep-offline-v1');
 let opened;
 const empty=()=>({notes:[],ops:[],conflicts:{}});
 function database(){if(!opened)opened=new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,1);req.onupgradeneeded=()=>req.result.createObjectStore('accounts');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});return opened;}
