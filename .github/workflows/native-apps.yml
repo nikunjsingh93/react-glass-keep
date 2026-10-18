@@ -38,11 +38,13 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run app:windows
       - name: Verify origin restrictions
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release --locked --features tauri/custom-protocol
       - uses: actions/upload-artifact@v4
         with:
           name: Glass-Keep-Windows-${{ matrix.architecture }}
-          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/glass-keep.exe
           if-no-files-found: error
   android:
     if: inputs.platforms != 'windows'
