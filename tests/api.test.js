@@ -76,6 +76,15 @@ test('duplicate import, share restoration, private links, public revocation and 
   assert.equal((await api(`/public-notes/${replacement.token}`)).status,404);
   const final=(await api(`/notes/${archived.id}/share-link`,{method:'POST',token})).data;
   await api(`/notes/${archived.id}/share-link`,{method:'DELETE',token});assert.equal((await api(`/public-notes/${final.token}`)).status,404);
+  for(const days of [1,7,30,90,365]) {
+    const timed=await api(`/notes/${archived.id}/share-link`,{method:'POST',token,body:{days}});
+    assert.equal(timed.status,200);assert.ok(Math.abs(Date.parse(timed.data.expiresAt)-Date.now()-days*86400000)<5000);
+  }
+  for(const days of [0,-1,366,'never'])assert.equal((await api(`/notes/${archived.id}/share-link`,{method:'POST',token,body:{days}})).status,400);
+  const permanent=await api(`/notes/${archived.id}/share-link`,{method:'POST',token,body:{days:null}});
+  assert.equal(permanent.data.expiresAt,null);assert.equal((await api(`/public-notes/${permanent.data.token}`)).status,200);
+  assert.equal((await api(`/notes/${archived.id}/share-link`,{method:'POST',token:partner,body:{days:null}})).status,404);
+  await api(`/notes/${archived.id}/share-link`,{method:'DELETE',token});assert.equal((await api(`/public-notes/${permanent.data.token}`)).status,404);
   assert.equal((await api(`/notes/${create.data.id}`,{method:'DELETE',token,body:{revision:1}})).status,409);
 });
 

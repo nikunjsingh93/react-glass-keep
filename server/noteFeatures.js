@@ -71,9 +71,10 @@ function installNoteFeatures(app, { db, auth, serializeNote, broadcastNoteUpdate
     const row=db.prepare('SELECT * FROM notes WHERE id=? AND user_id=?').get(req.params.id,req.user.id);
     if (!row) return res.status(404).json({error:'Note not found'});
     const token=crypto.randomBytes(32).toString('base64url');
+    const never = req.body?.days === null;
     const days=Number(req.body?.days ?? 7);
-    if (!Number.isInteger(days) || days<1 || days>365) return res.status(400).json({error:'Choose an expiry between 1 and 365 days'});
-    const expiresAt=new Date(Date.now()+days*86400000).toISOString();
+    if (!never && (!Number.isInteger(days) || days<1 || days>365)) return res.status(400).json({error:'Choose an expiry between 1 and 365 days, or never'});
+    const expiresAt=never ? null : new Date(Date.now()+days*86400000).toISOString();
     db.prepare('INSERT OR REPLACE INTO note_share_links VALUES(?,?,?,?)').run(row.id,crypto.createHash('sha256').update(token).digest('hex'),new Date().toISOString(),expiresAt);
     res.json({token,expiresAt});
   });
@@ -83,7 +84,7 @@ function installNoteFeatures(app, { db, auth, serializeNote, broadcastNoteUpdate
   });
   app.get('/api/public-notes/:token', (req,res) => {
     if (!/^[\w-]{43}$/.test(req.params.token)) return res.status(404).json({error:'Link unavailable'});
-    const row=db.prepare('SELECT n.* FROM notes n JOIN note_share_links s ON s.note_id=n.id WHERE s.token_hash=? AND s.expires_at>?').get(crypto.createHash('sha256').update(req.params.token).digest('hex'),new Date().toISOString());
+    const row=db.prepare('SELECT n.* FROM notes n JOIN note_share_links s ON s.note_id=n.id WHERE s.token_hash=? AND (s.expires_at IS NULL OR s.expires_at>?)').get(crypto.createHash('sha256').update(req.params.token).digest('hex'),new Date().toISOString());
     if (!row) return res.status(404).json({error:'Link unavailable or expired'});
     const note=serializeNote(row);
     res.json({id:note.id,type:note.type,title:note.title,content:note.content,items:note.items,images:note.images,color:note.color});

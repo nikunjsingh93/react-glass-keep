@@ -251,5 +251,15 @@
   "stroke": "रेखा",
   "more": "और",
   "more…": "और…",
-  "Glass Keep logo": "Glass Keep का लोगो"
+  "Glass Keep logo": "Glass Keep का लोगो",
+  "Link expires": "लिंक कब समाप्त हो",
+  "1 day": "1 दिन",
+  "7 days": "7 दिन",
+  "30 days": "30 दिन",
+  "90 days": "90 दिन",
+  "1 year": "1 वर्ष",
+  "Never": "कभी नहीं",
+  "This link stays active until you revoke or replace it.": "यह लिंक आपके रद्द करने या बदलने तक सक्रिय रहेगा।",
+  "Only signed-in users who already have access can open this note link.": "यह लिंक केवल वही साइन इन किए हुए उपयोगकर्ता खोल सकते हैं जिन्हें पहले से नोट की अनुमति है।",
+  "Note link": "नोट का लिंक"
 }

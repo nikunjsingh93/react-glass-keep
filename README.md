@@ -437,14 +437,14 @@ This lets sign-in rate limiting identify individual users from the forwarded cli
 ### Web features
 
 - **Language:** choose English or हिन्दी on the sign-in screen or in Settings. The choice is remembered on this device. Notes are kept in their original language.
-- **Grid:** recent notes now run across each row, with pinned notes in their own section.
+- **Grid:** recent notes start left to right, with subsequent notes filling the shortest column to avoid blank row spaces. Pinned notes remain in their own section.
 - **Tags:** existing tags appear as suggestions in the editor. Select several tags in the sidebar to show notes matching **all** selected tags. Choose Notes (All) to clear the filter.
 - **Selection:** Menu → Multi select → Select all filtered selects the current search/tag results. Changing the search or tags clears the selection. Review the confirmation before bulk deletion.
-- **Copies:** open a note and choose Make a copy. This creates a separate, unpinned note owned by you, without copying collaboration permissions.
+- **Copies:** open a note → three-dot menu → Make a copy. This creates a separate, unpinned note owned by you, without copying collaboration permissions.
 - **Checklists:** use arrow controls to reorder a complete branch, indent/outdent items, add sub-items, and hide completed items. Checking a parent also checks its descendants.
 - **Google Keep:** Settings → Import Google Keep accepts a Takeout ZIP, a folder, or JSON files. ZIP/folder imports include supported image attachments (PNG, JPEG, GIF, WebP). Missing or unsupported attachments are reported. Import is limited to 100 MB decompressed and 5,000 ZIP entries. Notes owned by another person are skipped by default; enter your Keep email when identifying an owner explicitly listed in the export. Sharing restoration is optional and matches existing Glass Keep usernames exactly to sharee emails; unmatched users are reported. Review the preview before importing.
 - **Duplicates:** imports skip notes with matching type, trimmed title, content, checklist structure, tags and image contents by default. Disable that option to deliberately create copies. Settings → Find duplicates shows duplicate groups and requires confirmation before deletion. Color, pin state, timestamps and archive state are not part of duplicate matching.
-- **Links:** Copy note link creates a private deep link; readers still need an account with access. Public sharing creates an optional read-only link that anyone holding it can open. Public links include the current note content and attachments, expire after 1–365 days, can be replaced/revoked by the owner, and do not grant editing access.
+- **Links:** in the note's three-dot menu, Copy note link creates a private deep link; readers still need an account with access. Public sharing creates an optional read-only link that anyone holding it can open. Public links include the current note content and attachments, offer expiry choices of 1, 7, 30 or 90 days, 1 year, or Never, can be replaced/revoked by the owner, and do not grant editing access. Never means the link stays active until revoked, replaced, or the note is deleted.
 
 ### Offline editing
 

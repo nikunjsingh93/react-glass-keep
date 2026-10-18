@@ -1,4 +1,5 @@
 import React,{useState,useEffect} from 'react';
+import {createPortal} from 'react-dom';
 import {readKeepFiles,parseKeepEntries} from './keepImport';
 import {importNoteBatches} from './importBackup';
 import {renderMarkdown} from './markdown';
@@ -11,7 +12,7 @@ function SharedDrawing({content}) {
 }
 
 export function LanguagePicker() {return <label className="flex items-center gap-2 p-2">{t('Language')}<select aria-label={t('Language')} value={getLanguage()} onChange={e=>setLanguage(e.target.value)} className="bg-transparent border rounded p-2"><option value="en">English</option><option value="hi">हिन्दी</option></select></label>;}
-export function Dialog({title,onClose,children}) {return <div className="fixed inset-0 z-[10002] bg-black/50 p-4 flex items-center justify-center"><section role="dialog" aria-modal="true" aria-label={title} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-xl shadow-xl p-5 max-w-xl w-full max-h-[90vh] overflow-auto"><div className="flex justify-between gap-4 mb-4"><h2 className="text-xl font-bold">{title}</h2><button aria-label={t('Close')} onClick={onClose}>×</button></div>{children}</section></div>;}
+export function Dialog({title,onClose,children}) {return createPortal(<div className="fixed inset-0 z-[10002] bg-black/50 p-4 flex items-center justify-center"><section role="dialog" aria-modal="true" aria-label={title} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-xl shadow-xl p-5 max-w-xl w-full max-h-[90vh] overflow-auto"><div className="flex justify-between gap-4 mb-4"><h2 className="text-xl font-bold">{title}</h2><button aria-label={t('Close')} onClick={onClose}>×</button></div>{children}</section></div>,document.body);}
 export function KeepImportDialog({api,token,onClose,onImported}) {
   const [entries,setEntries]=useState(null),[onlyOwned,setOnlyOwned]=useState(true),[restoreSharing,setRestoreSharing]=useState(false),[deduplicate,setDeduplicate]=useState(true),[accountEmail,setAccountEmail]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[report,setReport]=useState(null);
   const preview=entries?parseKeepEntries(entries,{onlyOwned,accountEmail}):null;
@@ -48,19 +49,38 @@ export function DuplicateDialog({api,token,onClose,onChanged}) {
   </Dialog>;
 }
 
-export function NoteActions({note,api,token,onCopied}) {
-  const [share,setShare]=useState(null),[error,setError]=useState('');
-  return <div className="flex flex-wrap gap-2 my-2 text-sm">
-    <button className="border rounded px-2 py-1" onClick={async()=>{try{const {id,user_id,revision,collaborators,updated_at,lastEditedAt,lastEditedBy,...copy}=note;const result=await api('/notes',{method:'POST',token,body:{...copy,title:`${copy.title || t('Untitled')} (${t('copy')})`,pinned:false}});onCopied(result);}catch(e){setError(e.message);}}}>{t('Make a copy')}</button>
-    <button className="border rounded px-2 py-1" onClick={async()=>{try{await navigator.clipboard.writeText(`${location.origin}${location.pathname}#/notes/${encodeURIComponent(note.id)}`);}catch{setError(t('Clipboard unavailable. Copy the note URL from your browser.'));}}}>{t('Copy note link')}</button>
-    <button className="border rounded px-2 py-1" onClick={()=>setShare({url:'',days:7})}>{t('Public sharing')}</button>
-    {error && <p role="alert" className="text-red-600">{error}</p>}
-    {share && <Dialog title={t('Public read-only link')} onClose={()=>setShare(null)}><p>{t('Anyone with this link can read this note and its attachments without signing in. Only the owner can create or revoke a link.')}</p><label>{t('Expires in days')} <input type="number" min="1" max="365" value={share.days} onChange={e=>setShare({...share,days:Number(e.target.value)})} className="border rounded bg-transparent p-2 w-20"/></label>
-      <button className="block my-3 border rounded p-2" onClick={async()=>{try{const result=await api(`/notes/${note.id}/share-link`,{method:'POST',token,body:{days:share.days}});setShare({...share,url:`${location.origin}${location.pathname}#/share/${result.token}`});setError('');}catch(e){setError(e.message);}}}>{t('Create or replace public link')}</button>
+export function NoteActions({note,api,token,onCopied,children}) {
+  const [share,setShare]=useState(null),[error,setError]=useState(''),[privateLink,setPrivateLink]=useState('');
+  const makeCopy=async()=>{
+    try {
+      const {id,user_id,revision,collaborators,updated_at,lastEditedAt,lastEditedBy,...copy}=note;
+      const result=await api('/notes',{method:'POST',token,body:{...copy,title:`${copy.title || t('Untitled')} (${t('copy')})`,pinned:false}});
+      onCopied(result);
+    } catch(e){setError(e.message);}
+  };
+  const copyLink=async()=>{
+    const url=`${location.origin}${location.pathname}#/notes/${encodeURIComponent(note.id)}`;
+    try {await navigator.clipboard.writeText(url);}catch{setPrivateLink(url);}
+  };
+  if(!note)return null;
+  return <>
+    {children({makeCopy,copyLink,openSharing:()=>{setError('');setShare({url:'',days:'7'});}})}
+    {privateLink && <Dialog title={t('Copy note link')} onClose={()=>setPrivateLink('')}><p>{t('Only signed-in users who already have access can open this note link.')}</p><input aria-label={t('Note link')} className="border rounded bg-transparent w-full p-2" readOnly value={privateLink} onFocus={e=>e.target.select()}/></Dialog>}
+    {share && <Dialog title={t('Public read-only link')} onClose={()=>setShare(null)}>
+      <p>{t('Anyone with this link can read this note and its attachments without signing in. Only the owner can create or revoke a link.')}</p>
+      <label className="flex items-center gap-3 my-3">{t('Link expires')}
+        <select aria-label={t('Link expires')} value={share.days} onChange={e=>setShare({...share,days:e.target.value})} className="border rounded bg-transparent p-2">
+          {[['1','1 day'],['7','7 days'],['30','30 days'],['90','90 days'],['365','1 year'],['never','Never']].map(([value,label])=><option key={value} value={value}>{t(label)}</option>)}
+        </select>
+      </label>
+      {share.days==='never' && <p className="text-sm">{t('This link stays active until you revoke or replace it.')}</p>}
+      <button className="block my-3 border rounded p-2" onClick={async()=>{try{const result=await api(`/notes/${note.id}/share-link`,{method:'POST',token,body:{days:share.days==='never'?null:Number(share.days)}});setShare({...share,url:`${location.origin}${location.pathname}#/share/${result.token}`});setError('');}catch(e){setError(e.message);}}}>{t('Create or replace public link')}</button>
       {share.url && <input aria-label={t('Public link')} className="border rounded bg-transparent w-full p-2" readOnly value={share.url} onFocus={e=>e.target.select()}/>}
-      <button className="underline my-3" onClick={async()=>{try{await api(`/notes/${note.id}/share-link`,{method:'DELETE',token});setShare(null);setError('');}catch(e){setError(e.message);}}}>{t('Revoke public link')}</button>{error && <p role="alert">{error}</p>}
+      <button className="underline my-3" onClick={async()=>{try{await api(`/notes/${note.id}/share-link`,{method:'DELETE',token});setShare(null);setError('');}catch(e){setError(e.message);}}}>{t('Revoke public link')}</button>
+      {error && <p role="alert">{error}</p>}
     </Dialog>}
-  </div>;
+    {error && !share && <Dialog title={t('More options')} onClose={()=>setError('')}><p role="alert">{error}</p></Dialog>}
+  </>;
 }
 export function PublicNote({token,api}) {
   const [note,setNote]=useState(null),[error,setError]=useState('');

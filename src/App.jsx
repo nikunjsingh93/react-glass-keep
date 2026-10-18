@@ -12,6 +12,7 @@ import { LanguagePicker, KeepImportDialog, DuplicateDialog, NoteActions, PublicN
 import { getLanguage, t } from "./i18n";
 import { createOfflineClient } from "./offline";
 import OfflineStatus from "./OfflineStatus";
+import NoteLayout from "./NoteLayout";
 
 /** ---------- API Helpers ---------- */
 const API_BASE = "/api";
@@ -604,7 +605,7 @@ html:not(.dark) .note-content pre .code-copy-btn {
   border: 1px solid rgba(0,0,0,0.12);
   box-shadow: 0 2px 10px rgba(0,0,0,0.12);
 }
-  
+
 .inline-code-copy-btn {
   margin-left: 6px;
   font-size: .7rem;
@@ -616,15 +617,17 @@ html:not(.dark) .note-content pre .code-copy-btn {
 
 .dragging { opacity: 0.5; transform: scale(1.05); }
 .drag-over { outline: 2px dashed rgba(99,102,241,.6); outline-offset: 6px; }
-.masonry-grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(1,minmax(0,1fr)); align-items: start; }
-@media (min-width: 640px) { .masonry-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-@media (min-width: 768px) { .masonry-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
-@media (min-width: 1024px) { .masonry-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
-@media (min-width: 1280px) { .masonry-grid { grid-template-columns: repeat(5,minmax(0,1fr)); } }
+.masonry-grid { position: relative; column-gap: 1.5rem; --note-columns: 1; }
+.masonry-item { position: absolute; top: 0; left: 0; width: 100%; }
+.masonry-grid .note-card { margin-bottom: 0; }
+@media (min-width: 640px) { .masonry-grid { --note-columns: 2; } }
+@media (min-width: 768px) { .masonry-grid { --note-columns: 3; } }
+@media (min-width: 1024px) { .masonry-grid { --note-columns: 4; } }
+@media (min-width: 1280px) { .masonry-grid { --note-columns: 5; } }
 
 /* New grid layout to place notes row-wise (left-to-right, top-to-bottom) */
 /* Keep-like masonry using CSS Grid with JS-calculated row spans (preserves horizontal order) */
- 
+
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.5); border-radius: 10px; }
@@ -2733,7 +2736,7 @@ function NotesUI({
               ) : (
                 <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">{t("Pinned")}</h2>
               )}
-              <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
+              <NoteLayout listView={listView}>
                 {pinned.map((n) => (
                   <NoteCard
                     key={n.id}
@@ -2755,7 +2758,7 @@ function NotesUI({
                     currentUser={currentUser}
                   />
                 ))}
-              </div>
+              </NoteLayout>
             </section>
           )
         }
@@ -2772,7 +2775,7 @@ function NotesUI({
                   <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 mb-3 ml-1">{t("Others")}</h2>
                 )
               )}
-              <div className={listView ? "max-w-2xl mx-auto space-y-6" : "masonry-grid"}>
+              <NoteLayout listView={listView}>
                 {others.map((n) => (
                   <NoteCard
                     key={n.id}
@@ -2794,7 +2797,7 @@ function NotesUI({
                     currentUser={currentUser}
                   />
                 ))}
-              </div>
+              </NoteLayout>
             </section>
           )
         }
@@ -5405,7 +5408,7 @@ export default function App() {
                       >
                         <Kebab />
                       </button>
-                      <Popover
+                      <NoteActions key={activeId} note={activeNoteObj} api={api} token={token} onCopied={note=>{setNotes(prev=>[note,...prev]);showToast(t("Copy created"));}}>{actions => (<Popover
                         anchorRef={modalMenuBtnRef}
                         open={modalMenuOpen}
                         onClose={() => setModalMenuOpen(false)}
@@ -5415,6 +5418,9 @@ export default function App() {
                           style={{ backgroundColor: dark ? "#222222" : undefined }}
                           onClick={(e) => e.stopPropagation()}
                         >
+                          <button className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={()=>{setModalMenuOpen(false);actions.copyLink();}}>{t("Copy note link")}</button>
+                          <button className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={()=>{setModalMenuOpen(false);actions.makeCopy();}}>{t("Make a copy")}</button>
+                          <button className="block w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10" onClick={()=>{setModalMenuOpen(false);actions.openSharing();}}>{t("Public sharing")}</button>
                           <button
                             className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${dark ? "hover:bg-white/10" : "hover:bg-gray-100"}`}
                             onClick={() => { const n = notes.find(nn => String(nn.id) === String(activeId)); if (n) handleDownloadNote(n); setModalMenuOpen(false); }}
@@ -5439,7 +5445,7 @@ export default function App() {
                           >
                             <Trash />{t("Delete")}</button>
                         </div>
-                      </Popover>
+                      </Popover>)}</NoteActions>
                     </>
                   )}
 
@@ -5572,7 +5578,7 @@ export default function App() {
                 />
               )}
 
-              {activeNoteObj && <NoteActions note={activeNoteObj} api={api} token={token} onCopied={note=>{setNotes(prev=>[note,...prev]);showToast(t("Copy created"));}}/>}
+
               {/* Inline Edited stamp: only when scrollable (appears at very end) */}
               {editedStamp && modalScrollable && (
                 <div className="mt-6 text-xs text-gray-600 dark:text-gray-300 text-right">{t("Edited:")}{editedStamp}

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.5] - 2026-10-18
+### Changed
+- Move Copy note link, Make a copy and Public sharing into the note editor's three-dot menu.
+- Add public link expiry choices: 1, 7, 30 or 90 days, 1 year, or Never. Non-expiring links remain replaceable and revocable by the owner.
+- Pack mixed-height notes into the shortest available column, preserving left-to-right initial order without the large blank spaces between grid rows. Layout updates when cards or the viewport resize.
+### Validation
+- API checks for timed/non-expiring links, permissions and revocation; browser checks for menu actions, sharing and compact packing at desktop, tablet and phone sizes.
+
 ## [1.0.4] - 2026-10-18
 ### Added
 - Configurable TRUST_PROXY for Nginx Proxy Manager and other trusted proxies.
