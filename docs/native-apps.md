@@ -30,6 +30,8 @@ npm run app:windows
 
 Windows installers appear under `src-tauri/target/release/bundle/nsis/`. Desktop development uses `npm run tauri -- dev`.
 
+The workflow also saves the portable `glass-keep.exe`. The setup installer is recommended because it can install WebView2 when needed; the portable executable needs an existing WebView2 runtime.
+
 For Android, set `JAVA_HOME`, `ANDROID_HOME` and `NDK_HOME` as documented by Tauri, then:
 
 ```sh
@@ -61,3 +63,5 @@ node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/cloud-ba
 ```
 
 The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and native ZIP saving. Rust tests reject API paths that escape the selected origin. Physical Android testing and live cloud-provider sign-in remain separate checks from compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.
+
+On Windows, `tests/native-windows.browser.mjs` additionally launches the compiled executable with an isolated temporary WebView2 profile and a temporary local API. Set `GLASS_KEEP_WINDOWS_EXE` to the portable executable's absolute path, then run `node --test tests/native-windows.browser.mjs`. This checks the real Rust transport, login, a persisted note, reload and cross-origin path rejection without touching the normal app profile.
