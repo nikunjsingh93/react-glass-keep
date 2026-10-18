@@ -143,71 +143,6 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 ---
 
-## 🛠 Setup (Development)
-
-### 1) Install dependencies
-
-```bash
-npm install
-# (Optional) only If you don't have these dev/runtime deps yet:
-npm install -D concurrently nodemon
-npm install express better-sqlite3 cors jsonwebtoken bcryptjs
-```
-
-### 2) Run (web + API)
-
-**POSIX/mac/Linux:**
-```bash
-INITIAL_ADMIN_USERNAME="your-admin-username" INITIAL_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" npm run dev
-```
-
-**Windows (PowerShell):**
-```powershell
-$env:INITIAL_ADMIN_USERNAME = "your-admin-username"
-# Set INITIAL_ADMIN_PASSWORD to your chosen password (12+ characters) in this session.
-npm run dev
-```
-
-- Frontend (Vite): http://localhost:5173
-- Docker: http://localhost:8080  
-  *(Vite dev server proxies `/api` → `http://localhost:8080`.)*
-
-**Promote an existing user to admin (optional):**
-```sql
--- Run against server/data.sqlite
-UPDATE users SET is_admin=1 WHERE email='your-admin-username';
-```
-
-### 3) Docker (Local Development)
-
-**Quick Local Docker Script:**
-```bash
-./local_docker_run.sh
-```
-
-**Or manually:**
-```bash
-docker build -t glass-keep:local .
-
-docker rm -f glass-keep 2>/dev/null || true
-
-docker run -d \
-  --name glass-keep \
-  --restart unless-stopped \
-  -p 8080:8080 \
-  -e NODE_ENV=production \
-  -e API_PORT=8080 \
-  -e JWT_SECRET \
-  -e DB_FILE=/app/data/notes.db \
-  -e INITIAL_ADMIN_USERNAME \
-  -e INITIAL_ADMIN_PASSWORD \
-  -e ALLOW_REGISTRATION=false \
-  -v "$HOME/.glass-keep:/app/data" \
-  glass-keep:local
-```
-
----
-
 > [!IMPORTANT]
 > Supply `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD` before the first Docker run for an empty database. `JWT_SECRET` is optional; existing configured secrets continue to work unchanged. Passwords need at least 12 characters and at most 72 UTF-8 bytes. There are no default credentials. Initial admin settings are ignored after accounts exist; remove `INITIAL_ADMIN_PASSWORD` after setup.
 
@@ -282,6 +217,71 @@ docker compose up -d
 
 > **Persistent data:** notes DB lives in the mounted `./data` folder on your host.
 
+
+---
+
+## 🛠 Setup (Development)
+
+### 1) Install dependencies
+
+```bash
+npm install
+# (Optional) only If you don't have these dev/runtime deps yet:
+npm install -D concurrently nodemon
+npm install express better-sqlite3 cors jsonwebtoken bcryptjs
+```
+
+### 2) Run (web + API)
+
+**POSIX/mac/Linux:**
+```bash
+INITIAL_ADMIN_USERNAME="your-admin-username" INITIAL_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" npm run dev
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:INITIAL_ADMIN_USERNAME = "your-admin-username"
+# Set INITIAL_ADMIN_PASSWORD to your chosen password (12+ characters) in this session.
+npm run dev
+```
+
+- Frontend (Vite): http://localhost:5173
+- Docker: http://localhost:8080  
+  *(Vite dev server proxies `/api` → `http://localhost:8080`.)*
+
+**Promote an existing user to admin (optional):**
+```sql
+-- Run against server/data.sqlite
+UPDATE users SET is_admin=1 WHERE email='your-admin-username';
+```
+
+### 3) Docker (Local Development)
+
+**Quick Local Docker Script:**
+```bash
+./local_docker_run.sh
+```
+
+**Or manually:**
+```bash
+docker build -t glass-keep:local .
+
+docker rm -f glass-keep 2>/dev/null || true
+
+docker run -d \
+  --name glass-keep \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e NODE_ENV=production \
+  -e API_PORT=8080 \
+  -e JWT_SECRET \
+  -e DB_FILE=/app/data/notes.db \
+  -e INITIAL_ADMIN_USERNAME \
+  -e INITIAL_ADMIN_PASSWORD \
+  -e ALLOW_REGISTRATION=false \
+  -v "$HOME/.glass-keep:/app/data" \
+  glass-keep:local
+```
 
 ---
 
