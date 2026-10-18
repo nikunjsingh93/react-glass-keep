@@ -1,12 +1,12 @@
 # --- Build stage
-FROM node:18-slim AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ 
 
 COPY ["package.json", "package-lock.json", "./"]
 RUN npm ci
 
-COPY ["index.html", "vite.config.js", "./"]
+COPY ["index.html", "vite.config.js", "postcss.config.js", "./"]
 COPY ["src", "src"]
 COPY ["public", "public"]
 COPY ["server", "server"]
@@ -18,22 +18,14 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # --- Runtime
-FROM node:18-slim
+FROM node:24-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
-
-# Install runtime dependencies for sharp
-RUN apt-get update && apt-get install -y \
-    libvips-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY ["server", "server"]
 COPY --from=builder /app/dist ./dist
 COPY ["package.json", "package-lock.json", "./"]
-
-# Rebuild sharp for the correct platform
-RUN npm rebuild sharp
 
 RUN mkdir -p /app/data
 

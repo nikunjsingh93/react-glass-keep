@@ -1,3 +1,4 @@
+import {t} from './i18n';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 
 const DRAWING_COLORS = [
@@ -302,9 +303,9 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
           <button
             onClick={() => setMode(mode === 'view' ? 'draw' : 'view')}
             className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm"
-            title={mode === 'view' ? 'Switch to Draw mode' : 'Switch to View mode'}
+            title={mode === 'view' ? t("Switch to Draw mode") : t("Switch to View mode")}
           >
-            {mode === 'view' ? 'Draw mode' : 'View mode'}
+            {mode === 'view' ? t("Draw mode") : t("View mode")}
           </button>
         </div>
       )}
@@ -317,14 +318,14 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
             <button
               onClick={() => setTool('pen')}
               className={`px-2 py-1 rounded text-sm ${tool === 'pen' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
-              title="Pen"
+              title={t("Pen")}
             >
               ✏️
             </button>
             <button
               onClick={() => setTool('eraser')}
               className={`px-2 py-1 rounded text-sm ${tool === 'eraser' ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
-              title="Eraser"
+              title={t("Eraser")}
             >
               🧽
             </button>
@@ -336,7 +337,7 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
               <button
                 onClick={() => setShowColorPicker(!showColorPicker)}
                 className="flex items-center gap-1 px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm hover:bg-gray-300 dark:hover:bg-gray-600"
-                title="Change color"
+                title={t("Change color")}
               >
                 <div
                   className="w-4 h-4 rounded border border-gray-400"
@@ -371,10 +372,10 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
             value={size}
             onChange={(e) => setSize(Number(e.target.value))}
             className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
-            title="Brush size"
+            title={t("Brush size")}
           >
             {PEN_SIZES.map(s => (
-              <option key={s} value={s}>{s}px</option>
+              <option key={s} value={s}>{s}{t("px")}</option>
             ))}
           </select>
 
@@ -384,14 +385,14 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
               onClick={undo}
               disabled={paths.length === 0}
               className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-sm disabled:opacity-50 hover:bg-gray-300 dark:hover:bg-gray-600"
-              title="Undo"
+              title={t("Undo")}
             >
               ↶
             </button>
             <button
               onClick={clearCanvas}
               className="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
-              title="Clear all"
+              title={t("Clear all")}
             >
               🗑️
             </button>
@@ -448,18 +449,16 @@ function DrawingCanvas({ data, onChange, width = 800, height = 600, readOnly = f
           <button
             onClick={addPage}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium transition-colors"
-            title="Double the canvas size to add more space for notes"
-          >
-            Add Page
-          </button>
+            title={t("Double the canvas size to add more space for notes")}
+          >{t("Add Page")}</button>
         </div>
       )}
 
       {/* Info */}
       <div className="text-xs text-gray-500 mt-2">
-        {paths.length} stroke{paths.length !== 1 ? 's' : ''}
-        {mode === 'view' && ' (view mode)'}
-        {readOnly && mode === 'draw' && ' (read-only)'}
+        {paths.length}{t("stroke")}{paths.length !== 1 ? t("s") : ''}
+        {mode === 'view' && t(" (view mode)")}
+        {readOnly && mode === 'draw' && t(" (read-only)")}
       </div>
     </div>
   );

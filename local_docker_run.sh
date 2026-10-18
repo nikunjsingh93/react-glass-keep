@@ -3,7 +3,8 @@
 # Liquid Keep Docker Deployment Script
 # This script builds and runs the Liquid Keep application in a Docker container
 
-set -e  # Exit on any error
+set -e
+# For a new database, export INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD too.
 
 echo "🧹 Removing existing glass-keep container (if exists)..."
 docker rm -f glass-keep 2>/dev/null || true
@@ -18,9 +19,11 @@ docker run -d \
   -p 8080:8080 \
   -e NODE_ENV=production \
   -e API_PORT=8080 \
-  -e JWT_SECRET=dev-please-change \
+  -e TRUST_PROXY \
+  -e JWT_SECRET \
   -e DB_FILE=/app/data/notes.db \
-  -e ADMIN_EMAILS=adminniku \
+  -e INITIAL_ADMIN_USERNAME \
+  -e INITIAL_ADMIN_PASSWORD \
   -v "$HOME/.glass-keep:/app/data" \
   glass-keep:local
 

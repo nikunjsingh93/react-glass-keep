@@ -26,7 +26,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 * **Auth & Multi-user**
   * Register, Login (username + password), Sign out
-  * **Default Admin Account:** `admin` / `admin` (if no users exist) ✅ NEW
+  * **Secure first run:** supply `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD` when creating a new installation.
   * **Secret recovery key** download + **Sign in with Secret Key**
   * Each user sees **only their notes**
 
@@ -42,7 +42,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * Collaboration on notes — co-edit Markdown notes and watch changes sync across collaborators.
   * **Add and remove collaborators** — invite users by username/email to collaborate on your notes.
   * View-only mode for collaborators — open notes in view mode without overwriting edits from others.
-  * Automatic conflict resolution — prevents stale data from overwriting recent edits.  
+  * Revision checks reject stale saves; the editor keeps your draft and lets you download it before reloading.
 * **Admin Panel**
 
   * New Admin Panel Sidebar in 3 dots Dropdown with many features like Add new uesr, Toggle new account creation (**off by default**) ✅ NEW
@@ -122,7 +122,7 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 ## 🧰 Requirements
 
-* **Node.js 18+** and npm
+* **Node.js 24 LTS** and npm
 * (Optional) **Docker** & **Docker Compose**
 * SQLite is embedded (no external DB needed)
 
@@ -158,12 +158,13 @@ npm install express better-sqlite3 cors jsonwebtoken bcryptjs
 
 **POSIX/mac/Linux:**
 ```bash
-ADMIN_EMAILS="your-admin-username" npm run dev
+INITIAL_ADMIN_USERNAME="your-admin-username" INITIAL_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" npm run dev
 ```
 
 **Windows (PowerShell):**
 ```powershell
-setx ADMIN_EMAILS "your-admin-username"
+$env:INITIAL_ADMIN_USERNAME = "your-admin-username"
+# Set INITIAL_ADMIN_PASSWORD to your chosen password (12+ characters) in this session.
 npm run dev
 ```
 
@@ -196,20 +197,19 @@ docker run -d \
   -p 8080:8080 \
   -e NODE_ENV=production \
   -e API_PORT=8080 \
-  -e JWT_SECRET=dev-please-change \
+  -e JWT_SECRET \
   -e DB_FILE=/app/data/notes.db \
-  -e ADMIN_EMAILS=admin \
+  -e INITIAL_ADMIN_USERNAME \
+  -e INITIAL_ADMIN_PASSWORD \
   -e ALLOW_REGISTRATION=false \
-  -v "$HOME/.glass-keep:/app/data" \ # Change path according to OS (e.g., %USERPROFILE%\.glass-keep on Windows)
+  -v "$HOME/.glass-keep:/app/data" \
   glass-keep:local
 ```
 
 ---
 
 > [!IMPORTANT]
-> **Default Admin Credentials** (for fresh installations):
-> - **Username:** `admin`
-> - **Password:** `admin`
+> Supply `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD` before the first Docker run for an empty database. `JWT_SECRET` is optional; existing configured secrets continue to work unchanged. Passwords need at least 12 characters and at most 72 UTF-8 bytes. There are no default credentials. Initial admin settings are ignored after accounts exist; remove `INITIAL_ADMIN_PASSWORD` after setup.
 
 ## 🐳 Docker Deploy to Server(single image: API + built frontend)
 
@@ -236,9 +236,10 @@ docker run -d \
   -p 8080:8080 \
   -e NODE_ENV=production \
   -e API_PORT=8080 \
-  -e JWT_SECRET="replace-with-a-long-random-string" \
+  -e JWT_SECRET \
   -e DB_FILE="/app/data/notes.db" \
-  -e ADMIN_EMAILS="your-admin-username" \
+  -e INITIAL_ADMIN_USERNAME \
+  -e INITIAL_ADMIN_PASSWORD \
   -e ALLOW_REGISTRATION=false \
   -v ~/.glass-keep:/app/data \
   nikunjsingh/glass-keep:latest
@@ -247,7 +248,7 @@ docker run -d \
 
 - App & API: http://localhost:8080  
 - **Admin Panel (Docker/prod):** http://localhost:8080/#/admin  
-  *(Make sure `ADMIN_EMAILS` matches the username exactly when creating the admin account)*
+  *(Initial administrator credentials are required only for an empty database.)*
 
 ### docker-compose.yml
 
@@ -261,9 +262,10 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: "8080"
-      JWT_SECRET: replace-with-a-long-random-string
+      JWT_SECRET: ${JWT_SECRET:-}
       DB_FILE: /app/data/notes.db
-      ADMIN_EMAILS: your-admin-username  # <— change this to your admin user
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       ALLOW_REGISTRATION: "false"        # <— set to "true" to allow new account creation
     ports:
       - "8080:8080"
@@ -294,16 +296,12 @@ docker compose up -d
     ```sql
     UPDATE users SET is_admin=1 WHERE email='your-admin-username';
     ```
-> **Note:** If registration is disabled (default), you can use the default admin account to log in for the first time:
-> - **Username:** `admin`
-> - **Password:** `admin`
-> 
-> After logging in, you can create new users or change the admin password in the Admin Panel.
+> Sign in using the initial administrator credentials you supplied. Existing databases retain their accounts. Admins can create users and change passwords in the Admin Panel.
 - **What you can do**
   - View all users with: **Is Admin**, **Notes count**, **Storage used**, **Created at**
   - **Delete** a user (also removes their notes; cannot delete the last admin)
 
-> The admin view is intentionally not in the main header menu. Navigate to the route directly.
+> Open the Admin Panel from the main menu, or navigate to `/#/admin`.
 
 ---
 
@@ -376,7 +374,7 @@ docker compose up -d
 ## 🔐 Security Notes
 
 * Treat your **Secret Key** like a password. Anyone with it can sign in as you.
-* Change `JWT_SECRET` in production to a long, random string.
+* A long random `JWT_SECRET` is recommended, but is optional and does not block startup. Existing configured secrets and the original fallback remain supported. Set optional `JWT_TTL` (default `7d`) to control session duration. Changing a password revokes existing sessions.
 * Serve over HTTPS in production for PWA and security best practices.
 
 ---
@@ -401,3 +399,59 @@ docker compose up -d
 ## 📝 License
 
 MIT
+
+## Upgrading to 1.0.2
+
+- Back up the SQLite database before upgrading. Stop the old container before copying the database and its WAL files, or use SQLite's online backup command. The JSON export in older versions omits archived notes.
+- Keep the same mounted data directory. Schema migrations add note revisions and session versions without replacing accounts or notes.
+- Version 1.0.3 removes the JWT secret startup requirement. Keep your existing secret to preserve sessions; no JWT configuration change is required. Rotate any old default administrator password.
+- Initial administrator credentials are required only when the database has no users.
+- Reload all open browser/PWA windows after upgrading. Older clients cannot save without a revision; the server returns 428 instead of accepting an unsafe overwrite.
+- Authenticated API responses are no longer service-worker cached. Old shared API caches are deleted at startup and service-worker activation. Version 1.0.4 adds per-account IndexedDB snapshots and a persistent queue for offline edits.
+- Version 2 JSON exports preserve archived notes and attachments. Restoring merges copies into the signed-in user's account; sharing permissions are intentionally not recreated.
+- A recovery key grants sign-in access; it is not an encryption key. Existing recovery keys migrate after their next successful use.
+
+### Validation
+
+Run `npm test` for API/security tests and `npm run build` for the production bundle. Run `node --test tests/browser.test.mjs` for the browser regression check (Microsoft Edge installed). Tests create temporary databases and do not use your notes.
+
+## Upgrading to 1.0.3
+
+Pull `nikunjsingh/glass-keep:1.0.3` (or `latest`) and recreate the container with its existing environment and database volume. Short, legacy placeholder, and unset JWT secrets no longer block startup. No account or password changes are required for an existing database.
+
+## Upgrading to 1.0.4
+
+Use `nikunjsingh/glass-keep:1.0.4` for a fixed release, or `latest` for the newest published release. Both Linux AMD64 and ARM64 are supported. Keep your existing database volume and JWT secret, back up the database, then recreate the container. Open `/api/health` to check the running `version` (this release returns `1.0.4`). Reload browser/PWA windows so they load the matching client.
+
+### Nginx Proxy Manager
+
+With **one Nginx Proxy Manager** in front of Glass Keep, add this environment variable to the Glass Keep container and recreate it:
+
+```yaml
+environment:
+  TRUST_PROXY: "1"
+```
+
+This lets sign-in rate limiting identify individual users from the forwarded client address and resolves `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`. Only expose the app through that proxy; direct access to the app port would allow a caller to supply its own forwarded address. Leave this variable unset for direct access without a proxy. Other installations can specify trusted proxy IPs/subnets as a comma-separated list. Do not set it to `true`, which would trust every supplied proxy address.
+
+### Web features
+
+- **Language:** choose English or हिन्दी on the sign-in screen or in Settings. The choice is remembered on this device. Notes are kept in their original language.
+- **Grid:** recent notes now run across each row, with pinned notes in their own section.
+- **Tags:** existing tags appear as suggestions in the editor. Select several tags in the sidebar to show notes matching **all** selected tags. Choose Notes (All) to clear the filter.
+- **Selection:** Menu → Multi select → Select all filtered selects the current search/tag results. Changing the search or tags clears the selection. Review the confirmation before bulk deletion.
+- **Copies:** open a note and choose Make a copy. This creates a separate, unpinned note owned by you, without copying collaboration permissions.
+- **Checklists:** use arrow controls to reorder a complete branch, indent/outdent items, add sub-items, and hide completed items. Checking a parent also checks its descendants.
+- **Google Keep:** Settings → Import Google Keep accepts a Takeout ZIP, a folder, or JSON files. ZIP/folder imports include supported image attachments (PNG, JPEG, GIF, WebP). Missing or unsupported attachments are reported. Import is limited to 100 MB decompressed and 5,000 ZIP entries. Notes owned by another person are skipped by default; enter your Keep email when identifying an owner explicitly listed in the export. Sharing restoration is optional and matches existing Glass Keep usernames exactly to sharee emails; unmatched users are reported. Review the preview before importing.
+- **Duplicates:** imports skip notes with matching type, trimmed title, content, checklist structure, tags and image contents by default. Disable that option to deliberately create copies. Settings → Find duplicates shows duplicate groups and requires confirmation before deletion. Color, pin state, timestamps and archive state are not part of duplicate matching.
+- **Links:** Copy note link creates a private deep link; readers still need an account with access. Public sharing creates an optional read-only link that anyone holding it can open. Public links include the current note content and attachments, expire after 1–365 days, can be replaced/revoked by the owner, and do not grant editing access.
+
+### Offline editing
+
+Sign in and open the app online at least once on the device. Visited notes are stored separately for each account. Creating, editing, checking items, copying, deleting and archiving notes can then queue locally while offline. Keep the browser's site data until synchronization finishes; clearing site data removes unsynced drafts. New sign-ins, imports, sharing changes and AI require a connection.
+
+The queue survives a reload and synchronizes after reconnecting or signing in again to the same account. Replayed operations are recorded by the server so a lost acknowledgment does not apply a write twice. If the server copy changed, both versions are preserved for review: download the local draft, use the server version, or explicitly keep your changes. An expired session requires signing in again before synchronization resumes.
+
+### Release checks
+
+Run `npm test`, `npm run build`, then `node --test tests/browser.test.mjs tests/web-features.browser.mjs` (Microsoft Edge installed). `tests/docker-smoke.ps1` checks the final image on both architectures. Native Android apps and home-screen widgets remain outside this release.

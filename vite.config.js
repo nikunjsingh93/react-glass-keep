@@ -37,40 +37,11 @@ export default defineConfig({
         ]
       },
       workbox: {
+        importScripts: ["/sw-cleanup.js"],
+        navigateFallbackDenylist: [/^\/api(?:\/|$)/],
         navigateFallback: "/index.html",
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp}"],
-        runtimeCaching: [
-          {
-            urlPattern: /^https?:\/\/.*\/api\/notes.*$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'notes-cache',
-              networkTimeoutSeconds: 3,
-              cacheableResponse: {
-                statuses: [0, 200]
-              },
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 24 * 60 * 60 // 24 hours
-              }
-            }
-          },
-          {
-            urlPattern: /^https?:\/\/.*\/api\/.*$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 3,
-              cacheableResponse: {
-                statuses: [0, 200]
-              },
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1 hour
-              }
-            }
-          }
-        ]
+        runtimeCaching: [{ urlPattern: /\/api(?:\/|$)/, handler: 'NetworkOnly' }]
       }
       // devOptions: { enabled: true } // ← uncomment to test SW in dev (remember to disable later)
     })

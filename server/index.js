@@ -9,6 +9,9 @@ const bcrypt = require("bcryptjs");
 const Database = require("better-sqlite3");
 const cors = require("cors");
 const crypto = require("crypto");
+const { rateLimit } = require("express-rate-limit");
+const { configureProxy } = require('./proxy');
+const { fingerprint, installNoteFeatures } = require('./noteFeatures');
 
 // Transformers.js for server-side AI
 let pipeline;
@@ -42,9 +45,24 @@ async function initServerAI() {
 // initServerAI().catch(console.error);
 
 const app = express();
+configureProxy(app);
 const PORT = Number(process.env.API_PORT || process.env.PORT || 8080);
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-please-change";
 const NODE_ENV = process.env.NODE_ENV || "development";
+// Preserve the original signing behavior so upgrades do not require configuration
+// changes or invalidate sessions on installations without an explicit secret.
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-please-change";
+const JWT_TTL = process.env.JWT_TTL || "7d";
+
+// Never let browsers or intermediary caches store authenticated API responses.
+app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: "draft-8", legacyHeaders: false,
+  message: { error: "Too many sign-in attempts. Try again in 15 minutes." } });
+app.use(["/api/login", "/api/register", "/api/setup"], authLimiter);
+
+function validPassword(password) {
+  return typeof password === "string" && password.length >= 12 && Buffer.byteLength(password, "utf8") <= 72;
+}
+function validIdentity(value) { return typeof value === "string" && value.trim().length > 0 && value.length <= 254; }
 
 // ---------- Body parsing ----------
 app.use(express.json({ limit: "20mb" }));
@@ -121,6 +139,18 @@ CREATE TABLE IF NOT EXISTS note_collaborators (
   UNIQUE(note_id, user_id)
 );
 `);
+
+// Fail loudly on security/data migrations rather than running a partial schema.
+for (const [table, column, definition] of [
+  ["users", "token_version", "INTEGER NOT NULL DEFAULT 0"],
+  ["users", "secret_key_digest", "TEXT"],
+  ["notes", "revision", "INTEGER NOT NULL DEFAULT 1"],
+]) {
+  if (!db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS users_secret_digest ON users(secret_key_digest) WHERE secret_key_digest IS NOT NULL");
 
 // Tiny migrations (safe to run repeatedly)
 (function ensureColumns() {
@@ -209,9 +239,10 @@ function signToken(user) {
       email: user.email,
       name: user.name,
       is_admin: !!user.is_admin,
+      ver: user.token_version,
     },
     JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: JWT_TTL }
   );
 }
 
@@ -221,16 +252,18 @@ function auth(req, res, next) {
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    const account = db.prepare("SELECT * FROM users WHERE id=?").get(payload.uid);
+    if (!account || (payload.ver ?? 0) !== account.token_version) throw new Error("Session revoked");
     req.user = {
-      id: payload.uid,
-      email: payload.email,
-      name: payload.name,
-      is_admin: !!payload.is_admin,
+      id: account.id,
+      email: account.email,
+      name: account.name,
+      is_admin: !!account.is_admin,
     };
-    next();
   } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
+  next();
 }
 
 // Auth that also supports token in query string for EventSource
@@ -242,35 +275,35 @@ function authFromQueryOrHeader(req, res, next) {
   if (!token) return res.status(401).json({ error: "Missing token" });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
+    const account = db.prepare("SELECT * FROM users WHERE id=?").get(payload.uid);
+    if (!account || (payload.ver ?? 0) !== account.token_version) throw new Error("Session revoked");
     req.user = {
-      id: payload.uid,
-      email: payload.email,
-      name: payload.name,
-      is_admin: !!payload.is_admin,
+      id: account.id,
+      email: account.email,
+      name: account.name,
+      is_admin: !!account.is_admin,
     };
-    next();
   } catch {
     return res.status(401).json({ error: "Invalid token" });
   }
+  next();
 }
 
 const insertUser = db.prepare(
   "INSERT INTO users (name,email,password_hash,created_at) VALUES (?,?,?,?)"
 );
 
-// Seed default admin user if none exist
-(function seedDefaultAdmin() {
-  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
-  if (userCount === 0) {
-    const adminEmail = "admin";
-    const adminPass = "admin";
-    const hash = bcrypt.hashSync(adminPass, 10);
-    const info = insertUser.run("Admin", adminEmail, hash, nowISO());
-    const mkAdmin = db.prepare("UPDATE users SET is_admin=1 WHERE id=?");
-    mkAdmin.run(info.lastInsertRowid);
-    console.log(`Default admin user created: ${adminEmail} / ${adminPass}`);
+// Fresh deployments require credentials supplied by the operator, never admin/admin.
+if (db.prepare("SELECT COUNT(*) AS count FROM users").get().count === 0) {
+  const email = process.env.INITIAL_ADMIN_USERNAME;
+  const password = process.env.INITIAL_ADMIN_PASSWORD;
+  if (!validIdentity(email) || !validPassword(password)) {
+    throw new Error("Fresh installation: set INITIAL_ADMIN_USERNAME and INITIAL_ADMIN_PASSWORD (12+ characters, at most 72 UTF-8 bytes).");
   }
-})();
+  const info = insertUser.run("Admin", email.trim(), bcrypt.hashSync(password, 12), nowISO());
+  db.prepare("UPDATE users SET is_admin=1 WHERE id=?").run(info.lastInsertRowid);
+  console.log("Initial administrator created. Remove INITIAL_ADMIN_PASSWORD from the deployment environment.");
+}
 const getUserById = db.prepare("SELECT * FROM users WHERE id = ?");
 const getNoteById = db.prepare("SELECT * FROM notes WHERE id = ?");
 
@@ -292,7 +325,7 @@ const getNoteWithCollaboration = db.prepare(`
 `);
 const insertNote = db.prepare(`
   INSERT INTO notes (id,user_id,type,title,content,items_json,tags_json,images_json,color,pinned,position,timestamp,archived)
-  VALUES (@id,@user_id,@type,@title,@content,@items_json,@tags_json,@images_json,@color,@pinned,@position,@timestamp,0)
+  VALUES (@id,@user_id,@type,@title,@content,@items_json,@tags_json,@images_json,@color,@pinned,@position,@timestamp,@archived)
 `);
 const updateNote = db.prepare(`
   UPDATE notes SET
@@ -446,6 +479,11 @@ app.get("/api/events", authFromQueryOrHeader, (req, res) => {
   // Keepalive ping
   const ping = setInterval(() => {
     try {
+      const account = getUserById.get(req.user.id);
+      // Re-check the original token so an open stream cannot outlive revocation/expiry.
+      const token = req.query.token || req.headers.authorization?.slice(7);
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (!account || (payload.ver ?? 0) !== account.token_version) throw new Error("Session revoked");
       res.write("event: ping\ndata: {}\n\n");
     } catch (error) {
       clearInterval(ping);
@@ -462,19 +500,19 @@ app.get("/api/events", authFromQueryOrHeader, (req, res) => {
 });
 
 // ---------- Auth ----------
-app.post("/api/register", (req, res) => {
+app.post("/api/register", asyncRoute(async (req, res) => {
   // Check if new account creation is allowed
   if (!adminSettings.allowNewAccounts) {
     return res.status(403).json({ error: "New account creation is currently disabled." });
   }
 
   const { name, email, password } = req.body || {};
-  if (!email || !password)
-    return res.status(400).json({ error: "Email and password are required." });
-  if (getUserByEmail.get(email))
+  if (!validIdentity(email) || !validPassword(password) || (name !== undefined && !validIdentity(name)))
+    return res.status(400).json({ error: "Supply a username and a password of at least 12 characters (at most 72 UTF-8 bytes)." });
+  if (getUserByEmail.get(email.trim()))
     return res.status(409).json({ error: "Email already registered." });
 
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = await bcrypt.hash(password, 12);
   const info = insertUser.run(name?.trim() || "User", email.trim(), hash, nowISO());
 
   // Check if this user should be promoted to admin
@@ -486,21 +524,22 @@ app.post("/api/register", (req, res) => {
     token,
     user: { id: user.id, name: user.name, email: user.email, is_admin: !!user.is_admin },
   });
-});
+}));
 
-app.post("/api/login", (req, res) => {
+function asyncRoute(handler) { return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next); }
+app.post("/api/login", asyncRoute(async (req, res) => {
   const { email, password } = req.body || {};
-  const user = email ? getUserByEmail.get(email) : null;
-  if (!user) return res.status(401).json({ error: "No account found for that email." });
-  if (!bcrypt.compareSync(password || "", user.password_hash)) {
-    return res.status(401).json({ error: "Incorrect password." });
+  if (!validIdentity(email) || typeof password !== "string" || Buffer.byteLength(password) > 72) return res.status(401).json({ error: "Invalid username or password." });
+  const user = getUserByEmail.get(email.trim());
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    return res.status(401).json({ error: "Invalid username or password." });
   }
   const token = signToken(user);
   res.json({
     token,
     user: { id: user.id, name: user.name, email: user.email, is_admin: !!user.is_admin },
   });
-});
+}));
 
 // ---------- Secret Key (Recovery) ----------
 function generateSecretKey(bytes = 32) {
@@ -522,21 +561,27 @@ const getUsersWithSecret = db.prepare(
 // Create/rotate a user's secret key
 app.post("/api/secret-key", auth, (req, res) => {
   const key = generateSecretKey(32);
-  const hash = bcrypt.hashSync(key, 10);
-  updateSecretForUser.run(hash, nowISO(), req.user.id);
+  const digest = crypto.createHash("sha256").update(key).digest("hex");
+  db.prepare("UPDATE users SET secret_key_hash=NULL,secret_key_digest=?,secret_key_created_at=? WHERE id=?").run(digest, nowISO(), req.user.id);
   res.json({ key });
 });
 
 // Login with secret key
-app.post("/api/login/secret", (req, res) => {
+app.post("/api/login/secret", asyncRoute(async (req, res) => {
   const { key } = req.body || {};
-  if (!key || typeof key !== "string" || key.length < 16) {
+  if (!key || typeof key !== "string" || key.length < 16 || key.length > 128) {
     return res.status(400).json({ error: "Invalid key." });
   }
+  const digest = crypto.createHash("sha256").update(key).digest("hex");
+  const matched = db.prepare("SELECT * FROM users WHERE secret_key_digest=?").get(digest);
+  if (matched) return res.json({ token: signToken(matched), user: { id: matched.id, name: matched.name, email: matched.email, is_admin: !!matched.is_admin } });
+  // Compatibility for old recovery keys: migrate only after successful verification.
   const rows = getUsersWithSecret.all();
   for (const u of rows) {
-    if (u.secret_key_hash && bcrypt.compareSync(key, u.secret_key_hash)) {
-      const token = signToken(u);
+    if (u.secret_key_hash && await bcrypt.compare(key, u.secret_key_hash)) {
+      const migrated = db.prepare("UPDATE users SET secret_key_hash=NULL,secret_key_digest=? WHERE id=? AND secret_key_hash=?").run(digest, u.id, u.secret_key_hash);
+      if (!migrated.changes) return res.status(401).json({ error: "Secret key was rotated. Use the current recovery key." });
+      const token = signToken(getUserById.get(u.id));
       return res.json({
         token,
         user: { id: u.id, name: u.name, email: u.email, is_admin: !!u.is_admin },
@@ -544,7 +589,9 @@ app.post("/api/login/secret", (req, res) => {
     }
   }
   return res.status(401).json({ error: "Secret key not recognized." });
-});
+}));
+
+installNoteFeatures(app, { db, auth, serializeNote, broadcastNoteUpdated });
 
 // ---------- Notes ----------
 app.get("/api/notes", auth, (req, res) => {
@@ -588,6 +635,7 @@ app.get("/api/notes", auth, (req, res) => {
       return {
         id: r.id,
         user_id: r.user_id,
+        revision: r.revision,
         type: r.type,
         title: r.title,
         content: r.content,
@@ -623,88 +671,72 @@ app.post("/api/notes", auth, (req, res) => {
     pinned: body.pinned ? 1 : 0,
     position: typeof body.position === "number" ? body.position : Date.now(),
     timestamp: body.timestamp || nowISO(),
+    archived: 0,
   };
   insertNote.run(n);
-  res.status(201).json({
-    id: n.id,
-    type: n.type,
-    title: n.title,
-    content: n.content,
-    items: JSON.parse(n.items_json),
-    tags: JSON.parse(n.tags_json),
-    images: JSON.parse(n.images_json),
-    color: n.color,
-    pinned: !!n.pinned,
-    position: n.position,
-    timestamp: n.timestamp,
-  });
+  broadcastNoteUpdated(n.id);
+  res.status(201).json(serializeNote(getNoteById.get(n.id)));
 });
 
-app.put("/api/notes/:id", auth, (req, res) => {
-  const id = req.params.id;
-  const existing = getNoteWithCollaboration.get(req.user.id, id, req.user.id);
-  if (!existing) return res.status(404).json({ error: "Note not found" });
-
-  const b = req.body || {};
-  const updated = {
-    id,
-    user_id: req.user.id,
-    type: b.type === "checklist" ? "checklist" : b.type === "draw" ? "draw" : "text",
-    title: String(b.title || ""),
-    content: b.type === "checklist" ? "" : String(b.content || ""),
-    items_json: JSON.stringify(Array.isArray(b.items) ? b.items : []),
-    tags_json: JSON.stringify(Array.isArray(b.tags) ? b.tags : []),
-    images_json: JSON.stringify(Array.isArray(b.images) ? b.images : []),
-    color: b.color && typeof b.color === "string" ? b.color : "default",
-    pinned: b.pinned ? 1 : 0,
-    position: typeof b.position === "number" ? b.position : existing.position,
-    timestamp: b.timestamp || existing.timestamp,
+// A single serializer keeps ownership, revisions and archive state consistent.
+function serializeNote(r) {
+  return {
+    id: r.id, user_id: r.user_id, revision: r.revision, type: r.type,
+    title: r.title, content: r.content, items: JSON.parse(r.items_json || "[]"),
+    tags: JSON.parse(r.tags_json || "[]"), images: JSON.parse(r.images_json || "[]"),
+    color: r.color, pinned: !!r.pinned, position: r.position, timestamp: r.timestamp,
+    archived: !!r.archived, updated_at: r.updated_at,
+    lastEditedBy: r.last_edited_by, lastEditedAt: r.last_edited_at,
+    collaborators: getNoteCollaborators.all(r.id).length ? [] : null,
   };
-  // Use collaboration-aware update
-  const result = updateNoteWithCollaboration.run(updated);
+}
 
-  if (result.changes === 0) {
-    return res.status(404).json({ error: "Note not found or access denied" });
-  }
-
-  // Update editor tracking (store display name)
-  updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
-  broadcastNoteUpdated(id);
-  res.json({ ok: true });
-});
-
-app.patch("/api/notes/:id", auth, (req, res) => {
-  const id = req.params.id;
-  const existing = getNoteWithCollaboration.get(req.user.id, id, req.user.id);
-  if (!existing) return res.status(404).json({ error: "Note not found" });
-  const p = {
-    id,
-    user_id: req.user.id,
-    title: typeof req.body.title === "string" ? String(req.body.title) : null,
-    content: typeof req.body.content === "string" ? String(req.body.content) : null,
-    items_json: Array.isArray(req.body.items) ? JSON.stringify(req.body.items) : null,
-    tags_json: Array.isArray(req.body.tags) ? JSON.stringify(req.body.tags) : null,
-    images_json: Array.isArray(req.body.images) ? JSON.stringify(req.body.images) : null,
-    color: typeof req.body.color === "string" ? req.body.color : null,
-    pinned: typeof req.body.pinned === "boolean" ? (req.body.pinned ? 1 : 0) : null,
-    timestamp: req.body.timestamp || null,
-  };
-  // Use collaboration-aware patch
-  const result = patchPartialWithCollaboration.run(p);
-
-  if (result.changes === 0) {
-    return res.status(404).json({ error: "Note not found or access denied" });
-  }
-
-  // Update editor tracking (store display name)
-  updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), id);
-  broadcastNoteUpdated(id);
-
-  res.json({ ok: true });
-});
+// Compare-and-swap runs synchronously inside one SQLite transaction.
+function writeNote(req, res) {
+  const result = db.transaction(() => {
+    const existing = getNoteWithCollaboration.get(req.user.id, req.params.id, req.user.id);
+    if (!existing) return { status: 404, error: "Note not found" };
+    const b = req.body || {};
+    if (!Number.isSafeInteger(b.revision)) return { status: 428, error: "A note revision is required. Refresh the app before editing." };
+    if (b.revision !== existing.revision) return { status: 409, error: "This note changed on another device. Your draft is kept; reload the latest note before retrying.", note: serializeNote(existing) };
+    const columns = { title: "title", content: "content", type: "type", items: "items_json", tags: "tags_json", images: "images_json", color: "color", pinned: "pinned", position: "position" };
+    const updates = [], values = [];
+    for (const [key, column] of Object.entries(columns)) {
+      if (!(key in b)) continue;
+      let value = b[key];
+      if (["items", "tags", "images"].includes(key)) {
+        if (!Array.isArray(value)) return { status: 400, error: key + " must be an array" };
+        value = JSON.stringify(value);
+      } else if (key === "pinned") {
+        if (typeof value !== "boolean") return { status: 400, error: "pinned must be a boolean" };
+        value = value ? 1 : 0;
+      } else if (key === "position") {
+        if (!Number.isFinite(value)) return { status: 400, error: "Invalid position" };
+      } else if (typeof value !== "string" || (key === "type" && !["text", "checklist", "draw"].includes(value))) {
+        return { status: 400, error: "Invalid " + key };
+      }
+      updates.push(column + "=?"); values.push(value);
+    }
+    if (!updates.length) return { status: 400, error: "No note fields supplied" };
+    const now = nowISO();
+    db.prepare("UPDATE notes SET " + updates.join(",") + ",revision=revision+1,updated_at=?,last_edited_by=?,last_edited_at=? WHERE id=? AND revision=?")
+      .run(...values, now, req.user.name || req.user.email, now, existing.id, b.revision);
+    return { note: serializeNote(getNoteById.get(existing.id)) };
+  })();
+  if (result.error) return res.status(result.status).json(result);
+  broadcastNoteUpdated(req.params.id);
+  res.json(result.note);
+}
+app.put("/api/notes/:id", auth, writeNote);
+app.patch("/api/notes/:id", auth, writeNote);
 
 app.delete("/api/notes/:id", auth, (req, res) => {
-  deleteNote.run(req.params.id, req.user.id);
+  const existing = getNote.get(req.params.id,req.user.id);
+  if (existing && req.body?.revision !== undefined && req.body.revision !== existing.revision) return res.status(409).json({error:'Note changed before deletion',note:serializeNote(existing)});
+  const recipients = getCollaboratorUserIdsForNote(req.params.id);
+  const result = deleteNote.run(req.params.id, req.user.id);
+  if (!result.changes) return res.status(404).json({ error: "Note not found" });
+  for (const userId of new Set([req.user.id, ...recipients])) sendEventToUser(userId, { type: "note_updated", noteId: req.params.id });
   res.json({ ok: true });
 });
 
@@ -838,6 +870,7 @@ app.delete("/api/notes/:id/collaborate/:userId", auth, (req, res) => {
   // Update note with editor info
   updateNoteWithEditor.run(nowISO(), req.user.name || req.user.email, nowISO(), noteId);
   broadcastNoteUpdated(noteId);
+  sendEventToUser(Number(userIdToRemove), { type: "note_updated", noteId });
 
   res.json({ ok: true, message: "Collaborator removed" });
 });
@@ -847,6 +880,8 @@ app.get("/api/notes/collaborated", auth, (req, res) => {
   res.json(
     rows.map((r) => ({
       id: r.id,
+      user_id: r.user_id,
+      revision: r.revision,
       type: r.type,
       title: r.title,
       content: r.content,
@@ -874,10 +909,11 @@ app.post("/api/notes/:id/archive", auth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: "Note not found" });
   }
+  if (req.body?.revision !== undefined && req.body.revision !== existing.revision) return res.status(409).json({error:'Note changed before archiving',note:serializeNote(existing)});
 
   // Update archived status
   const updateArchived = db.prepare(`
-    UPDATE notes SET archived = ? WHERE id = ? AND user_id = ?
+    UPDATE notes SET archived = ?, revision=revision+1 WHERE id = ? AND user_id = ?
   `);
 
   const result = updateArchived.run(archived ? 1 : 0, id, req.user.id);
@@ -899,6 +935,8 @@ app.get("/api/notes/archived", auth, (req, res) => {
   res.json(
     rows.map((r) => ({
       id: r.id,
+      user_id: r.user_id,
+      revision: r.revision,
       type: r.type,
       title: r.title,
       content: r.content,
@@ -919,14 +957,16 @@ app.get("/api/notes/archived", auth, (req, res) => {
 
 // Export/Import
 app.get("/api/notes/export", auth, (req, res) => {
-  const rows = listNotes.all(req.user.id);
+  const rows = db.prepare("SELECT * FROM notes WHERE user_id=? ORDER BY pinned DESC,position DESC,timestamp DESC").all(req.user.id);
   res.json({
     app: "glass-keep",
-    version: 1,
+    version: 2,
     user: req.user.email,
     exportedAt: nowISO(),
     notes: rows.map((r) => ({
       id: r.id,
+      user_id: r.user_id,
+      revision: r.revision,
       type: r.type,
       title: r.title,
       content: r.content,
@@ -937,6 +977,7 @@ app.get("/api/notes/export", auth, (req, res) => {
       pinned: !!r.pinned,
       position: r.position,
       timestamp: r.timestamp,
+      archived: !!r.archived,
     })),
   });
 });
@@ -950,12 +991,18 @@ app.post("/api/notes/import", auth, (req, res) => {
       : [];
   if (!src.length) return res.status(400).json({ error: "No notes to import." });
 
-  const rows = listNotes.all(req.user.id);
+  const rows = db.prepare("SELECT id FROM notes").all();
   const existing = new Set(rows.map((r) => r.id));
+  const hashes = new Set(db.prepare('SELECT * FROM notes WHERE user_id=?').all(req.user.id).map(fingerprint));
+  let imported=0, skipped=0;
+  const sharingWarnings=[];
 
   const tx = db.transaction((arr) => {
     for (const n of arr) {
-      const id = existing.has(String(n.id)) ? uid() : String(n.id);
+      if (!n || typeof n !== "object") throw new Error("Invalid imported note");
+      const hash = fingerprint(n);
+      if (payload.deduplicate !== false && hashes.has(hash)) { skipped++; continue; }
+      const id = !n.id || existing.has(String(n.id)) ? crypto.randomUUID() : String(n.id);
       existing.add(id);
       insertNote.run({
         id,
@@ -970,11 +1017,22 @@ app.post("/api/notes/import", auth, (req, res) => {
         pinned: n.pinned ? 1 : 0,
         position: typeof n.position === "number" ? n.position : Date.now(),
         timestamp: n.timestamp || nowISO(),
+        archived: n.archived ? 1 : 0,
       });
+      hashes.add(hash); imported++;
+      if (payload.restoreSharing === true && Array.isArray(n.collaborators)) {
+        for (const identity of n.collaborators) {
+          const email=typeof identity === 'string' ? identity : identity?.email;
+          const user=typeof email === 'string' ? getUserByEmail.get(email.trim()) : null;
+          if (user && user.id !== req.user.id) db.prepare('INSERT OR IGNORE INTO note_collaborators(note_id,user_id,added_by,added_at) VALUES(?,?,?,?)').run(id,user.id,req.user.id,nowISO());
+          else if (!user) sharingWarnings.push(String(email || 'Unknown collaborator'));
+        }
+      }
+      broadcastNoteUpdated(id);
     }
   });
   tx(src);
-  res.json({ ok: true, imported: src.length });
+  res.json({ ok: true, imported, skipped, sharingWarnings });
 });
 
 // ---------- Admin ----------
@@ -1089,18 +1147,18 @@ app.delete("/api/admin/users/:id", auth, adminOnly, (req, res) => {
 });
 
 // Create user from admin panel
-app.post("/api/admin/users", auth, adminOnly, (req, res) => {
+app.post("/api/admin/users", auth, adminOnly, asyncRoute(async (req, res) => {
   const { name, email, password, is_admin } = req.body || {};
 
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: "Name, email, and password are required." });
+  if (!validIdentity(name) || !validIdentity(email) || !validPassword(password)) {
+    return res.status(400).json({ error: "Name, username, and a password of at least 12 characters (at most 72 UTF-8 bytes) are required." });
   }
 
   if (getUserByEmail.get(email)) {
     return res.status(409).json({ error: "Email already registered." });
   }
 
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = await bcrypt.hash(password, 12);
   const info = insertUser.run(name.trim(), email.trim(), hash, nowISO());
 
   // Set admin status if specified
@@ -1117,12 +1175,15 @@ app.post("/api/admin/users", auth, adminOnly, (req, res) => {
     is_admin: !!user.is_admin,
     created_at: user.created_at,
   });
-});
+}));
 
 // Update user from admin panel
-app.patch("/api/admin/users/:id", auth, adminOnly, (req, res) => {
+app.patch("/api/admin/users/:id", auth, adminOnly, asyncRoute(async (req, res) => {
   const id = Number(req.params.id);
   const { name, email, password, is_admin } = req.body || {};
+  if ((name !== undefined && !validIdentity(name)) || (email !== undefined && !validIdentity(email)) || (password && !validPassword(password))) {
+    return res.status(400).json({ error: "Invalid name, username, or password. Passwords need 12+ characters and at most 72 UTF-8 bytes." });
+  }
 
   // Cannot update yourself to non-admin if you're the only admin
   if (id === req.user.id && is_admin === false) {
@@ -1162,7 +1223,8 @@ app.patch("/api/admin/users/:id", auth, adminOnly, (req, res) => {
 
   if (password) {
     updates.push("password_hash = ?");
-    params.push(bcrypt.hashSync(password, 10));
+    params.push(await bcrypt.hash(password, 12));
+    updates.push("token_version = token_version + 1");
   }
 
   if (is_admin !== undefined) {
@@ -1192,7 +1254,7 @@ app.patch("/api/admin/users/:id", auth, adminOnly, (req, res) => {
     is_admin: !!updatedUser.is_admin,
     created_at: updatedUser.created_at,
   });
-});
+}));
 
 
 // ---------- AI Assistant (Server side) ----------
@@ -1280,7 +1342,12 @@ ${question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 });
 
 // ---------- Health ----------
-app.get("/api/health", (_req, res) => res.json({ ok: true, env: NODE_ENV }));
+app.use((err, _req, res, _next) => {
+  console.error("API request failed:", err.message);
+  const status = err.type === "entity.too.large" ? 413 : err instanceof SyntaxError ? 400 : 500;
+  res.status(status).json({ error: status === 413 ? "Request too large" : status === 400 ? "Invalid JSON" : "Request could not be completed" });
+});
+app.get("/api/health", (_req, res) => res.json({ ok: true, env: NODE_ENV, version: require('../package.json').version }));
 
 // ---------- Static (production) ----------
 if (NODE_ENV === "production") {

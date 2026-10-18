@@ -1,6 +1,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
+@source "../index.html";
 
 /* If you toggle dark mode by adding `.dark` to <html>, define this variant in v4 */
 
