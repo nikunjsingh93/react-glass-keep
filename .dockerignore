@@ -6,6 +6,7 @@ dist-native
 src-tauri
 .native-secrets
 .native-tools
+artifacts
 .git
 .gitignore
 Dockerfile
