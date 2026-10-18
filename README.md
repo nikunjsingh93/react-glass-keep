@@ -90,7 +90,8 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
   * Select multiple notes at once to Download, Pin/Unpin, Delete, or Change Color.
 * **Data**
 
-  * **Export all** notes (JSON) and **Import** (merges; keeps existing notes)
+  * **Export all** notes (JSON) and **Import** JSON/ZIP (merges; keeps existing notes)
+  * **Personal cloud backups:** connect Google Drive and/or OneDrive, schedule every 1/7/30 days, retain three compressed versions, and restore directly from ZIP. See the [setup and restore guide](docs/cloud-backups.md) for the one-time OAuth configuration.
   * Per-note **Download .md**
   * Import from Google Keep (Google Takeout) — pick multiple .json files in one go to bring your Keep notes over. ✅ NEW
   * Backend: **Express API + SQLite** (`better-sqlite3`)

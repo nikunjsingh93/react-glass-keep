@@ -42,3 +42,6 @@ server/*.sqlite
 server/*.sqlite-wal
 server/*.sqlite-shm
 server/*.sqlite-journal
+
+# Personal cloud OAuth encryption key (stored beside the database)
+cloud-backup.key

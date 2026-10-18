@@ -1,4 +1,5 @@
 **/node_modules
+**/cloud-backup.key
 dist
 data
 .git

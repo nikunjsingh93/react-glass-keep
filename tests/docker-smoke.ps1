@@ -1,4 +1,4 @@
-param([string]$Image = 'nikunjsingh/glass-keep:1.0.5')
+param([string]$Image = 'nikunjsingh/glass-keep:1.0.6')
 $ErrorActionPreference = 'Stop'
 $expectedAsset = [regex]::Match((Get-Content -Raw (Join-Path $PSScriptRoot '../dist/index.html')), 'assets/index-[^" ]+\.js').Value
 foreach ($platform in @('linux/amd64', 'linux/arm64')) {
@@ -14,7 +14,7 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
             Start-Sleep -Milliseconds 200
         }
         if (-not $ready) { docker logs $containerId; throw "$platform did not become healthy" }
-        if ($health.version -ne '1.0.5') { throw 'Unexpected running release version' }
+        if ($health.version -ne '1.0.6') { throw 'Unexpected running release version' }
         $login = Invoke-RestMethod "$base/api/login" -Method Post -Headers @{'X-Forwarded-For'='192.0.2.10'} -ContentType 'application/json' -Body '{"email":"smoke-operator","password":"smoke-test-password-123"}'
         $containerLogs = docker logs $containerId 2>&1 | Out-String
         if ($containerLogs.Contains('ERR_ERL')) { throw 'Proxy validation failed' }
@@ -24,11 +24,15 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
         $null = Invoke-RestMethod "$base/api/notes/$($note.id)/archive" -Method Post -Headers $headers -ContentType 'application/json' -Body '{"archived":true}'
         $backup = Invoke-RestMethod "$base/api/notes/export" -Headers $headers
         if ($backup.notes.Count -ne 1 -or -not $backup.notes[0].archived) { throw 'Archived note omitted from backup' }
+        $cloudStatus = Invoke-RestMethod "$base/api/cloud-backup" -Headers $headers
+        if ($cloudStatus.connections.Count -ne 2 -or $cloudStatus.retainedVersions -ne 3) { throw 'Cloud backup routes unavailable' }
+        docker exec $containerId node -e 'fetch("http://localhost:8080/api/cloud-backup/download",{headers:{Authorization:"Bearer "+process.argv[1]}}).then(async r=>{if(!r.ok)throw Error("ZIP download failed");const entries=require("fflate").unzipSync(new Uint8Array(await r.arrayBuffer()));const data=JSON.parse(Buffer.from(entries["backup.json"]).toString());if(data.notes.length!==1||!data.notes[0].archived)throw Error("ZIP content mismatch")}).catch(e=>{console.error(e.message);process.exit(1)})' "$($login.token)"
+        if ($LASTEXITCODE -ne 0) { throw 'Personal ZIP backup failed' }
         $html = (Invoke-WebRequest "$base/" -UseBasicParsing).Content
         if (-not $html.Contains($expectedAsset)) { throw 'Image does not contain the final tested frontend' }
         docker exec $containerId node -e 'import("@huggingface/transformers").then(m=>{if(typeof m.pipeline!=="function")process.exit(1)})'
         if ($LASTEXITCODE -ne 0) { throw 'AI runtime could not load' }
-        Write-Output "${platform}: health, login, SQLite, ownership, archive backup, frontend and AI module passed"
+        Write-Output "${platform}: health, login, SQLite, ownership, archive/ZIP backups, cloud status, frontend and AI module passed"
     } finally {
         if ($containerId) { docker rm -f $containerId | Out-Null }
     }

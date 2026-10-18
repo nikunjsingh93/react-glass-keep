@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const { rateLimit } = require("express-rate-limit");
 const { configureProxy } = require('./proxy');
 const { fingerprint, installNoteFeatures } = require('./noteFeatures');
+const { installCloudBackup } = require('./cloudBackup');
 
 // Transformers.js for server-side AI
 let pipeline;
@@ -1340,6 +1341,13 @@ ${question}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     res.status(500).json({ error: "AI processing failed on server." });
   }
 });
+
+// Personal cloud backups are independent of browser/PWA activity.
+try { installCloudBackup(app, { db, dbFile, auth }); }
+catch(error) {
+  console.error('Cloud backups unavailable:',error.message);
+  app.use('/api/cloud-backup',auth,(_req,res)=>res.status(503).json({error:'Cloud backup credentials could not be initialized. Ask the server owner to check the persistent data folder.'}));
+}
 
 // ---------- Health ----------
 app.use((err, _req, res, _next) => {

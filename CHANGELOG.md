@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.6] - 2026-10-18
+### Added
+- Personal Google Drive and OneDrive connections in Settings, with independent 1/7/30-day schedules and manual backup runs.
+- Compressed portable ZIP snapshots of owned notes, including archives, checklists and images; direct ZIP download and import alongside existing JSON imports.
+- Three-version cloud retention, unchanged-content skipping, verified uploads, persistent schedules, retries and connection status.
+- Encrypted provider tokens, browser-bound OAuth with PKCE, per-user isolation and a persistent credential key independent of JWT settings.
+- English/Hindi backup controls and a deployment/setup/restore guide in docs/cloud-backups.md.
+### Upgrade notes
+- Existing accounts and notes remain compatible; keep the database volume and existing environment settings.
+- Cloud connections require one-time Google/Microsoft OAuth client configuration by the instance owner. Local ZIP download/import works without provider credentials.
+- Preserve the automatically generated cloud-backup.key beside the database. Cloud ZIPs contain readable personal notes; keep their folders private.
+### Validation
+- API/archive/provider simulation tests, browser download/restore with images, and regression coverage for existing note workflows. Live provider authorization requires deployment-specific credentials.
+
 ## [1.0.5] - 2026-10-18
 ### Changed
 - Move Copy note link, Make a copy and Public sharing into the note editor's three-dot menu.

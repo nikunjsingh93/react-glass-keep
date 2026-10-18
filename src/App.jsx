@@ -13,6 +13,9 @@ import { getLanguage, t } from "./i18n";
 import { createOfflineClient } from "./offline";
 import OfflineStatus from "./OfflineStatus";
 import NoteLayout from "./NoteLayout";
+import {readBackup} from "./readBackup";
+
+const CloudBackupDialog = React.lazy(() => import('./CloudBackupDialog'));
 
 /** ---------- API Helpers ---------- */
 const API_BASE = "/api";
@@ -1618,7 +1621,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
 }
 
 /** ---------- Settings Panel ---------- */
-function SettingsPanel({ onFindDuplicates, open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled, showGenericConfirm, showToast }) {
+function SettingsPanel({ onCloudBackup, onFindDuplicates, open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled, showGenericConfirm, showToast }) {
   // Prevent body scroll when settings panel is open
   React.useEffect(() => {
     if (open) {
@@ -1659,6 +1662,7 @@ function SettingsPanel({ onFindDuplicates, open, onClose, dark, onExportAll, onI
 
         <div className="p-4 overflow-y-auto h-[calc(100%-64px)]">
           <LanguagePicker/><button className="border rounded p-3 mb-4 w-full text-left" onClick={() => { onClose(); onFindDuplicates(); }}>{t("Find duplicates")}</button>
+          <button className="border rounded p-3 mb-4 w-full text-left" onClick={()=>{onClose();onCloudBackup();}}>{t("Cloud backup")}</button>
           {/* Data Management Section */}
           <div className="mb-8">
             <h4 className="text-md font-semibold mb-4">{t("Data Management")}</h4>
@@ -1675,8 +1679,8 @@ function SettingsPanel({ onFindDuplicates, open, onClose, dark, onExportAll, onI
                 className={`block w-full text-left px-4 py-3 border border-[var(--border-light)] rounded-lg ${dark ? "hover:bg-white/10" : "hover:bg-gray-50"} transition-colors`}
                 onClick={() => { onClose(); onImportAll?.(); }}
               >
-                <div className="font-medium">{t("Import notes (.json)")}</div>
-                <div className="text-sm text-gray-500">{t("Import notes from JSON file")}</div>
+                <div className="font-medium">{t("Import backup (.json / .zip)")}</div>
+                <div className="text-sm text-gray-500">{t("Restore a downloaded JSON or ZIP backup")}</div>
               </button>
 
               <button
@@ -2372,7 +2376,7 @@ function NotesUI({
           <input
             ref={importFileRef}
             type="file"
-            accept="application/json"
+            accept=".json,.zip,application/json,application/zip"
             className="hidden"
             onChange={async (e) => {
               if (e.target.files && e.target.files.length) {
@@ -2960,6 +2964,7 @@ export default function App() {
   useEffect(() => { const changed=()=>{document.documentElement.lang=getLanguage();setLanguageVersion(getLanguage());}; changed();window.addEventListener("language-changed",changed);return()=>window.removeEventListener("language-changed",changed); }, []);
   const [keepImportOpen,setKeepImportOpen]=useState(false);
   const [duplicatesOpen,setDuplicatesOpen]=useState(false);
+  const [cloudBackupOpen,setCloudBackupOpen]=useState(()=>/cloudBackup(?:Error)?=/.test(window.location.hash));
 
   // auth session { token, user }
   const [session, setSession] = useState(getAuth());
@@ -4359,13 +4364,12 @@ export default function App() {
     try {
       if (!fileList || !fileList.length) return;
       const file = fileList[0];
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const notesArr = Array.isArray(parsed?.notes) ? parsed.notes : (Array.isArray(parsed) ? parsed : []);
+      const notesArr = await readBackup(file);
       if (!notesArr.length) { alert(t("No notes found in file.")); return; }
-      await importNoteBatches(notesArr, body => api("/notes/import", { method: "POST", token, body }));
+      let imported=0,skipped=0;
+      await importNoteBatches(notesArr, async body => {const result=await api("/notes/import", { method: "POST", token, body });imported+=result.imported;skipped+=result.skipped || 0;});
       await loadNotes();
-      alert(`Imported ${notesArr.length} note(s) successfully.`);
+      alert(t('Imported {count} notes. Skipped {skipped} duplicate notes.',{count:imported,skipped}));
     } catch (e) {
       alert(e.message || "Import failed");
     }
@@ -6087,6 +6091,7 @@ export default function App() {
     <>
       <OfflineStatus client={offlineClient} onSynced={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>
       {!networkOnline && <p role="status" className="text-center bg-amber-100 text-gray-900 p-2">{t("You are offline. Changes are saved on this device and will sync when you reconnect.")}</p>}
+      {cloudBackupOpen && <React.Suspense fallback={null}><CloudBackupDialog api={api} token={token} onClose={()=>setCloudBackupOpen(false)} onImport={()=>importFileRef.current?.click()}/></React.Suspense>}
       {keepImportOpen && <KeepImportDialog api={api} token={token} onClose={()=>setKeepImportOpen(false)} onImported={loadNotes}/>}
       {duplicatesOpen && <DuplicateDialog api={api} token={token} onClose={()=>setDuplicatesOpen(false)} onChanged={loadNotes}/>}
       <datalist id="existing-tags">{tagsWithCounts.map(({tag})=><option key={tag} value={tag}/>)}</datalist>
@@ -6112,6 +6117,7 @@ export default function App() {
         onImportAll={() => importFileRef.current?.click()}
         onImportGKeep={() => setKeepImportOpen(true)}
         onFindDuplicates={() => setDuplicatesOpen(true)}
+        onCloudBackup={()=>setCloudBackupOpen(true)}
         onImportMd={() => mdFileRef.current?.click()}
         onDownloadSecretKey={downloadSecretKey}
         alwaysShowSidebarOnWide={alwaysShowSidebarOnWide}
