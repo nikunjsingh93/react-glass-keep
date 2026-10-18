@@ -1,13 +1,20 @@
 name: Native apps
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Platforms to build
+        type: choice
+        default: all
+        options: [all, windows, android]
 permissions:
   contents: read
 concurrency:
-  group: native-apps-${{ github.ref }}
+  group: native-apps-${{ github.ref }}-${{ inputs.platforms || 'all' }}
   cancel-in-progress: false
 jobs:
   windows:
+    if: inputs.platforms != 'android'
     strategy:
       fail-fast: false
       matrix:
@@ -38,6 +45,7 @@ jobs:
           path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
   android:
+    if: inputs.platforms != 'windows'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -50,6 +58,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - uses: android-actions/setup-android@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -60,7 +69,7 @@ jobs:
       - name: Configure Android SDK
         shell: bash
         run: |
-          sdkmanager 'platforms;36' 'build-tools;36.0.0'
+          sdkmanager 'platforms;36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
           echo "NDK_HOME=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)" >> "$GITHUB_ENV"
       - run: npx tauri android init --ci --skip-targets-install
       - name: Configure release signing
