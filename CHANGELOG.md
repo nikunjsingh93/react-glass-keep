@@ -1,5 +1,18 @@
 # Changelog
 
+## Native clients 1.0.0 preview - 2026-10-18
+### Added
+- Tauri 2 clients for Windows x64/ARM64 and Android ARM64 with a bundled interface and a server connection screen.
+- Separate login, caches and offline queues for each server; switching servers preserves pending work without replaying it to another instance.
+- Native save dialogs, clipboard integration and external browser links. Copied note/public links use the configured server origin.
+- Native HTTPS API transport with certificate verification, API path validation and redirect rejection; no server CORS changes are required.
+- Ten-second foreground collaboration refresh and browser-based cloud-provider authorization.
+- Reproducible Rust dependencies, platform build workflows and a native installation/build guide.
+### Validation and distribution
+- Automated coverage includes address validation, browser/IPC login, offline editing, server isolation, logout and portable ZIP saving, plus existing web/server regressions.
+- Windows executables currently have no publisher signing certificate. Android release installation requires a persistent signing key configured in encrypted build secrets; without it the build produces an unsigned APK.
+- Physical Android testing and home-screen widgets are outside this first build. Server/Docker release numbering remains separate from native client versions.
+
 ## [1.0.6] - 2026-10-18
 ### Added
 - Personal Google Drive and OneDrive connections in Settings, with independent 1/7/30-day schedules and manual backup runs.
