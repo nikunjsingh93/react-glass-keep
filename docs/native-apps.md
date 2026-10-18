@@ -16,7 +16,7 @@ Backups, Markdown exports, images and unsynced drafts use the system save dialog
 
 Cloud-account authorization opens your server in the normal browser because Google/Microsoft authentication must run outside the app webview. Sign in to the same Glass Keep account there, complete the cloud connection, then return to the app. Backup status updates automatically.
 
-Use HTTPS outside a trusted local network. HTTP is supported for LAN deployments, and the connection screen explains that it is unencrypted. Certificate validation remains enabled; private/self-signed certificates must be trusted by the device. Enter the final server origin because API redirects are rejected to avoid forwarding authentication to another host. No new CORS setting is required on the server.
+Use HTTPS outside a trusted local network. HTTP is supported for LAN deployments, and the connection screen explains that it is unencrypted. Certificate validation remains enabled; use a publicly trusted certificate (custom/self-signed CA import is not included yet). Enter the final server origin because API redirects are rejected to avoid forwarding authentication to another host. No new CORS setting is required on the server.
 
 ## Build
 

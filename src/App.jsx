@@ -412,7 +412,7 @@ const sanitizeFilename = (name, fallback = "note") =>
   (name || fallback).toString().trim().replace(/[\/\\?%*:|"<>]/g, "-").slice(0, 64);
 const downloadText = (filename, content) => {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  void saveBlob(blob, filename).catch(e => alert(e.message));
+  return saveBlob(blob, filename).catch(e => {alert(e.message); return false;});
 };
 const downloadDataUrl = async (filename, dataUrl) => {
   const res = await fetch(dataUrl);
@@ -4661,8 +4661,7 @@ export default function App() {
         `1) Go to the login page.\n` +
         `2) Click "Forgot username/password?".\n` +
         `3) Choose "Sign in with Secret Key" and paste this key.\n`;
-      downloadText(fname, content);
-      alert(t("Secret key downloaded. Store it in a safe place."));
+      if (await downloadText(fname, content)) alert(t("Secret key downloaded. Store it in a safe place."));
     } catch (e) {
       alert(e.message || "Could not generate secret key.");
     }

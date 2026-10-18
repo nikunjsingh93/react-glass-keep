@@ -72,8 +72,8 @@ jobs:
       - name: Configure Android SDK
         shell: bash
         run: |
-          sdkmanager 'platforms;36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
-          echo "NDK_HOME=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)" >> "$GITHUB_ENV"
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
       - run: npx tauri android init --ci --skip-targets-install
       - name: Configure release signing
         env:

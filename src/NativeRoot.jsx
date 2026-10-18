@@ -25,7 +25,7 @@ export default function NativeRoot() {
       <p>Connect to your Glass Keep server. Your notes stay on your server and sync across your devices.</p>
       <label htmlFor="server-address">Server address</label>
       <input id="server-address" type="url" required placeholder="https://keep.example.com" value={value} onChange={e => setValue(e.target.value)} autoCapitalize="none" autoCorrect="off"/>
-      <p className="native-hint">Use HTTPS for a secure connection. HTTP is available for trusted local networks; traffic is unencrypted. Self-signed certificates must be trusted by your device.</p>
+      <p className="native-hint">Use HTTPS with a publicly trusted certificate. HTTP is available for trusted local networks; traffic is unencrypted. Certificate verification stays enabled.</p>
       {server && <p className="native-hint">Switching servers keeps each server's login and offline edits separate. Return to the same address to sync pending changes.</p>}
       {error && <p role="alert">{error}</p>}<button disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
       {server && <button type="button" onClick={() => setEditing(false)}>Cancel</button>}

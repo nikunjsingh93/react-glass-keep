@@ -45,11 +45,12 @@ export async function saveBlob(blob, filename) {
   if (isNative) {
     const [{save}, {writeFile}] = await Promise.all([import('@tauri-apps/plugin-dialog'), import('@tauri-apps/plugin-fs')]);
     const path = await save({defaultPath: filename});
-    if (path) await writeFile(path, new Uint8Array(await blob.arrayBuffer()));
-    return;
+    if (!path) return false;
+    await writeFile(path, new Uint8Array(await blob.arrayBuffer())); return true;
   }
   const url = URL.createObjectURL(blob), a = document.createElement('a');
   a.href = url; a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 }
 
 export async function copyText(text) {
