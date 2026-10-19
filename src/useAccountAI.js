@@ -18,12 +18,12 @@ export default function useAccountAI({api, token, userId}) {
     };
     try { accept(localStorage.getItem(key) === 'true'); } catch {}
     const refresh = async () => {
-      if (running || document.visibilityState === 'hidden') return;
+      if (running || identity.pending || document.visibilityState === 'hidden') return;
       running = true;
       const revision = identity.revision;
       try {
         let result = await api('/account/preferences', {token});
-        if (stopped || active.current !== identity || revision !== identity.revision) return;
+        if (stopped || active.current !== identity || identity.pending || revision !== identity.revision) return;
         if (result.aiEnabled === null) {
           // Claim the old device preference once; never copy it into another account/server.
           let legacy = false;
@@ -34,7 +34,7 @@ export default function useAccountAI({api, token, userId}) {
           } catch {}
           result = await api('/account/preferences', {method: 'PATCH', token, body: {aiEnabled: legacy, initializeOnly: true}});
         }
-        if (revision === identity.revision && typeof result.aiEnabled === 'boolean') accept(result.aiEnabled);
+        if (!identity.pending && revision === identity.revision && typeof result.aiEnabled === 'boolean') accept(result.aiEnabled);
       } catch { /* Keep the account cache while offline; retry on reconnect/focus. */ }
       finally { running = false; }
     };
@@ -52,10 +52,15 @@ export default function useAccountAI({api, token, userId}) {
     if (!token) throw new Error('Please sign in');
     const identity = active.current;
     const revision = ++identity.revision;
-    const result = await api('/account/preferences', {method: 'PATCH', token, body: {aiEnabled: value}});
-    if (active.current === identity && identity.revision === revision) {
-      setState({key, enabled: result.aiEnabled});
-      try { localStorage.setItem(key, String(result.aiEnabled)); } catch {}
+    identity.pending = true;
+    try {
+      const result = await api('/account/preferences', {method: 'PATCH', token, body: {aiEnabled: value}});
+      if (active.current === identity && identity.revision === revision) {
+        setState({key, enabled: result.aiEnabled});
+        try { localStorage.setItem(key, String(result.aiEnabled)); } catch {}
+      }
+    } finally {
+      if (identity.revision === revision) { identity.pending = false; identity.revision++; }
     }
   }, [api, token, key]);
   return [enabled, update];
