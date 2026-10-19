@@ -25,6 +25,6 @@ try{
   await new Promise(resolve=>setTimeout(resolve,8000));
   assert.ifError(launchError);assert.equal(child.exitCode,null,'Packaged app exited during startup: '+output);assert.equal(child.signalCode,null);
 }finally{
-  if(child.exitCode===null && !launchError){const exited=new Promise(resolve=>child.once('exit',resolve));child.kill('SIGTERM');await exited;}
+  if(child.exitCode===null && child.signalCode===null && !launchError){const exited=new Promise(resolve=>child.once('exit',resolve));child.kill('SIGKILL');await exited;}
 }
 console.log(`macOS ${architecture}: architecture, version, local signature, DMG integrity and packaged app startup passed`);
