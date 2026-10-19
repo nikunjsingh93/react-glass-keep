@@ -7,16 +7,22 @@ export async function askAI(question,{onUpdate,signal=new AbortController().sign
   if(!auth?.token)throw new Error('You must be logged in to use the AI Assistant.');
   const headers={'Content-Type':'application/json',Authorization:`Bearer ${auth.token}`};
   let id;
-  async function request(route,options={}){
-    const response=await appFetch('/api/ai/'+route,{...options,headers,signal:AbortSignal.any([signal,AbortSignal.timeout(20000)])});
-    const data=await response.json();if(!response.ok)throw new Error(data.error||'The AI request failed.');return data;
+  async function request(route,{requestSignal=signal,timeout=20000,...options}={}){
+    // Older macOS WebViews do not implement AbortSignal.any/timeout.
+    const controller=new AbortController(),abort=()=>controller.abort();
+    if(requestSignal?.aborted)abort();else requestSignal?.addEventListener('abort',abort,{once:true});
+    const timer=setTimeout(abort,timeout);
+    try{
+      const response=await appFetch('/api/ai/'+route,{...options,headers,signal:controller.signal});
+      const data=await response.json();if(!response.ok)throw new Error(data.error||'The AI request failed.');return data;
+    }finally{clearTimeout(timer);requestSignal?.removeEventListener('abort',abort);}
   }
   try {
     let data=await request('ask',{method:'POST',body:JSON.stringify({question,language:getLanguage(),async:true})});id=data.id;
     if(!id){onUpdate?.({...data,status:'done'});return data;}
     const deadline=Date.now()+12*60*1000;
     while(true){
-      signal.throwIfAborted();onUpdate?.(data);
+      if(signal.aborted)throw new DOMException('Request aborted','AbortError');onUpdate?.(data);
       if(data.status==='done')return data;
       if(['error','cancelled'].includes(data.status))throw new Error(data.error||'The AI request failed.');
       if(Date.now()>deadline)throw new Error('The AI request timed out. Please retry.');
@@ -28,6 +34,6 @@ export async function askAI(question,{onUpdate,signal=new AbortController().sign
       data=await request('requests/'+encodeURIComponent(id));
     }
   } finally {
-    if(id)await appFetch('/api/ai/requests/'+encodeURIComponent(id),{method:'DELETE',headers,signal:AbortSignal.timeout(5000)}).catch(()=>{});
+    if(id)await request('requests/'+encodeURIComponent(id),{method:'DELETE',requestSignal:null,timeout:5000}).catch(()=>{});
   }
 }

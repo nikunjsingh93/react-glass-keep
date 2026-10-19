@@ -1,9 +1,15 @@
 # --- Pinned CPU inference engine (model weights are downloaded only on first use)
-FROM debian:trixie-slim AS llama-builder
+FROM --platform=$BUILDPLATFORM debian:trixie-slim AS llama-builder
+ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl cmake ninja-build g++ libgomp1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /llama
 RUN curl -fsSL https://github.com/ggml-org/llama.cpp/archive/620d2225cc436ab0b001e3200e590e3b286ef9ab.tar.gz | tar xz --strip-components=1
-RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_BACKEND_DL=ON -DGGML_NATIVE=OFF -DGGML_CPU_ALL_VARIANTS=ON -DLLAMA_BUILD_UI=OFF -DLLAMA_BUILD_NUMBER=11669 -DLLAMA_BUILD_COMMIT=620d2225 -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=ON \
+RUN case "$TARGETARCH" in \
+      amd64) package=g++-x86-64-linux-gnu; triple=x86_64-linux-gnu; processor=x86_64 ;; \
+      arm64) package=g++-aarch64-linux-gnu; triple=aarch64-linux-gnu; processor=aarch64 ;; \
+      *) exit 1 ;; esac \
+    && apt-get update && apt-get install -y --no-install-recommends "$package" \
+    && cmake -S . -B build -G Ninja -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR="$processor" -DCMAKE_C_COMPILER="$triple-gcc" -DCMAKE_CXX_COMPILER="$triple-g++" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_BACKEND_DL=ON -DGGML_NATIVE=OFF -DGGML_CPU_ALL_VARIANTS=ON -DLLAMA_BUILD_UI=OFF -DLLAMA_BUILD_NUMBER=11669 -DLLAMA_BUILD_COMMIT=620d2225 -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=ON \
     && cmake --build build --target llama-server -j 4
 
 # --- Build stage

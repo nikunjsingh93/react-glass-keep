@@ -33,7 +33,7 @@ test('web and native clients display partial AI answers, source links, cancellat
       });
       await page.addInitScript(()=>{let id=0;window.__TAURI_INTERNALS__={transformCallback:()=>++id,unregisterCallback:()=>{},invoke:(command,args)=>command==='api_request'?window.nativeRequest(args):Promise.resolve()};});
     }else await page.route('**/api/ai/**',route=>{const result=fakeAI(new URL(route.request().url()).pathname,route.request().method());return route.fulfill({status:result.status,json:result.data});});
-    await page.addInitScript(({base,session,native})=>{localStorage.setItem('glass-keep-native-server',base);localStorage.setItem('glass-keep-auth'+(native?'@'+encodeURIComponent(base):''),JSON.stringify(session));localStorage.setItem('localAiEnabled','true');},{base,session,native});
+    await page.addInitScript(({base,session,native})=>{Object.defineProperty(AbortSignal,'any',{value:undefined});Object.defineProperty(AbortSignal,'timeout',{value:undefined});localStorage.setItem('glass-keep-native-server',base);localStorage.setItem('glass-keep-auth'+(native?'@'+encodeURIComponent(base):''),JSON.stringify(session));localStorage.setItem('localAiEnabled','true');},{base,session,native});
     await page.goto(native?'http://127.0.0.1:1423/native.html':base);
     const search=page.getByPlaceholder('Search or Ask AI...', {exact:true});await expect(search).toBeVisible();
     await search.fill('Which books should I read?');await search.press('Enter');
