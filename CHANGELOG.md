@@ -7,6 +7,7 @@
 - Startup loading respects reduced-motion preferences and English/Hindi language selection.
 ### Validation
 - Browser checks cover saved/system startup themes, centered content, reduced motion and the native header position after scrolling with simulated safe-area insets.
+- Physical Android 16 testing with client 1.0.6 confirms the search/menu header remains below the status bar after repeated long swipes through temporary notes. The compiled Windows client also passes startup, connection and JSON-save checks.
 
 ## [1.0.9] / Native clients 1.0.5 - 2026-10-18
 ### Changed
