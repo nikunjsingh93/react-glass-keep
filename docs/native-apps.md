@@ -1,4 +1,4 @@
-# Windows and Android apps (Tauri 2)
+# Windows, macOS and Android apps (Tauri 2)
 
 These installable clients bundle the Glass Keep interface. They connect to your existing self-hosted Glass Keep server; they do not start a second server or embed SQLite, Express or the AI model. Use server 1.0.6 or newer for the complete current feature set.
 
@@ -7,6 +7,8 @@ These installable clients bundle the Glass Keep interface. They connect to your 
 1. Install the Windows setup executable for your processor (x64 for most PCs, ARM64 for Windows on ARM), or the signed ARM64 APK for Android 7.0 and newer.
 2. Start Glass Keep and enter the public server origin, such as `https://keep.example.com`. Do not include `/api`, a path, or a login token.
 3. Sign in with your existing Glass Keep account. Your server's registration policy still applies.
+
+On macOS 13 or newer, download the **arm64** DMG for Apple Silicon (M-series) or the **x64** DMG for an Intel Mac. Open the disk image, drag Glass Keep into Applications, and launch it from there. These previews use an ad-hoc (local) signature and are not Apple-notarized, so macOS may block the first launch. If you trust the downloaded release, use **System Settings → Privacy & Security → Open Anyway**, following [Apple's instructions](https://support.apple.com/en-us/102445). Developer ID signing and notarization require the owner's Apple Developer credentials and are not configured in this preview.
 
 Open **Menu → Settings → Connected server** to see your server link or choose **Change server**. Before signing in, use **Connection settings** on the login screen. Each server has separate login, cached notes and offline operations, even if both instances have user ID 1. Pending edits remain associated with the original server; switching back allows them to sync. Sign out clears the current server's browser cache and session without removing other server connections.
 
@@ -20,7 +22,7 @@ Use HTTPS outside a trusted local network. HTTP is supported for LAN deployments
 
 ## Build
 
-Install the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/): Node 24, stable Rust, the Windows C++ build tools/WebView2 for Windows, and Java 17 plus Android SDK/NDK for Android.
+Install the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/): Node 24, stable Rust, the Windows C++ build tools/WebView2 for Windows, Xcode command-line tools on a Mac, and Java 17 plus Android SDK/NDK for Android.
 
 ```sh
 npm ci
@@ -32,6 +34,8 @@ Windows installers appear under `src-tauri/target/release/bundle/nsis/`. Desktop
 
 The workflow also saves the portable `glass-keep.exe`. The setup installer is recommended because it can install WebView2 when needed; the portable executable needs an existing WebView2 runtime.
 
+On a Mac, run `npm ci` then `npm run app:macos`. The platform config creates an `.app` under `src-tauri/target/release/bundle/macos/` and a DMG under `src-tauri/target/release/bundle/dmg/`, using the checked-in Mac icon and a local signature. Each build uses the Mac's native processor architecture. The default Windows packaging configuration remains separate.
+
 For Android, set `JAVA_HOME`, `ANDROID_HOME` and `NDK_HOME` as documented by Tauri, then:
 
 ```sh
@@ -40,11 +44,11 @@ npm run tauri -- icon public/pwa-512.png
 npm run app:android
 ```
 
-Android output appears under `src-tauri/gen/android/app/build/outputs/apk/`. Generated platform projects and build output are ignored by Git. The checked-in native project can also support macOS/Linux later, but this first workflow builds Windows and Android only.
+Android output appears under `src-tauri/gen/android/app/build/outputs/apk/`. Generated platform projects and build output are ignored by Git. Linux packaging is not configured yet.
 
 ## Signing and automated builds
 
-Run **Actions → Native apps → Run workflow** on GitHub. Choose all platforms or one platform. The workflow builds Windows x64 and ARM64 setup executables and an Android ARM64 APK. Build artifacts remain attached to the workflow run; releases can attach the tested outputs without recompiling.
+Run **Actions → Native apps → Run workflow** on GitHub. Choose all platforms or one platform. The workflow builds Windows x64 and ARM64 setup executables, macOS Apple Silicon and Intel DMGs, and an Android ARM64 APK. Build artifacts remain attached to the workflow run; releases can attach the tested outputs without recompiling.
 
 Windows installers currently have no commercial publisher certificate. Android distribution requires a stable signing identity so newer versions can update the installed application. The workflow uses these encrypted repository secrets when approved/configured:
 
@@ -63,5 +67,7 @@ node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/cloud-ba
 ```
 
 The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and native ZIP saving. Rust tests reject API paths that escape the selected origin. Physical Android testing and live cloud-provider sign-in remain separate checks from compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.
+
+On each Mac runner, the workflow also verifies Rust origin restrictions, the packaged app's architecture/version/minimum OS, its local code signature, DMG integrity, and that the packaged app stays running through initialization. These checks do not replace interactive Mac testing of login, notes, dialogs and cloud-provider sign-in.
 
 On Windows, `tests/native-windows.browser.mjs` additionally launches the compiled executable with an isolated temporary WebView2 profile and a temporary local API. Set `GLASS_KEEP_WINDOWS_EXE` to the portable executable's absolute path, then run `node --test tests/native-windows.browser.mjs`. This checks the real Rust transport, login, a persisted note, reload and cross-origin path rejection without touching the normal app profile.

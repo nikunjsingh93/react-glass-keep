@@ -6,7 +6,7 @@ on:
         description: Platforms to build
         type: choice
         default: all
-        options: [all, windows, android]
+        options: [all, windows, android, macos]
 permissions:
   contents: read
 concurrency:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   windows:
-    if: inputs.platforms != 'android'
+    if: inputs.platforms == 'all' || inputs.platforms == 'windows'
     strategy:
       fail-fast: false
       matrix:
@@ -46,8 +46,41 @@ jobs:
             src-tauri/target/release/bundle/nsis/*-setup.exe
             src-tauri/target/release/glass-keep.exe
           if-no-files-found: error
+  macos:
+    if: inputs.platforms == 'all' || inputs.platforms == 'macos'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+          - runner: macos-15-intel
+            architecture: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci --ignore-scripts
+      - run: npm run app:macos
+      - name: Verify origin restrictions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release --locked --features tauri/custom-protocol
+      - name: Verify app, disk image and startup
+        run: node scripts/verify-macos.mjs ${{ matrix.architecture }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Glass-Keep-macOS-${{ matrix.architecture }}
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
   android:
-    if: inputs.platforms != 'windows'
+    if: inputs.platforms == 'all' || inputs.platforms == 'android'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:

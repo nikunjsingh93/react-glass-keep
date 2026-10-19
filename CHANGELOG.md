@@ -6,6 +6,8 @@
 - Readable language dropdown text and option backgrounds in light and dark themes across web, Windows and Android.
 
 ## Native clients 1.0.1 preview - 2026-10-18
+### Added
+- macOS disk images for Apple Silicon and Intel, built on matching Mac runners, with local signatures and package/startup checks. Requires macOS 13 or newer; Apple Developer ID signing and notarization are not configured.
 ### Changed
 - Removed the persistent server bar. Settings now contains the connected server link and Change server action.
 - Added Connection settings to the login screen so users can switch servers before signing in.

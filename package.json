@@ -17,6 +17,7 @@
     "native:dev": "vite --config vite.native.config.js",
     "native:build": "vite build --config vite.native.config.js",
     "app:windows": "tauri build",
+    "app:macos": "tauri build --config src-tauri/tauri.macos.conf.json",
     "app:android": "tauri android build --apk --target aarch64"
   },
   "dependencies": {
