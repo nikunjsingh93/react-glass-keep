@@ -17,7 +17,7 @@ test('native client connects, isolates servers, queues offline edits and saves p
   }
   children.push(spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--config','vite.native.config.js','--port','1421','--host','127.0.0.1'],{stdio:'ignore'}));
   for(const origin of [...origins,'http://127.0.0.1:1421'])for(let i=0;i<100;i++){try{if((await fetch(origin+(origin.endsWith('1421')?'/native.html':'/api/health'))).ok)break;}catch{}if(i===99)throw Error('Test server unavailable');await new Promise(r=>setTimeout(r,100));}
-  const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const context=await browser.newContext();const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const context=await browser.newContext({userAgent:'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140.0.0.0 Mobile Safari/537.36'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.exposeFunction('nativeRequest',async args=>{
     requests.push(args);assert.ok(origins.includes(args.server));assert.ok(args.path.startsWith('/api/'));
     const response=await fetch(args.server+args.path,{method:args.method,headers:args.headers,body:args.body || undefined,redirect:'manual'});
@@ -30,7 +30,14 @@ test('native client connects, isolates servers, queues offline edits and saves p
     if(['plugin:dialog|message','plugin:clipboard-manager|write_text','plugin:opener|open_url'].includes(command))return;
     throw Error('Unexpected native command: '+command);
   });
-  await page.addInitScript(()=>{window.__TAURI_INTERNALS__={invoke:(command,args)=>command==='api_request'?window.nativeRequest(args):window.nativeCommand(command,args)};});
+  await page.addInitScript(()=>{
+    let id=0;const callbacks=new Map();window.__nativeBackHandler=null;
+    window.__TAURI_INTERNALS__={transformCallback:callback=>{callbacks.set(++id,callback);return id;},unregisterCallback:id=>callbacks.delete(id),invoke:(command,args)=>{
+      if(command==='plugin:app|register_listener'){window.__nativeBackHandler=args.handler.onmessage;return Promise.resolve();}
+      if(command==='plugin:app|remove_listener'){window.__nativeBackHandler=null;return Promise.resolve();}
+      return command==='api_request'?window.nativeRequest(args):window.nativeCommand(command,args);
+    }};
+  });
   await page.goto('http://127.0.0.1:1421/native.html');
   const connect=async origin=>{await page.getByLabel('Server address',{exact:true}).fill(origin);await page.getByRole('button',{name:'Connect',exact:true}).click();};
   await connect(origins[0]+'/wrong');await expect(page.getByRole('alert')).toContainText('origin only');
@@ -43,6 +50,28 @@ test('native client connects, isolates servers, queues offline edits and saves p
   const login=async()=>{await page.getByPlaceholder('Username',{exact:true}).fill('operator');await page.getByPlaceholder('Password',{exact:true}).fill('native-browser-password-123');await page.getByRole('button',{name:'Sign In',exact:true}).click();await expect(page.getByPlaceholder('Write a note...')).toBeVisible();};
   const create=async title=>{await page.getByPlaceholder('Write a note...').click();await page.getByPlaceholder('Title',{exact:true}).fill(title);await page.locator('textarea').fill('Portable native note');await page.getByRole('button',{name:'Add Note',exact:true}).click();await expect(page.locator('.note-card').filter({hasText:title})).toBeVisible();};
   await login();await create('First server only');
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('.native-app').evaluate(root=>{root.style.setProperty('--native-safe-top','32px');root.style.setProperty('--native-safe-bottom','24px');});
+  await page.locator('.note-card').filter({hasText:'First server only'}).click();
+  const modal=page.locator('.modal-scrim');await expect(modal).toBeVisible();
+  const bounds=await modal.boundingBox();assert.equal(bounds.y,32);assert.equal(bounds.y+bounds.height,820);
+  assert.ok((await modal.getByPlaceholder('Title',{exact:true}).boundingBox()).y>=32);
+  await expect.poll(()=>page.evaluate(()=>typeof window.__nativeBackHandler)).toBe('function');
+  await page.evaluate(()=>window.__nativeBackHandler({canGoBack:false}));
+  await expect(modal).toHaveCount(0);await expect(page.locator('.note-card').filter({hasText:'First server only'})).toBeVisible();
+  await expect.poll(()=>page.evaluate(()=>window.__nativeBackHandler)).toBe(null);
+  await page.locator('.note-card').filter({hasText:'First server only'}).click();
+  await modal.getByRole('button',{name:'Edit mode',exact:true}).click();
+  await modal.getByPlaceholder('Title',{exact:true}).fill('First server edited');
+  await expect.poll(()=>page.evaluate(()=>typeof window.__nativeBackHandler)).toBe('function');
+  await page.evaluate(()=>window.__nativeBackHandler({canGoBack:false}));
+  await expect(modal).toBeVisible();await expect(modal.getByPlaceholder('Title',{exact:true})).toHaveValue('First server edited');
+  await expect(page.getByRole('alert')).toContainText('unsaved changes');
+  await page.getByRole('alert').getByRole('button',{name:'Close',exact:true}).click();
+  await modal.getByRole('button',{name:'Save',exact:true}).click();await expect(modal).toHaveCount(0);
+  await expect(page.locator('.note-card').filter({hasText:'First server edited'})).toBeVisible();
+  await page.locator('.native-app').evaluate(root=>{root.style.removeProperty('--native-safe-top');root.style.removeProperty('--native-safe-bottom');});
+  await page.setViewportSize({width:1280,height:720});
   await expect(page.locator('.native-server-bar')).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Change server',exact:true})).toBeHidden();
   await context.setOffline(true);await create('Pending on first server');

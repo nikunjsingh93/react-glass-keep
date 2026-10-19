@@ -1,5 +1,11 @@
 # Changelog
 
+## Android client 1.0.4 - 2026-10-18
+### Fixed
+- Opened notes respect Android status-bar and navigation-bar safe areas.
+- Android Back closes an opened note and returns to the notes list, with unsaved edits protected by the existing save guard.
+- Save warnings can be dismissed without discarding the draft, keeping Save accessible on small screens.
+
 ## Android client 1.0.3 - 2026-10-18
 ### Fixed
 - Android builds now install the Glass Keep standard, round and adaptive launcher icons after project initialization, replacing Tauri's generated default icon.

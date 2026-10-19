@@ -15,6 +15,7 @@ import OfflineStatus from "./OfflineStatus";
 import NoteLayout from "./NoteLayout";
 import {readBackup} from "./readBackup";
 import {appFetch, isNative, storageKey, saveBlob, openExternal, copyText, confirmAction, ownsStorageKey} from './platform';
+import useAndroidNoteBack from './useAndroidNoteBack';
 
 const CloudBackupDialog = React.lazy(() => import('./CloudBackupDialog'));
 
@@ -4883,6 +4884,15 @@ export default function App() {
     setModalMenuOpen(false); setConfirmDeleteOpen(false); setShowModalFmt(false);
   };
 
+  useAndroidNoteBack(open,async()=>{
+    if(imgViewOpen){setImgViewOpen(false);return;}
+    if(confirmDeleteOpen){setConfirmDeleteOpen(false);return;}
+    if(collaborationModalOpen){setCollaborationModalOpen(false);return;}
+    if(modalMenuOpen){setModalMenuOpen(false);return;}
+    if(showModalFmt){setShowModalFmt(false);return;}
+    await closeModal();
+  });
+
   const saveModal = async () => {
     if (activeId == null) return;
     const base = {
@@ -6291,6 +6301,7 @@ export default function App() {
 
       {saveError && (
         <div role="alert" className="fixed bottom-4 left-4 right-4 z-[10001] rounded-lg bg-red-700 text-white p-4 shadow-xl">
+          <button className="float-right ml-3 underline" onClick={() => setSaveError("")}>{t("Close")}</button>
           <p>{saveError}</p>
           {open && <button className="underline mt-2" onClick={() => {
             const draft = { title: mTitle, content: mType === "draw" ? JSON.stringify(mDrawingData) : mBody, items: mItems, tags: mTagList, images: mImages, type: mType };
