@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.16] - 2026-10-19
+### Added
+- Russian (Русский) in web and native language settings, sign-in, server connection and startup screens. Includes 338 interface strings and the latest account-wide AI messages; the saved choice also works offline.
+- Thanks to [Neko1800](https://github.com/Neko1800) for the Russian translation supplied in [#34](https://github.com/nikunjsingh93/react-glass-keep/issues/34).
+
 ## [1.0.15] - 2026-10-19
 ### Fixed
 - Keeps Android Settings and tags drawers below the status bar and above the navigation bar, with independently scrolling content. Android Back closes the active drawer instead of exiting; nested confirmations close first and note Back handling is preserved.

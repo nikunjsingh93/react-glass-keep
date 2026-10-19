@@ -40,6 +40,12 @@ test('native client connects, isolates servers, queues offline edits and saves p
     }};
   });
   await page.goto('http://127.0.0.1:1421/native.html');
+  await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('ru');
+  await expect(page.getByLabel('Адрес сервера',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Подключить',exact:true})).toBeVisible();
+  await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','ru');
+  await expect(page.getByRole('combobox',{name:'Язык',exact:true})).toHaveValue('ru');
+  await page.getByRole('combobox',{name:'Язык',exact:true}).selectOption('en');
   await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('fr');
   await expect(page.getByLabel('Adresse du serveur',{exact:true})).toBeVisible();
   await page.reload();await expect(page.getByRole('combobox',{name:'Langue',exact:true})).toHaveValue('fr');

@@ -26,8 +26,10 @@ test('web and native startup screens are centered and use saved/system themes be
     await page.screenshot({path:`artifacts/startup-${platform?'native':'web'}-${dark?'dark':'light'}.png`});
     await context.close();
   }
-  const context=await browser.newContext({reducedMotion:'reduce'}),page=await context.newPage();
-  await page.addInitScript(()=>localStorage.setItem('glass-keep-language','fr'));
-  await page.route(/\/assets\/.*\.js$/,route=>route.fulfill({contentType:'application/javascript',body:''}));await page.goto(urls[1]);await expect(page.locator('.startup-spinner')).toHaveCSS('animation-name','none');
-  await expect(page.locator('html')).toHaveAttribute('lang','fr');await expect(page.getByText('Chargement de Glass Keep…',{exact:true})).toBeVisible();await expect(page.getByText('Loading Glass Keep…',{exact:true})).toBeHidden();await context.close();
+  for(const url of urls)for(const [language,text] of [['fr','Chargement de Glass Keep…'],['ru','Загрузка Glass Keep…']]) {
+    const context=await browser.newContext({reducedMotion:'reduce'}),page=await context.newPage();
+    await page.addInitScript(language=>localStorage.setItem('glass-keep-language',language),language);
+    await page.route(/\/assets\/.*\.js$/,route=>route.fulfill({contentType:'application/javascript',body:''}));await page.goto(url);await expect(page.locator('.startup-spinner')).toHaveCSS('animation-name','none');
+    await expect(page.locator('html')).toHaveAttribute('lang',language);await expect(page.getByText(text,{exact:true})).toBeVisible();await expect(page.getByText('Loading Glass Keep…',{exact:true})).toBeHidden();await context.close();
+  }
 });

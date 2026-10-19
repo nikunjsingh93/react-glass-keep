@@ -2,10 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-test('French covers the existing locale keys and preserves every substitution placeholder',()=>{
-  const french=JSON.parse(readFileSync(new URL('../src/locales/fr.json',import.meta.url)));
+test('French and Russian cover the existing locale keys and preserve every substitution placeholder',()=>{
   const hindi=JSON.parse(readFileSync(new URL('../src/locales/hi.json',import.meta.url)));
-  for(const key of Object.keys(hindi))assert.ok(typeof french[key]==='string'&&french[key].trim(),`French translation missing: ${key}`);
   const placeholders=text=>[...text.matchAll(/\{(\w+)\}/g)].map(match=>match[1]).sort();
-  for(const [key,value] of Object.entries(french))assert.deepEqual(placeholders(value),placeholders(key),`French placeholders changed: ${key}`);
+  for(const language of ['fr','ru']) {
+    const translations=JSON.parse(readFileSync(new URL(`../src/locales/${language}.json`,import.meta.url)));
+    assert.deepEqual(Object.keys(translations).sort(),Object.keys(hindi).sort(),`${language} keys differ`);
+    for(const [key,value] of Object.entries(translations)) {
+      assert.ok(typeof value==='string'&&value.trim(),`${language} translation missing: ${key}`);
+      assert.deepEqual(placeholders(value),placeholders(key),`${language} placeholders changed: ${key}`);
+    }
+  }
 });
