@@ -60,6 +60,8 @@ Windows installers currently have no commercial publisher certificate. Android d
 
 ## Verification
 
+Client 1.0.2 was also tested on the owner's Samsung SM-S938U1 running Android 16 through wireless debugging, using a temporary local server and test account. Checks covered connection, login, note creation, an offline note surviving an in-place APK update, later synchronization, ZIP saving through Android's document picker, ZIP import with duplicate detection, and the corrected cloud dialog and language picker colours. No production notes or cloud-provider credentials were used.
+
 `npm test` covers existing server/data behavior and native address validation. Build both web and native assets, then run:
 
 ```sh

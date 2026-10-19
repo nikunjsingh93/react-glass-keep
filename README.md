@@ -4,6 +4,8 @@ A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, colo
 
 Windows, macOS and Android clients are built with Tauri 2. They connect to your own server and keep offline data separate per server. See the [native app installation and build guide](docs/native-apps.md).
 
+Download Windows `.exe`, Android `.apk`, and macOS `.dmg` clients from the [GitHub release page](https://github.com/nikunjsingh93/react-glass-keep/releases/latest).
+
 ---
 **Web App Screenshots**
 

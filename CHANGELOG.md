@@ -6,6 +6,8 @@
 - Cloud setup messages now explain that the server owner registers each provider once; ordinary users then connect their own accounts without administrator access.
 ### Distribution
 - Windows x64/ARM64 installers and portable clients, signed Android ARM64 APK, and Apple Silicon/Intel macOS DMGs accompany the release.
+### Validation
+- Physical Android 16 testing covers login, notes, unsynced work surviving an APK update, synchronization and native ZIP download/import using a temporary account.
 
 ## [1.0.7] - 2026-10-18
 ### Fixed
