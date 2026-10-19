@@ -64,6 +64,10 @@ test('AI loads only on question, streams snapshots, ignores forged note bodies, 
   const prompts=JSON.stringify(ai.calls);assert.doesNotMatch(prompts,/PRIVATE-OWNER-TWO-SECRET|FORGED-NOTE-TEXT/);
   const legacy=await api('/ask',{method:'POST',body:{question:'My reading list'}});assert.equal(legacy.status,200);assert.match(legacy.data.answer,/Sapiens/);
   assert.equal(ai.idles,2);
+  assert.ok(ai.calls.every(messages=>!messages[0].content.includes('search keywords')),'Matching questions should use one generation pass');
+  const fallback=await api('/ask',{method:'POST',body:{question:'Which volumes do you recommend?'}});
+  assert.equal(fallback.status,200);assert.equal(fallback.data.sources[0].id,'books');
+  assert.ok(ai.calls.some(messages=>messages[0].content.includes('search keywords')),'No-match questions should try query expansion');
 });
 
 test('AI cancellation and initialization errors release the worker; deleted or revoked sources cannot be polled',async t=>{

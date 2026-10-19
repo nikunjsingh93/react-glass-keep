@@ -97,7 +97,7 @@ class LocalAI {
       last.content=JSON.stringify(context);
     }
     const response=await fetch(this.url+'/v1/chat/completions',{method:'POST',headers,
-      signal:AbortSignal.any([signal,AbortSignal.timeout(120000)]),body:JSON.stringify({messages,stream:true,max_tokens:maxTokens,temperature:0.2,chat_template_kwargs:{enable_thinking:false}})});
+      signal:AbortSignal.any([signal,AbortSignal.timeout(120000)]),body:JSON.stringify({messages,stream:true,max_tokens:maxTokens,temperature:0.2,cache_prompt:false,chat_template_kwargs:{enable_thinking:false}})});
     if(!response.ok||!response.body)throw new Error('The AI worker could not answer. Try a shorter question.');
     let pending='',answer='';const decoder=new TextDecoder();
     for await(const chunk of response.body){

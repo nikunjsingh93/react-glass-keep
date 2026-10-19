@@ -8,7 +8,8 @@ const docker=(...args)=>execFileSync('docker',args,{encoding:'utf8',windowsHide:
 const cache=path.resolve('artifacts/ai-models');mkdirSync(cache,{recursive:true});
 let container;
 try{
-  container=docker('run','-d','-p','127.0.0.1::8080','-v',`${cache}:/app/data/ai-models`,'-v',`${path.resolve('server')}:/app/server:ro`,
+  const sourceMount=process.env.GLASS_KEEP_AI_SOURCE==='1'?['-v',`${path.resolve('server')}:/app/server:ro`]:[];
+  container=docker('run','-d','-p','127.0.0.1::8080','-v',`${cache}:/app/data/ai-models`,...sourceMount,
     '-e','INITIAL_ADMIN_USERNAME=operator','-e','INITIAL_ADMIN_PASSWORD=ai-docker-test-password','-e','JWT_SECRET=ai-docker-test-only',image);
   const base='http://'+docker('port',container,'8080');
   for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok)break;}catch{}await new Promise(r=>setTimeout(r,200));}
@@ -36,6 +37,8 @@ try{
   }
   assert.match(await ask('First question','Which book should I read first, and who wrote it?'),/Sapiens/i);
   assert.match(await ask('Warm question','Who wrote The Power of Habit?'),/Duhigg/i);
+  const french=await ask('French question','Qui a écrit Sapiens ?','fr');assert.match(french,/Harari/i);assert.doesNotMatch(french,/rythme|pouvoir/i);
+  const hindi=await ask('Hindi question','Sapiens किसने लिखी है?','hi');assert.match(hindi,/[\u0900-\u097f]/);assert.match(hindi,/Harari|हरारी/i);
   console.log('Waiting for the default 60-second idle timeout…');
   for(let i=0;i<80;i++){await new Promise(r=>setTimeout(r,1000));if((await api('/ai/status')).state==='unloaded')break;}
   assert.equal((await api('/ai/status')).state,'unloaded');assert.equal(memory().length,0);console.log('Idle worker exited: no llama.cpp process or worker RSS remains.');
