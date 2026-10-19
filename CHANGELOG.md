@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.14] - 2026-10-19
+### Changed
+- Aligns the web/server, Windows, macOS and Android release versions to **1.0.14**, including embedded app metadata and the connection-screen version.
+- Adds a shared release-version command and a native build check to prevent version drift in future releases. Includes all improvements from 1.0.13.
+
 ## [1.0.13] / Native clients 1.0.9 - 2026-10-19
 ### Fixed
 - Replaces the icon-only AI action with a visible **Ask AI** button whenever AI is enabled, beside search on wide screens and below it on smaller screens.

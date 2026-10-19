@@ -26,6 +26,8 @@ Use HTTPS outside a trusted local network. HTTP is supported for LAN deployments
 
 ## Build
 
+Starting with **1.0.14**, the web/server and all native clients share one release version. Before a release, run `npm run release:version -- X.Y.Z` to update JavaScript, Tauri and Rust metadata together. Native builds check that these versions match; the connection screen reads the shared version automatically.
+
 Install the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/): Node 24, stable Rust, the Windows C++ build tools/WebView2 for Windows, Xcode command-line tools on a Mac, and Java 17 plus Android SDK/NDK for Android.
 
 ```sh

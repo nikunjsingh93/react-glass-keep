@@ -1,4 +1,4 @@
-param([string]$Image = 'nikunjsingh/glass-keep:1.0.13')
+param([string]$Image = 'nikunjsingh/glass-keep:1.0.14')
 $ErrorActionPreference = 'Stop'
 $expectedAsset = [regex]::Match((Get-Content -Raw (Join-Path $PSScriptRoot '../dist/index.html')), 'assets/index-[^" ]+\.js').Value
 foreach ($platform in @('linux/amd64', 'linux/arm64')) {
@@ -14,7 +14,7 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
             Start-Sleep -Milliseconds 200
         }
         if (-not $ready) { docker logs $containerId; throw "$platform did not become healthy" }
-        if ($health.version -ne '1.0.13') { throw 'Unexpected running release version' }
+        if ($health.version -ne '1.0.14') { throw 'Unexpected running release version' }
         $login = Invoke-RestMethod "$base/api/login" -Method Post -Headers @{'X-Forwarded-For'='192.0.2.10'} -ContentType 'application/json' -Body '{"email":"smoke-operator","password":"smoke-test-password-123"}'
         $containerLogs = docker logs $containerId 2>&1 | Out-String
         if ($containerLogs.Contains('ERR_ERL')) { throw 'Proxy validation failed' }
@@ -33,3 +33,4 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
         if ($containerId) { docker rm -f $containerId | Out-Null }
     }
 }
+

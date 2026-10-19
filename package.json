@@ -1,7 +1,7 @@
 {
   "name": "liquid-keep",
   "private": true,
-  "version": "1.0.13",
+  "version": "1.0.14",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -16,6 +16,8 @@
     "tauri": "tauri",
     "native:dev": "vite --config vite.native.config.js",
     "native:build": "vite build --config vite.native.config.js",
+    "prenative:build": "node scripts/version.mjs --check",
+    "release:version": "node scripts/version.mjs",
     "app:windows": "tauri build",
     "app:macos": "tauri build --config src-tauri/tauri.macos.conf.json",
     "preapp:android": "node scripts/prepare-android-icons.mjs",
