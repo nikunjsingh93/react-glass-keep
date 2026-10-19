@@ -457,4 +457,4 @@ The queue survives a reload and synchronizes after reconnecting or signing in ag
 
 ### Release checks
 
-Run `npm test`, `npm run build`, then `node --test tests/browser.test.mjs tests/web-features.browser.mjs` (Microsoft Edge installed). `tests/docker-smoke.ps1` checks the final image on both architectures. Native Android apps and home-screen widgets remain outside this release.
+Run `npm test`, `npm run build`, then `node --test tests/browser.test.mjs tests/web-features.browser.mjs` (Microsoft Edge installed). `tests/docker-smoke.ps1` checks the final image on both architectures. Native clients have separate builds and checks documented in the [native app guide](docs/native-apps.md). Home-screen widgets are not included.
