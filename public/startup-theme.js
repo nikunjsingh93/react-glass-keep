@@ -4,7 +4,8 @@
   try {
     const saved=localStorage.getItem('glass-keep-dark-mode');
     if(saved!==null)dark=saved==='true';
-    document.documentElement.lang=localStorage.getItem('glass-keep-language')==='hi'?'hi':'en';
+    const language=localStorage.getItem('glass-keep-language');
+    document.documentElement.lang=['hi','fr'].includes(language)?language:'en';
   } catch {}
   document.documentElement.classList.toggle('dark',dark);
 })();

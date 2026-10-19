@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.11] / Native clients 1.0.7 - 2026-10-19
+### Added
+- French (Français) alongside English and Hindi, with 327 translated interface strings, remembered on this device. Existing note titles and content remain unchanged.
+- French startup loading text and a language selector on the native server-connection screen, with translated connection guidance.
+### Validation
+- Checks cover French locale coverage and placeholders, persistence after reload, login and settings, JSON export controls, public sharing, offline editing and native startup language.
+
 ## [1.0.10] / Native clients 1.0.6 - 2026-10-18
 ### Fixed
 - Android's home-page search/menu header stays below the status bar while scrolling, with an opaque safe-area background that prevents notes from showing through behind the system bar.

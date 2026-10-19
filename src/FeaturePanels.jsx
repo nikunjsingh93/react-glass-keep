@@ -3,8 +3,9 @@ import {createPortal} from 'react-dom';
 import {readKeepFiles,parseKeepEntries} from './keepImport';
 import {importNoteBatches} from './importBackup';
 import {renderMarkdown} from './markdown';
-import {getLanguage,setLanguage,t} from './i18n';
+import {t} from './i18n';
 import DrawingCanvas from './DrawingCanvas';
+import LanguagePicker from './LanguagePicker';
 import {copyText,serverLink,confirmAction,isNative,serverOrigin} from './platform';
 
 function SharedDrawing({content}) {
@@ -12,7 +13,7 @@ function SharedDrawing({content}) {
   return <DrawingCanvas data={data} readOnly hideModeToggle/>;
 }
 
-export function LanguagePicker() {return <label className="settings-card flex items-center justify-between gap-3 mb-4">{t('Language')}<select aria-label={t('Language')} value={getLanguage()} onChange={e=>setLanguage(e.target.value)} className="themed-select rounded-lg p-2"><option value="en">English</option><option value="hi">हिन्दी</option></select></label>;}
+export {LanguagePicker};
 export function ConnectedServer() {
   if(!isNative)return null;
   return <section className="settings-card mb-4" aria-label={t('Server connection')}>

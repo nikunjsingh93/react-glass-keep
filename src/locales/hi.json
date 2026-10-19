@@ -315,5 +315,15 @@
   "Use Downloads": "Downloads का उपयोग करें",
   "This browser does not support folder selection. Change its download location in browser settings, or use a native app.": "यह ब्राउज़र फ़ोल्डर चुनने का समर्थन नहीं करता। ब्राउज़र सेटिंग्स में डाउनलोड स्थान बदलें या नेटिव ऐप का उपयोग करें।",
   "Files save to your chosen folder, or Downloads / Glass Keep by default. On Android 7–9, choose a folder for automatic exports.": "फ़ाइलें आपके चुने फ़ोल्डर में, या डिफ़ॉल्ट रूप से Downloads / Glass Keep में सहेजी जाती हैं। Android 7–9 पर स्वचालित निर्यात के लिए फ़ोल्डर चुनें।",
-  "Choose a folder in a supported browser for direct saves. Otherwise allow automatic downloads for this site and check the browser downloads list to confirm each file was saved.": "समर्थित ब्राउज़र में सीधे सहेजने के लिए फ़ोल्डर चुनें। अन्यथा इस साइट के लिए स्वचालित डाउनलोड की अनुमति दें और फ़ाइल सहेजी गई है या नहीं, डाउनलोड सूची में देखें।"
+  "Choose a folder in a supported browser for direct saves. Otherwise allow automatic downloads for this site and check the browser downloads list to confirm each file was saved.": "समर्थित ब्राउज़र में सीधे सहेजने के लिए फ़ोल्डर चुनें। अन्यथा इस साइट के लिए स्वचालित डाउनलोड की अनुमति दें और फ़ाइल सहेजी गई है या नहीं, डाउनलोड सूची में देखें।",
+  "Server address": "सर्वर का पता",
+  "Connect to your Glass Keep server. Your notes stay on your server and sync across your devices.": "अपने Glass Keep सर्वर से जुड़ें। आपके नोट्स आपके सर्वर पर रहते हैं और आपके डिवाइसों के बीच सिंक होते हैं।",
+  "Use HTTPS with a publicly trusted certificate. HTTP is available for trusted local networks; traffic is unencrypted. Certificate verification stays enabled.": "मान्य प्रमाणपत्र के साथ HTTPS का उपयोग करें। भरोसेमंद स्थानीय नेटवर्क के लिए HTTP उपलब्ध है, लेकिन उसका ट्रैफ़िक एन्क्रिप्ट नहीं है। प्रमाणपत्र सत्यापन चालू रहता है।",
+  "Switching servers keeps each server's login and offline edits separate. Return to the same address to sync pending changes.": "हर सर्वर का लॉगिन और ऑफ़लाइन बदलाव अलग रहते हैं। लंबित बदलाव सिंक करने के लिए उसी पते पर वापस आएँ।",
+  "Connecting…": "जुड़ रहा है…",
+  "Glass Keep app": "Glass Keep ऐप",
+  "Requires your existing Glass Keep server": "आपका मौजूदा Glass Keep सर्वर आवश्यक है",
+  "This address did not return a Glass Keep server.": "इस पते पर Glass Keep सर्वर नहीं मिला।",
+  "Enter the server origin only, for example https://keep.example.com.": "सिर्फ सर्वर का मूल पता दर्ज करें, जैसे https://keep.example.com।",
+  "Could not reach the server. Check the address, connection and HTTPS certificate.": "सर्वर तक नहीं पहुँच सके। पता, कनेक्शन और HTTPS प्रमाणपत्र जाँचें।"
 }

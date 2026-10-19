@@ -4,6 +4,8 @@
 
 ## Connect and use
 
+Choose English, हिन्दी or Français on the server-connection/sign-in screen or in Settings. The choice is remembered on this device and the translations are bundled for offline use. Note titles and content are not translated.
+
 1. Install the Windows setup executable for your processor (x64 for most PCs, ARM64 for Windows on ARM), or the signed ARM64 APK for Android 7.0 and newer.
 2. Start Glass Keep and enter the public server origin, such as `https://keep.example.com`. Do not include `/api`, a path, or a login token.
 3. Sign in with your existing Glass Keep account. Your server's registration policy still applies.
@@ -12,7 +14,7 @@ On macOS 13 or newer, download the **arm64** DMG for Apple Silicon (M-series) or
 
 Open **Menu → Settings → Connected server** to see your server link or choose **Change server**. Before signing in, use **Connection settings** on the login screen. Each server has separate login, cached notes and offline operations, even if both instances have user ID 1. Pending edits remain associated with the original server; switching back allows them to sync. Sign out clears the current server's browser cache and session without removing other server connections.
 
-The notes interface is bundled, so it can open offline after setup. Owned notes that have been loaded remain available through the existing offline queue. Server-side AI, administration, sharing and fresh exports still need a reachable server. Collaboration refreshes every ten seconds while the native client is visible, and when its window regains focus; the web version continues using realtime events.
+The notes interface is bundled, so it can open offline after setup. Sign in and load notes online first; saved notes, checklists and their embedded attachments are cached per account and server. Creating, saving edits, checking items, archiving and deleting notes queue locally while offline. The queue survives an app restart, synchronizes on reconnecting, and offers **Sync now** plus conflict review if the server copy changed. If the device stays online but only the server was unavailable, use Sync now or reopen the app once the server returns. Keep app data until pending changes finish syncing; clearing data or uninstalling removes local-only work. An expired session needs an online sign-in before syncing. Server-side AI, administration, sharing changes, imports and scheduled full JSON exports still need a reachable server. Collaboration refreshes every ten seconds while the native client is visible, and when its window regains focus; the web version continues using realtime events.
 
 Backups, Markdown exports, images and unsynced drafts use the system save dialog. Import uses the existing file picker. External note links open in your normal browser, and copied note/public links point to the selected server instead of a local app address.
 

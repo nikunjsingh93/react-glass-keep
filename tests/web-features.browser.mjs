@@ -16,12 +16,26 @@ test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep
  for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));if(i===99)throw Error(logs);}
  const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());
  const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base);await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('hi');
+ await page.goto(base);await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('fr');
+ await expect(page.getByRole('button',{name:'Se connecter',exact:true})).toBeVisible();
+ await expect(page.getByPlaceholder('Nom d’utilisateur',{exact:true})).toBeVisible();
+ await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','fr');
+ await expect(page.getByRole('combobox',{name:'Langue',exact:true})).toHaveValue('fr');
+ await page.getByRole('combobox',{name:'Langue',exact:true}).selectOption('hi');
  await expect(page.getByRole('button',{name:'साइन इन करें',exact:true})).toBeVisible();
  await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','hi');
  await page.getByRole('combobox',{name:'भाषा',exact:true}).selectOption('en');
  await page.getByPlaceholder('Username',{exact:true}).fill('operator');await page.getByPlaceholder('Password',{exact:true}).fill('browser-features-password-123');await page.getByRole('button',{name:'Sign In',exact:true}).click();
  await expect(page.getByPlaceholder('Write a note...')).toBeVisible();
+ await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('fr');
+ await expect(page.getByRole('heading',{name:'Paramètres',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Exportation JSON automatique',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Exportation JSON automatique',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Choisir le dossier d’exportation',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Fermer',exact:true}).click();
+ await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Paramètres',exact:true}).click();
+ await page.getByRole('combobox',{name:'Langue',exact:true}).selectOption('en');await page.getByRole('button',{name:'Close',exact:true}).click();
  const session=await page.evaluate(()=>JSON.parse(localStorage.getItem('glass-keep-auth')));
  const api=async(route,method='GET',body)=>{const r=await fetch(base+'/api'+route,{method,headers:{Authorization:`Bearer ${session.token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});assert.equal(r.ok,true,await r.clone().text());return r.json();};
  const one=await api('/notes','POST',{title:'Both tags',content:'Original',tags:['private','bike']});

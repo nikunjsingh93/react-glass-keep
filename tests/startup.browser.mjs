@@ -27,5 +27,7 @@ test('web and native startup screens are centered and use saved/system themes be
     await context.close();
   }
   const context=await browser.newContext({reducedMotion:'reduce'}),page=await context.newPage();
-  await page.route(/\/assets\/.*\.js$/,route=>route.fulfill({contentType:'application/javascript',body:''}));await page.goto(urls[1]);await expect(page.locator('.startup-spinner')).toHaveCSS('animation-name','none');await context.close();
+  await page.addInitScript(()=>localStorage.setItem('glass-keep-language','fr'));
+  await page.route(/\/assets\/.*\.js$/,route=>route.fulfill({contentType:'application/javascript',body:''}));await page.goto(urls[1]);await expect(page.locator('.startup-spinner')).toHaveCSS('animation-name','none');
+  await expect(page.locator('html')).toHaveAttribute('lang','fr');await expect(page.getByText('Chargement de Glass Keep…',{exact:true})).toBeVisible();await expect(page.getByText('Loading Glass Keep…',{exact:true})).toBeHidden();await context.close();
 });
