@@ -1519,7 +1519,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
         />
       )}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full shadow-2xl transition-transform duration-200 ${permanent || open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`app-drawer tags-drawer fixed top-0 left-0 z-40 h-full flex flex-col shadow-2xl transition-transform duration-200 ${permanent || open ? "translate-x-0" : "-translate-x-full"}`}
         style={{
           width: permanent ? `${width}px` : '288px',
           backgroundColor: dark ? "#222222" : "rgba(255,255,255,0.95)",
@@ -1527,7 +1527,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
         }}
         aria-hidden={!(permanent || open)}
       >
-        <div className="p-4 flex items-center justify-between">
+        <div className="p-4 flex shrink-0 items-center justify-between">
           <h3 className="text-lg font-semibold">{t("Tags")}</h3>
           {!permanent && (
             <button
@@ -1539,7 +1539,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
             </button>
           )}
         </div>
-        <nav className="p-2 overflow-y-auto h-[calc(100%-56px)]">
+        <nav className="p-2 overflow-y-auto min-h-0 flex-1">
           {/* Notes (All) */}
           <button
             className={`w-full text-left px-3 py-2 rounded-md mb-1 ${isAllNotes ? (dark ? "bg-white/10" : "bg-black/5") : (dark ? "hover:bg-white/10" : "hover:bg-black/5")}`}
@@ -1646,11 +1646,11 @@ function SettingsPanel({ onAutoExport, onFindDuplicates, open, onClose, dark, on
         />
       )}
       <div
-        className={`settings-surface fixed top-0 right-0 z-50 h-full w-full sm:w-96 shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
+        className={`app-drawer settings-surface fixed top-0 right-0 z-50 h-full w-full sm:w-96 flex flex-col shadow-2xl transition-transform duration-200 ${open ? "translate-x-0" : "translate-x-full"}`}
         style={{ borderLeft: "1px solid var(--border-light)" }}
         aria-hidden={!open}
       >
-        <div className="p-4 flex items-center justify-between border-b border-[var(--border-light)]">
+        <div className="p-4 flex shrink-0 items-center justify-between border-b border-[var(--border-light)]">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <SettingsIcon />{t("Settings")}</h3>
           <button
@@ -1662,7 +1662,7 @@ function SettingsPanel({ onAutoExport, onFindDuplicates, open, onClose, dark, on
           </button>
         </div>
 
-        <div className="p-4 overflow-y-auto h-[calc(100%-64px)]">
+        <div className="p-4 overflow-y-auto min-h-0 flex-1">
           <LanguagePicker/>
           <ConnectedServer/>
           <button className="settings-card settings-action mb-4 w-full text-left" onClick={() => { onClose(); onFindDuplicates(); }}>{t("Find duplicates")}</button>
@@ -2175,8 +2175,10 @@ function NotesUI({
     >
       {/* Multi-select toolbar (floats above header when active) */}
       {multiMode && (
-        <div className="app-selection-toolbar p-3 sm:p-4 flex items-center justify-between sticky top-0 z-[25] glass-card mb-2" style={{ position: "sticky" }}><button className="border rounded px-2 py-1" onClick={()=>{onSelectAllPinned();onSelectAllOthers();}}>{t("Select all filtered")}</button><button className="border rounded px-2 py-1" onClick={()=>selectedIds.forEach(id=>onToggleSelect(id,false))}>{t("Clear selection")}</button>
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="app-selection-toolbar p-3 sm:p-4 flex items-start sm:items-center justify-between gap-3 sticky top-0 z-[25] glass-card mb-2">
+          <div className="min-w-0 flex items-center gap-2 flex-wrap">
+            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={()=>{onSelectAllPinned();onSelectAllOthers();}}>{t("Select all filtered")}</button>
+            <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={()=>selectedIds.forEach(id=>onToggleSelect(id,false))}>{t("Clear selection")}</button>
             <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={onBulkDownloadZip}>{t("Download (.zip)")}</button>
             <button className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm" onClick={onBulkDelete}>{t("Delete")}</button>
             <button
@@ -2213,10 +2215,10 @@ function NotesUI({
               <ArchiveIcon />
               {activeTagFilter === 'ARCHIVED' ? t("Unarchive") : t("Archive")}
             </button>
-            <span className="text-xs opacity-70 ml-2">{t("Selected:")}{selectedIds.length}</span>
+            <span className="text-xs opacity-70 whitespace-nowrap">{t("Selected:")} {selectedIds.length}</span>
           </div>
           <button
-            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="selection-exit shrink-0 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
             title={t("Exit multi-select")}
             onClick={onExitMulti}
           >
@@ -4898,7 +4900,11 @@ export default function App() {
     setModalMenuOpen(false); setConfirmDeleteOpen(false); setShowModalFmt(false);
   };
 
-  useAndroidNoteBack(open,async()=>{
+  const tagDrawerOpen = sidebarOpen && !(alwaysShowSidebarOnWide && windowWidth >= 700);
+  useAndroidNoteBack(open || settingsPanelOpen || tagDrawerOpen,async()=>{
+    if(genericConfirmOpen){setGenericConfirmOpen(false);return;}
+    if(settingsPanelOpen){setSettingsPanelOpen(false);return;}
+    if(tagDrawerOpen){setSidebarOpen(false);return;}
     if(imgViewOpen){setImgViewOpen(false);return;}
     if(confirmDeleteOpen){setConfirmDeleteOpen(false);return;}
     if(collaborationModalOpen){setCollaborationModalOpen(false);return;}

@@ -6,6 +6,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
+import {checkSelectionToolbar} from './selection-toolbar.mjs';
 
 
 test('native client connects, isolates servers, queues offline edits and saves portable ZIPs through native IPC',async t=>{
@@ -55,12 +56,46 @@ test('native client connects, isolates servers, queues offline edits and saves p
   const create=async title=>{await page.getByPlaceholder('Write a note...').click();await page.getByPlaceholder('Title',{exact:true}).fill(title);await page.locator('textarea').fill('Portable native note');await page.getByRole('button',{name:'Add Note',exact:true}).click();await expect(page.locator('.note-card').filter({hasText:title})).toBeVisible();};
   await login();await create('First server only');
   await page.setViewportSize({width:390,height:844});
-  await page.locator('.native-app').evaluate(root=>{root.style.setProperty('--native-safe-top','32px');root.style.setProperty('--native-safe-bottom','24px');});
+  await page.locator('.native-app').evaluate(root=>{root.style.setProperty('--native-safe-top','32px');root.style.setProperty('--native-safe-bottom','24px');root.style.setProperty('--native-safe-left','12px');root.style.setProperty('--native-safe-right','18px');});
   await page.locator('.app-header').evaluate(header=>{const spacer=document.createElement('div');spacer.id='scroll-regression-space';spacer.style.height='2500px';header.parentElement.append(spacer);});
   await page.evaluate(()=>window.scrollTo(0,900));
   await expect.poll(async()=>Math.round((await page.locator('.app-header').boundingBox()).y)).toBe(32);
   assert.ok(await page.evaluate(()=>!document.elementFromPoint(100,16)?.closest('.app-header')));
   await page.evaluate(()=>{document.getElementById('scroll-regression-space').remove();window.scrollTo(0,0);});
+  const pressBack=async()=>{
+    await expect.poll(()=>page.evaluate(()=>typeof window.__nativeBackHandler)).toBe('function');
+    await page.evaluate(()=>window.__nativeBackHandler({canGoBack:false}));
+  };
+  for(let attempt=0;attempt<2;attempt++){
+    await settings();
+    const panel=page.locator('.settings-surface[aria-hidden="false"]');
+    await expect(panel).toBeVisible();
+    await expect.poll(async()=>Math.round((await panel.boundingBox()).y)).toBe(32);
+    await expect.poll(async()=>Math.round((await panel.boundingBox()).x)).toBe(12);
+    const bounds=await panel.boundingBox();assert.equal(bounds.y+bounds.height,820);
+    assert.ok(bounds.x>=12&&bounds.x+bounds.width<=372);
+    assert.ok((await panel.getByRole('heading',{name:'Settings',exact:true}).boundingBox()).y>=32);
+    if(attempt===0){
+      await panel.getByText('Local AI Assistant',{exact:true}).locator('../..').getByRole('button').click();
+      await expect(page.getByRole('heading',{name:'Enable AI Assistant?',exact:true})).toBeVisible();
+      await pressBack();await expect(page.getByRole('heading',{name:'Enable AI Assistant?',exact:true})).toHaveCount(0);
+      await expect(panel).toBeVisible();
+      await page.screenshot({path:'artifacts/android-settings-safe-area.png',animations:'disabled'});
+    }
+    await panel.locator(':scope > div').last().evaluate(body=>body.scrollTop=body.scrollHeight);
+    assert.ok((await panel.getByRole('heading',{name:'Settings',exact:true}).boundingBox()).y>=32);
+    await pressBack();await expect(panel).toHaveCount(0);
+    await expect.poll(()=>page.evaluate(()=>window.__nativeBackHandler)).toBe(null);
+    await page.getByRole('button',{name:'Open tags',exact:true}).click();
+    const tags=page.locator('.tags-drawer[aria-hidden="false"]');await expect(tags).toBeVisible();
+    await expect.poll(async()=>Math.round((await tags.boundingBox()).y)).toBe(32);
+    assert.equal((await tags.boundingBox()).y+(await tags.boundingBox()).height,820);
+    assert.ok((await tags.getByRole('heading',{name:'Tags',exact:true}).boundingBox()).y>=32);
+    if(attempt===0)await page.screenshot({path:'artifacts/android-tags-safe-area.png',animations:'disabled'});
+    await pressBack();await expect(tags).toHaveCount(0);
+    await expect(page.locator('.note-card')).toHaveCount(1);
+    await expect.poll(()=>page.evaluate(()=>window.__nativeBackHandler)).toBe(null);
+  }
   await page.locator('.note-card').filter({hasText:'First server only'}).click();
   const modal=page.locator('.modal-scrim');await expect(modal).toBeVisible();
   const bounds=await modal.boundingBox();assert.equal(bounds.y,32);assert.equal(bounds.y+bounds.height,820);
@@ -79,8 +114,11 @@ test('native client connects, isolates servers, queues offline edits and saves p
   await page.getByRole('alert').getByRole('button',{name:'Close',exact:true}).click();
   await modal.getByRole('button',{name:'Save',exact:true}).click();await expect(modal).toHaveCount(0);
   await expect(page.locator('.note-card').filter({hasText:'First server edited'})).toBeVisible();
-  await page.locator('.native-app').evaluate(root=>{root.style.removeProperty('--native-safe-top');root.style.removeProperty('--native-safe-bottom');});
+  await page.locator('.native-app').evaluate(root=>{for(const side of ['top','bottom','left','right'])root.style.removeProperty('--native-safe-'+side);});
   await page.setViewportSize({width:1280,height:720});
+  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Multi select',exact:true}).click();
+  await checkSelectionToolbar(page);
+  await page.getByRole('button',{name:'Exit multi-select',exact:true}).click();
   await expect(page.locator('.native-server-bar')).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Change server',exact:true})).toBeHidden();
   await context.setOffline(true);await create('Pending on first server');

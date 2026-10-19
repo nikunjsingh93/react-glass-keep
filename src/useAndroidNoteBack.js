@@ -10,7 +10,7 @@ export default function useAndroidNoteBack(open,onBack) {
     const handle=async()=>{
       if(disposed || busy)return;
       busy=true;
-      try{await action.current();}catch(error){console.error('Could not close the note',error);}finally{busy=false;}
+      try{await action.current();}catch(error){console.error('Could not close the active panel',error);}finally{busy=false;}
     };
     import('@tauri-apps/api/app').then(async({onBackButtonPress})=>{
       if(disposed)return;

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.15] - 2026-10-19
+### Fixed
+- Keeps Android Settings and tags drawers below the status bar and above the navigation bar, with independently scrolling content. Android Back closes the active drawer instead of exiting; nested confirmations close first and note Back handling is preserved.
+- Aligns Select all filtered and Clear selection with the other selection actions, using the same themed borders, rounded corners and button heights. The toolbar wraps cleanly on phones and stays aligned on desktop.
+### Validation
+- Native browser checks cover drawer bounds, scrolling, repeated Back handling and existing note editing. Web/native selection checks cover matching borders, desktop alignment, narrow-screen wrapping and working select/clear actions in light and dark themes.
+
 ## [1.0.14] - 2026-10-19
 ### Changed
 - Saves AI enablement per account on the server and syncs it across devices. Fresh accounts stay off by default; the warning explains that the model is downloaded once on the server. Devices keep an account-specific offline cache and refresh on focus, reconnection and every ten seconds while visible.

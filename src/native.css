@@ -4,5 +4,8 @@
 .native-app{--native-safe-top:env(safe-area-inset-top,0px);--native-safe-bottom:env(safe-area-inset-bottom,0px);--native-safe-left:env(safe-area-inset-left,0px);--native-safe-right:env(safe-area-inset-right,0px);padding-top:var(--native-safe-top);padding-bottom:var(--native-safe-bottom)}
 .native-app .modal-scrim{top:var(--native-safe-top);bottom:var(--native-safe-bottom);left:var(--native-safe-left);right:var(--native-safe-right)}
 .native-app .modal-scrim > .glass-card{max-height:100%}
+.native-app .app-drawer{top:var(--native-safe-top);bottom:var(--native-safe-bottom);height:auto;max-height:calc(100dvh - var(--native-safe-top) - var(--native-safe-bottom));max-width:calc(100vw - var(--native-safe-left) - var(--native-safe-right))}
+.native-app .tags-drawer{left:var(--native-safe-left)}
+.native-app .settings-surface{right:var(--native-safe-right)}
 .native-app .app-header,.native-app .app-selection-toolbar{top:var(--native-safe-top)}
 .native-app::before{content:"";position:fixed;top:0;left:0;right:0;height:var(--native-safe-top);background:var(--startup-bg);z-index:30;pointer-events:none}

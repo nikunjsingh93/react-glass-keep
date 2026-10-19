@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
 import {zipSync,strToU8} from 'fflate';
+import {checkSelectionToolbar} from './selection-toolbar.mjs';
 
 test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep links and offline edits work in browser',async t=>{
  const dir=await mkdtemp(path.join(tmpdir(),'glass-features-')),base='http://127.0.0.1:18090';
@@ -66,7 +67,7 @@ test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep
  await expect(page.locator('.note-card')).toHaveCount(1);await expect(page.locator('.note-card')).toContainText('Both tags');
  await page.locator('aside').getByRole('button',{name:'Close',exact:true}).click();
  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Multi select',exact:true}).click();await page.getByRole('button',{name:'Select all filtered',exact:true}).click();
- await expect(page.getByText('Selected:1',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Exit multi-select',exact:true}).click();
+ await expect(page.getByText('Selected: 1',{exact:true})).toBeVisible();await checkSelectionToolbar(page);await page.getByRole('button',{name:'Exit multi-select',exact:true}).click();
  await page.getByRole('button',{name:'Open tags',exact:true}).click();await page.locator('aside').getByRole('button',{name:'Notes (All)',exact:true}).click();
  await page.locator('.note-card').filter({hasText:'Both tags'}).click();await expect(page.getByRole('button',{name:'Make a copy',exact:true})).toHaveCount(0);await page.getByRole('button',{name:'More options',exact:true}).click();await page.getByRole('button',{name:'Make a copy',exact:true}).click();await expect(page.locator('.note-card').filter({hasText:'Both tags (copy)'})).toHaveCount(1);
  await page.getByRole('button',{name:'Close',exact:true}).click();
