@@ -4,5 +4,15 @@
 @source "./";
 @source "../index.html";
 
+.settings-card { border: 1px solid var(--border-light,rgba(209,213,219,.3)); border-radius: .5rem; padding: .75rem 1rem; }
+.settings-action { border: 1px solid var(--border-light,rgba(209,213,219,.3)); transition: background-color .2s; }
+.settings-action:hover { background-color: #f9fafb; }
+.dark .settings-action:hover { background-color: rgba(255,255,255,.1); }
+.themed-select { border: 1px solid var(--border-light,rgba(209,213,219,.3)); color: #111827; background-color: #fff; color-scheme: light; }
+.dark .themed-select { color: #f3f4f6; background-color: #222; color-scheme: dark; }
+select option { color: #111827; background-color: #fff; }
+.dark select { color-scheme: dark; }
+.dark select option { color: #f3f4f6; background-color: #222; }
+
 /* If you toggle dark mode by adding `.dark` to <html>, define this variant in v4 */
 

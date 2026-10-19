@@ -35,15 +35,31 @@ test('native client connects, isolates servers, queues offline edits and saves p
   const connect=async origin=>{await page.getByLabel('Server address',{exact:true}).fill(origin);await page.getByRole('button',{name:'Connect',exact:true}).click();};
   await connect(origins[0]+'/wrong');await expect(page.getByRole('alert')).toContainText('origin only');
   await connect(origins[0]);
+  await page.getByRole('button',{name:'Connection settings',exact:true}).click();
+  await expect(page.getByRole('link',{name:origins[0],exact:true})).toHaveAttribute('href',origins[0]);
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  const settings=async()=>{await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();};
+  const changeServer=async origin=>{await settings();await expect(page.getByRole('link',{name:origin,exact:true})).toHaveAttribute('href',origin);await page.getByRole('button',{name:'Change server',exact:true}).click();};
   const login=async()=>{await page.getByPlaceholder('Username',{exact:true}).fill('operator');await page.getByPlaceholder('Password',{exact:true}).fill('native-browser-password-123');await page.getByRole('button',{name:'Sign In',exact:true}).click();await expect(page.getByPlaceholder('Write a note...')).toBeVisible();};
   const create=async title=>{await page.getByPlaceholder('Write a note...').click();await page.getByPlaceholder('Title',{exact:true}).fill(title);await page.locator('textarea').fill('Portable native note');await page.getByRole('button',{name:'Add Note',exact:true}).click();await expect(page.locator('.note-card').filter({hasText:title})).toBeVisible();};
   await login();await create('First server only');
+  await expect(page.locator('.native-server-bar')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Change server',exact:true})).toBeHidden();
   await context.setOffline(true);await create('Pending on first server');
-  await page.getByRole('button',{name:'Change server',exact:true}).click();await context.setOffline(false);await connect(origins[1]);await login();await expect(page.locator('.note-card')).toHaveCount(0);
+  await changeServer(origins[0]);await context.setOffline(false);await connect(origins[1]);await login();await expect(page.locator('.note-card')).toHaveCount(0);
   assert.equal(requests.filter(r=>r.server===origins[1] && r.body?.includes('Pending on first server')).length,0);
   await create('Second server only');
-  await page.getByRole('button',{name:'Change server',exact:true}).click();await connect(origins[0]);await expect(page.getByPlaceholder('Write a note...')).toBeVisible();await expect(page.locator('.note-card')).toHaveCount(2);
-  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Cloud backup',exact:true}).click();await page.getByRole('button',{name:'Download backup ZIP',exact:true}).click();
+  await changeServer(origins[1]);await connect(origins[0]);await expect(page.getByPlaceholder('Write a note...')).toBeVisible();await expect(page.locator('.note-card')).toHaveCount(2);
+  await settings();
+  for(const dark of [false,true]){
+    if(dark){await page.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Dark Mode',exact:true}).click();await settings();}
+    const colors=await page.getByLabel('Language',{exact:true}).evaluate(select=>({text:getComputedStyle(select).color,background:getComputedStyle(select).backgroundColor,optionText:getComputedStyle(select.options[0]).color,optionBackground:getComputedStyle(select.options[0]).backgroundColor}));
+    assert.equal(colors.text,dark?'rgb(243, 244, 246)':'rgb(17, 24, 39)');assert.equal(colors.background,dark?'rgb(34, 34, 34)':'rgb(255, 255, 255)');assert.equal(colors.optionText,colors.text);assert.equal(colors.optionBackground,colors.background);
+    const borders=await page.getByRole('button',{name:'Cloud backup',exact:true}).evaluate(button=>({cloud:getComputedStyle(button).borderColor,language:getComputedStyle(document.querySelector('.themed-select').closest('label')).borderColor}));assert.equal(borders.cloud,borders.language);assert.notEqual(borders.cloud,'rgb(243, 244, 246)');
+    await expect.poll(()=>page.getByLabel('Language',{exact:true}).evaluate(select=>Math.round(select.closest('[aria-hidden]').getBoundingClientRect().right))).toBe(1280);
+    await page.screenshot({path:`artifacts/settings-${dark?'dark':'light'}.png`,animations:'disabled'});
+  }
+  await page.getByRole('button',{name:'Cloud backup',exact:true}).click();await page.getByRole('button',{name:'Download backup ZIP',exact:true}).click();
   await expect.poll(()=>saved.length).toBe(1);const backup=JSON.parse(new TextDecoder().decode(unzipSync(saved[0])['backup.json']));assert.equal(backup.notes.length,2);assert.ok(!JSON.stringify(backup).includes('Second server only'));
   await page.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('glass-keep-native-server')),origins[0]);

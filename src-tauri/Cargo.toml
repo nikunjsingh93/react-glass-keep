@@ -1,6 +1,6 @@
 [package]
 name = "glass-keep"
-version = "1.0.0"
+version = "1.0.1"
 description = "Glass Keep Windows and Android client"
 authors = ["Nikunj Singh"]
 edition = "2021"

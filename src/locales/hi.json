@@ -290,5 +290,9 @@
   "Import backup (.json / .zip)": "बैकअप आयात करें (.json / .zip)",
   "Restore a downloaded JSON or ZIP backup": "डाउनलोड किया JSON या ZIP बैकअप बहाल करें",
   "Imported {count} notes. Skipped {skipped} duplicate notes.": "{count} नोट आयात किए गए। {skipped} डुप्लिकेट नोट छोड़े गए।",
-  "Cloud connection could not be completed. Try again or ask the server owner to check the cloud setup.": "क्लाउड कनेक्शन पूरा नहीं हो सका। फिर कोशिश करें या सर्वर के मालिक से क्लाउड सेटअप जाँचने को कहें।"
+  "Cloud connection could not be completed. Try again or ask the server owner to check the cloud setup.": "क्लाउड कनेक्शन पूरा नहीं हो सका। फिर कोशिश करें या सर्वर के मालिक से क्लाउड सेटअप जाँचने को कहें।",
+  "Server connection": "सर्वर कनेक्शन",
+  "Connected server": "कनेक्ट किया गया सर्वर",
+  "Change server": "सर्वर बदलें",
+  "Connection settings": "कनेक्शन सेटिंग्स"
 }

@@ -8,7 +8,7 @@ import { createNoteWriter } from "./noteWriter";
 import { importNoteBatches } from "./importBackup";
 import ChecklistEditor from "./ChecklistEditor";
 import { toggleBranch } from "./checklist";
-import { LanguagePicker, KeepImportDialog, DuplicateDialog, NoteActions, PublicNote } from "./FeaturePanels";
+import { LanguagePicker, KeepImportDialog, DuplicateDialog, NoteActions, PublicNote, ConnectedServer, Dialog } from "./FeaturePanels";
 import { getLanguage, t } from "./i18n";
 import { createOfflineClient } from "./offline";
 import OfflineStatus from "./OfflineStatus";
@@ -1330,9 +1330,12 @@ function NoteCard({
 
 /** ---------- Auth Shell ---------- */
 function AuthShell({ title, dark, onToggleDark, children }) {
+  const [connectionSettings,setConnectionSettings]=useState(false);
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md"><LanguagePicker/>
+        {isNative && <button className="settings-action rounded-lg px-4 py-2 mb-4 w-full" onClick={()=>setConnectionSettings(true)}>{t('Connection settings')}</button>}
+        {connectionSettings && <Dialog title={t('Connection settings')} onClose={()=>setConnectionSettings(false)}><ConnectedServer/></Dialog>}
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold">{t("Glass Keep")}</h1>
           <p className="text-gray-500 dark:text-gray-400">{title}</p>
@@ -1647,8 +1650,10 @@ function SettingsPanel({ onCloudBackup, onFindDuplicates, open, onClose, dark, o
         </div>
 
         <div className="p-4 overflow-y-auto h-[calc(100%-64px)]">
-          <LanguagePicker/><button className="border rounded p-3 mb-4 w-full text-left" onClick={() => { onClose(); onFindDuplicates(); }}>{t("Find duplicates")}</button>
-          <button className="border rounded p-3 mb-4 w-full text-left" onClick={()=>{onClose();onCloudBackup();}}>{t("Cloud backup")}</button>
+          <LanguagePicker/>
+          <ConnectedServer/>
+          <button className="settings-card settings-action mb-4 w-full text-left" onClick={() => { onClose(); onFindDuplicates(); }}>{t("Find duplicates")}</button>
+          <button className="settings-card settings-action mb-4 w-full text-left" onClick={()=>{onClose();onCloudBackup();}}>{t("Cloud backup")}</button>
           {/* Data Management Section */}
           <div className="mb-8">
             <h4 className="text-md font-semibold mb-4">{t("Data Management")}</h4>

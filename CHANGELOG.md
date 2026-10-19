@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.7] - 2026-10-18
+### Fixed
+- Consistent theme-aware borders for language, local backup and cloud backup controls.
+- Readable language dropdown text and option backgrounds in light and dark themes across web, Windows and Android.
+
+## Native clients 1.0.1 preview - 2026-10-18
+### Changed
+- Removed the persistent server bar. Settings now contains the connected server link and Change server action.
+- Added Connection settings to the login screen so users can switch servers before signing in.
+- Includes the settings theme fixes from web release 1.0.7 and retains the existing Android signing identity.
+
 ## Native clients 1.0.0 preview - 2026-10-18
 ### Added
 - Tauri 2 clients for Windows x64/ARM64 and Android ARM64 with a bundled interface and a server connection screen.

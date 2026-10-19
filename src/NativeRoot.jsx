@@ -1,10 +1,11 @@
-import React, {useState, Suspense, lazy} from 'react';
+import React, {useState, useEffect, Suspense, lazy} from 'react';
 import {appFetch, normalizeServer, SERVER_KEY, serverOrigin} from './platform';
 
 const App = lazy(() => import('./App.jsx'));
 export default function NativeRoot() {
-  const [server, setServer] = useState(serverOrigin), [editing, setEditing] = useState(!server), [value, setValue] = useState(server);
+  const [server] = useState(serverOrigin), [editing, setEditing] = useState(!server), [value, setValue] = useState(server);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
+  useEffect(()=>{const change=()=>{setValue(server);setError('');setEditing(true);};window.addEventListener('change-server',change);return()=>window.removeEventListener('change-server',change);},[server]);
   const connect = async event => {
     event.preventDefault(); setBusy(true); setError('');
     const previous = localStorage.getItem(SERVER_KEY);
@@ -29,8 +30,8 @@ export default function NativeRoot() {
       {server && <p className="native-hint">Switching servers keeps each server's login and offline edits separate. Return to the same address to sync pending changes.</p>}
       {error && <p role="alert">{error}</p>}<button disabled={busy}>{busy ? 'Connecting…' : 'Connect'}</button>
       {server && <button type="button" onClick={() => setEditing(false)}>Cancel</button>}
-      <small>Windows & Android app · 1.0.0 · Requires your existing Glass Keep server</small>
+      <small>Windows & Android app · 1.0.1 · Requires your existing Glass Keep server</small>
     </form>
   </main>;
-  return <><div className="native-server-bar"><span title={server}>{server}</span><button onClick={() => {setValue(server); setEditing(true);}}>Change server</button></div><div className="native-app"><Suspense fallback={<p className="p-6">Loading Glass Keep…</p>}><App/></Suspense></div></>;
+  return <div className="native-app"><Suspense fallback={<p className="p-6">Loading Glass Keep…</p>}><App/></Suspense></div>;
 }

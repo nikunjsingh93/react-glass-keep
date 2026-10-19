@@ -37,6 +37,10 @@ test('compiled Windows application connects and writes through the real Rust tra
   await page.reload();await expect(page.locator('.note-card').filter({hasText:'Real Windows Rust transport'})).toBeVisible();
   const rejected=await page.evaluate(async()=>{try{await window.__TAURI_INTERNALS__.invoke('api_request',{server:'http://127.0.0.1:18096',path:'//other.example/api/login',method:'GET',headers:{},body:null});return false;}catch{return true;}});assert.equal(rejected,true);assert.deepEqual(errors,[]);
   if(process.env.GLASS_KEEP_PUBLIC_SERVER){
+    await expect(page.getByRole('button',{name:'Change server',exact:true})).toBeHidden();
+    await page.getByRole('button',{name:'Menu',exact:true}).click();
+    await page.getByRole('button',{name:'Settings',exact:true}).click();
+    await expect(page.getByRole('link',{name:origin,exact:true})).toHaveAttribute('href',origin);
     await page.getByRole('button',{name:'Change server',exact:true}).click();
     await page.getByLabel('Server address',{exact:true}).fill(process.env.GLASS_KEEP_PUBLIC_SERVER);
     await page.getByRole('button',{name:'Connect',exact:true}).click();

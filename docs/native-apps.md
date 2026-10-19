@@ -8,7 +8,7 @@ These installable clients bundle the Glass Keep interface. They connect to your 
 2. Start Glass Keep and enter the public server origin, such as `https://keep.example.com`. Do not include `/api`, a path, or a login token.
 3. Sign in with your existing Glass Keep account. Your server's registration policy still applies.
 
-Use **Change server** in the top bar to connect to another instance. Each server has separate login, cached notes and offline operations, even if both instances have user ID 1. Pending edits remain associated with the original server; switching back allows them to sync. Sign out clears the current server's browser cache and session without removing other server connections.
+Open **Menu → Settings → Connected server** to see your server link or choose **Change server**. Before signing in, use **Connection settings** on the login screen. Each server has separate login, cached notes and offline operations, even if both instances have user ID 1. Pending edits remain associated with the original server; switching back allows them to sync. Sign out clears the current server's browser cache and session without removing other server connections.
 
 The notes interface is bundled, so it can open offline after setup. Owned notes that have been loaded remain available through the existing offline queue. Server-side AI, administration, sharing and cloud jobs still need a reachable server. Collaboration refreshes every ten seconds while the native client is visible, and when its window regains focus; the web version continues using realtime events.
 
