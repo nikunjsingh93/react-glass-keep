@@ -1,7 +1,7 @@
 {
   "name": "liquid-keep",
   "private": true,
-  "version": "1.0.12",
+  "version": "1.0.13",
   "license": "MIT",
   "type": "module",
   "engines": {

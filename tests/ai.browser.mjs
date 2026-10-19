@@ -18,9 +18,9 @@ test('web and native clients display partial AI answers, source links, cancellat
   const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());
   for(const native of [false,true]){
     const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
-    let polls=0,deleted=0,mode='normal';
+    let polls=0,deleted=0,sent=0,mode='normal';
     function fakeAI(route,method){
-      if(route==='/api/ai/ask'){polls=0;return {status:202,data:{id:'fixture-job',status:'loading',answer:'',sources:[]}};}
+      if(route==='/api/ai/ask'){sent++;polls=0;return {status:202,data:{id:'fixture-job',status:'loading',answer:'',sources:[]}};}
       if(method==='DELETE'){deleted++;return {status:200,data:{ok:true}};}
       polls++;
       if(mode==='error')return {status:200,data:{id:'fixture-job',status:'error',error:'The AI is answering another question. Please try again shortly.'}};
@@ -36,15 +36,27 @@ test('web and native clients display partial AI answers, source links, cancellat
     await page.addInitScript(({base,session,native})=>{Object.defineProperty(AbortSignal,'any',{value:undefined});Object.defineProperty(AbortSignal,'timeout',{value:undefined});localStorage.setItem('glass-keep-native-server',base);localStorage.setItem('glass-keep-auth'+(native?'@'+encodeURIComponent(base):''),JSON.stringify(session));localStorage.setItem('localAiEnabled','true');},{base,session,native});
     await page.goto(native?'http://127.0.0.1:1423/native.html':base);
     const search=page.getByPlaceholder('Search or Ask AI...', {exact:true});await expect(search).toBeVisible();
-    await search.fill('Which books should I read?');await search.press('Enter');
+    const ask=page.getByRole('button',{name:'Ask AI',exact:true});await expect(ask).toBeVisible();await expect(ask).toBeDisabled();
+    await search.fill('ab');await expect(ask).toBeDisabled();
+    await search.fill('Which books should I read?');await expect(ask).toBeEnabled();await ask.click();
+    await expect(page.getByRole('button',{name:'Asking AI…',exact:true})).toBeDisabled();
+    await expect(page.getByRole('button',{name:'Asking AI…',exact:true})).toHaveAttribute('aria-busy','true');
+    await search.press('Enter');
     await expect(page.getByText('Writing answer…',{exact:true})).toBeVisible();
     await expect(page.getByText('Read Sapiens',{exact:true})).toBeVisible();
     const source=page.getByRole('link',{name:'[1] Reading list',exact:true});await expect(source).toBeVisible();
     await expect(page.locator('.note-content').filter({hasText:'Yuval Noah Harari [1].'})).toBeVisible();
+    assert.equal(sent,1,'Pressing Enter while busy must not submit another question');
     await source.click();await expect(page.getByRole('button',{name:'Edit mode',exact:true})).toBeVisible();
     await page.getByRole('button',{name:'Close',exact:true}).click();
     await page.getByTitle('Clear response',{exact:true}).click();await expect(source).not.toBeVisible();
     mode='wait';await search.fill('Cancel this question');await search.press('Enter');await expect(page.getByText('Loading AI model…',{exact:true})).toBeVisible();
+    await page.setViewportSize({width:390,height:844});
+    const busy=page.getByRole('button',{name:'Asking AI…',exact:true});await expect(busy).toBeVisible();
+    const bounds=await busy.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390,'The labeled button must fit on a phone');
+    for(const width of [320,768]){await page.setViewportSize({width,height:844});const box=await busy.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width,'The button must fit narrow and tablet screens');}
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:`artifacts/ai-ask-${native?'native':'web'}-phone.png`});
     const before=deleted;await page.getByTitle('Clear response',{exact:true}).click();await expect(page.getByText('Loading AI model…',{exact:true})).not.toBeVisible();await expect.poll(()=>deleted).toBeGreaterThan(before);
     mode='error';await search.fill('Try again');await search.press('Enter');await expect(page.getByText('The AI is answering another question. Please try again shortly.',{exact:true})).toBeVisible();
     assert.deepEqual(errors,[]);await context.close();

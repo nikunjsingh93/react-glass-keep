@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.13] / Native clients 1.0.9 - 2026-10-19
+### Fixed
+- Replaces the icon-only AI action with a visible **Ask AI** button whenever AI is enabled, beside search on wide screens and below it on smaller screens.
+- Shows **Asking AI…** while a request is running, disables repeat submissions, and keeps Enter available to send a question. Empty or fewer-than-three-character queries cannot be submitted.
+- Adds English/Hindi/French busy labels and verifies button, keyboard, phone/tablet layout, progressive answers and cancellation across web and native clients.
+
 ## [1.0.12] / Native clients 1.0.8 - 2026-10-19
 ### Changed
 - Replaces the old Llama/Transformers.js/ONNX generator with pinned llama.cpp and Qwen3.5 0.8B Q4_K_M (533 MB verified download).

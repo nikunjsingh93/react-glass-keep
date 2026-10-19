@@ -2254,31 +2254,23 @@ function NotesUI({
           )}
         </div>
 
-        <div className="flex-grow flex justify-center px-4 sm:px-8">
-          <div className="relative w-full max-w-lg">
+        <div className="min-w-0 flex-grow flex justify-center px-2 sm:px-8">
+          <div className="w-full max-w-lg flex flex-col lg:flex-row items-stretch gap-2">
+            <div className="relative min-w-0 flex-1">
             <input
               type="text"
               placeholder={localAiEnabled ? t("Search or Ask AI...") : t("Search...")}
-              className={`w-full bg-transparent border border-[var(--border-light)] rounded-lg pl-4 ${localAiEnabled ? 'pr-14' : 'pr-8'} py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400`}
+              className="w-full h-full bg-transparent border border-[var(--border-light)] rounded-lg pl-4 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && localAiEnabled && search.trim().length > 0) {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing && localAiEnabled && !isAiLoading && search.trim().length >= 3) {
+                  e.preventDefault();
                   onAiSearch?.(search);
                 }
               }}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {localAiEnabled && search.trim().length > 0 && (
-                <button
-                  type="button"
-                  title={t("Ask AI")}
-                  className="h-7 w-7 rounded-full flex items-center justify-center text-indigo-600 hover:bg-indigo-600/10 transition-colors"
-                  onClick={() => onAiSearch?.(search)}
-                >
-                  <Sparkles />
-                </button>
-              )}
               {search && (
                 <button
                   type="button"
@@ -2290,6 +2282,17 @@ function NotesUI({
                 </button>
               )}
             </div>
+            </div>
+            {localAiEnabled && <button
+              type="button"
+              disabled={isAiLoading || search.trim().length < 3}
+              aria-busy={isAiLoading}
+              className="min-h-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+              onClick={() => onAiSearch?.(search)}
+            >
+              <Sparkles size={16} className={isAiLoading ? 'animate-pulse' : ''} aria-hidden="true"/>
+              {t(isAiLoading ? "Asking AI…" : "Ask AI")}
+            </button>}
           </div>
         </div>
 
@@ -3572,7 +3575,7 @@ export default function App() {
 
   // Load notes
   const handleAiSearch = async (question) => {
-    if (!question || question.trim().length < 3) return;
+    if (!question || question.trim().length < 3 || aiController.current) return;
     aiController.current?.abort();
     const controller=new AbortController();aiController.current=controller;
     setIsAiLoading(true);
