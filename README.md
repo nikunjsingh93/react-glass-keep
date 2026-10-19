@@ -2,7 +2,9 @@
 
 A sleek, Keep-style notes app with Markdown, checklists, images, tag chips, color themes, dark mode, drag-and-drop reordering, import/export, auth, and a glassy UI — built with Vite + React and a tiny Express + SQLite API.
 
-Windows, macOS and Android clients are built with Tauri 2. They connect to your own server and keep offline data separate per server. See the [native app installation and build guide](docs/native-apps.md).
+**The Windows, macOS and Android apps are client apps only. A running Glass Keep server is required.** Deploy the server using the Docker instructions below (or connect to an existing instance), then enter its server URL in the app. The client apps do not install or run the server.
+
+The clients are built with Tauri 2 and keep offline data separate per server. See the [native app installation and build guide](docs/native-apps.md).
 
 Download Windows `.exe`, Android `.apk`, and macOS `.dmg` clients from the [GitHub release page](https://github.com/nikunjsingh93/react-glass-keep/releases/latest).
 

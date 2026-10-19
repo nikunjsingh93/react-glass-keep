@@ -130,6 +130,11 @@ jobs:
           else
             echo 'Unsigned build: signing approval is required before installation/distribution.'
           fi
+      - name: Verify packaged launcher icons
+        shell: bash
+        run: |
+          apk=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          node scripts/verify-android-icons.mjs "$apk" "$ANDROID_HOME/build-tools/36.0.0/aapt2"
       - uses: actions/upload-artifact@v4
         with:
           name: Glass-Keep-Android-arm64

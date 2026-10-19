@@ -1,6 +1,6 @@
 # Windows, macOS and Android apps (Tauri 2)
 
-These installable clients bundle the Glass Keep interface. They connect to your existing self-hosted Glass Keep server; they do not start a second server or embed SQLite, Express or the AI model. Use server 1.0.6 or newer for the complete current feature set.
+**These downloads are client apps only and require a running Glass Keep server.** They bundle the Glass Keep interface and connect to your existing self-hosted server; they do not install or run the server, SQLite, Express or the AI model. Deploy Glass Keep separately and enter its server URL in the client. Use server 1.0.6 or newer for the complete current feature set.
 
 ## Connect and use
 
@@ -40,11 +40,10 @@ For Android, set `JAVA_HOME`, `ANDROID_HOME` and `NDK_HOME` as documented by Tau
 
 ```sh
 npm run tauri -- android init --ci
-npm run tauri -- icon public/pwa-512.png
 npm run app:android
 ```
 
-Android output appears under `src-tauri/gen/android/app/build/outputs/apk/`. Generated platform projects and build output are ignored by Git. Linux packaging is not configured yet.
+`npm run app:android` installs the checked-in Glass Keep standard, round and adaptive icons into the generated Android project before building, so initialization cannot leave Tauri's default launcher icon in the APK. Android output appears under `src-tauri/gen/android/app/build/outputs/apk/`. Generated platform projects and build output are ignored by Git. Linux packaging is not configured yet.
 
 ## Signing and automated builds
 

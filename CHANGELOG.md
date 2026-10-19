@@ -1,5 +1,10 @@
 # Changelog
 
+## Android client 1.0.3 - 2026-10-18
+### Fixed
+- Android builds now install the Glass Keep standard, round and adaptive launcher icons after project initialization, replacing Tauri's generated default icon.
+- README and release notes explicitly identify the installable apps as clients that require a running Glass Keep server.
+
 ## [1.0.8] / Native clients 1.0.2 - 2026-10-18
 ### Fixed
 - Cloud backup and other feature dialogs now use the same neutral charcoal background as Settings in dark mode, with a shared surface style in both themes.
