@@ -1,0 +1,8 @@
+{
+  "name": "Qwen3.5-0.8B-Q4_K_M",
+  "repository": "unsloth/Qwen3.5-0.8B-GGUF",
+  "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+  "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+  "bytes": 532517120,
+  "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+}

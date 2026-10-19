@@ -1,70 +1,33 @@
-/**
- * AI Assistant Module (Server-side implementation)
- * This calls the backend AI endpoint instead of running inference in the browser.
- */
-
 import {appFetch,storageKey} from './platform';
-const API_BASE = "/api";
-const AUTH_KEY = storageKey("glass-keep-auth");
+import {getLanguage} from './i18n';
 
-const getAuthToken = () => {
-  try {
-    const auth = JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
-    return auth?.token;
-  } catch (e) {
-    return null;
+// Poll snapshots of streamed text through web fetch and native Rust IPC, regardless of Nginx buffering.
+export async function askAI(question,{onUpdate,signal=new AbortController().signal}={}) {
+  let auth;try{auth=JSON.parse(localStorage.getItem(storageKey('glass-keep-auth'))||'null');}catch{}
+  if(!auth?.token)throw new Error('You must be logged in to use the AI Assistant.');
+  const headers={'Content-Type':'application/json',Authorization:`Bearer ${auth.token}`};
+  let id;
+  async function request(route,options={}){
+    const response=await appFetch('/api/ai/'+route,{...options,headers,signal:AbortSignal.any([signal,AbortSignal.timeout(20000)])});
+    const data=await response.json();if(!response.ok)throw new Error(data.error||'The AI request failed.');return data;
   }
-};
-
-export async function initAI(onProgress) {
-  // No-op for server-side AI as server handles initialization
-  if (onProgress) onProgress({ status: 'ready' });
-  return Promise.resolve();
-}
-
-/**
- * Ask the AI assistant a question.
- * @param {string} question 
- * @param {Array} notes 
- * @param {Function} onProgress 
- */
-export async function askAI(question, notes, onProgress) {
-  const token = getAuthToken();
-  if (!token) {
-    throw new Error("You must be logged in to use the AI Assistant.");
-  }
-
-  // We can still simulate "starting" if we want, or just call the API
-  if (onProgress) onProgress({ status: 'init' });
-
   try {
-    const response = await appFetch(`${API_BASE}/ai/ask`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        question,
-        notes: notes.map(n => ({
-          title: n.title,
-          content: n.content
-        }))
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Server responded with ${response.status}`);
+    let data=await request('ask',{method:'POST',body:JSON.stringify({question,language:getLanguage(),async:true})});id=data.id;
+    if(!id){onUpdate?.({...data,status:'done'});return data;}
+    const deadline=Date.now()+12*60*1000;
+    while(true){
+      signal.throwIfAborted();onUpdate?.(data);
+      if(data.status==='done')return data;
+      if(['error','cancelled'].includes(data.status))throw new Error(data.error||'The AI request failed.');
+      if(Date.now()>deadline)throw new Error('The AI request timed out. Please retry.');
+      await new Promise((resolve,reject)=>{
+        const abort=()=>{clearTimeout(timer);reject(new DOMException('Request aborted','AbortError'));};
+        const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},400);
+        if(signal.aborted)abort();else signal.addEventListener('abort',abort,{once:true});
+      });
+      data=await request('requests/'+encodeURIComponent(id));
     }
-
-    const data = await response.json();
-
-    if (onProgress) onProgress({ status: 'ready' });
-
-    return data.answer;
-  } catch (err) {
-    console.error("AI Assistant API Error:", err);
-    throw err;
+  } finally {
+    if(id)await appFetch('/api/ai/requests/'+encodeURIComponent(id),{method:'DELETE',headers,signal:AbortSignal.timeout(5000)}).catch(()=>{});
   }
 }

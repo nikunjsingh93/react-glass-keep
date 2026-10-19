@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.12] / Native clients 1.0.8 - 2026-10-19
+### Changed
+- Replaces the old Llama/Transformers.js/ONNX generator with pinned llama.cpp and Qwen3.5 0.8B Q4_K_M (533 MB verified download).
+- Starts the CPU inference worker only for AI questions and stops it after 60 idle seconds. The model remains cached in the data volume.
+- Uses one model for query expansion and answering over a Unicode-aware SQLite FTS5 index. The server retrieves authorized own/shared notes, including archived notes, instead of trusting client-provided note bodies.
+### Added
+- Progressive answers and downloading/loading/searching/writing states across web and native clients, plus numbered source-note links and cancellation.
+- Bounded context and concurrency, private expiring requests, source-access rechecks, and English/Hindi/French AI controls.
+- Local AI deployment and cache migration guide; no new mandatory Docker settings or separate AI container.
+### Validation
+- Tests cover existing-note indexing, edit/delete updates, Unicode retrieval, user isolation, ignored forged notes, incremental responses, cancellation, errors and legacy JSON clients. Release checks also exercise the actual model and worker lifecycle.
+
 ## [1.0.11] / Native clients 1.0.7 - 2026-10-19
 ### Added
 - French (Français) alongside English and Hindi, with 327 translated interface strings, remembered on this device. Existing note titles and content remain unchanged.

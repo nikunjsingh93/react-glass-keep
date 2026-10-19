@@ -211,7 +211,6 @@
   "Enable AI": "Activer l’IA",
   "AI Assistant disabled": "Assistant IA désactivé",
   "AI Assistant enabled. Model will download on first use.": "Assistant IA activé. Le modèle sera téléchargé à la première utilisation.",
-  "This will download a ~700MB AI model (Llama-3.2-1B) to the server and may use significant CPU resources. The download will happen in the background. Continue?": "Un modèle IA d’environ 700 Mo (Llama-3.2-1B) sera téléchargé sur le serveur et pourra solliciter fortement le processeur. Le téléchargement se fera en arrière-plan. Continuer ?",
   "Admin": "Administration",
   "Admin Panel": "Administration",
   "Back to Notes": "Retour aux notes",
@@ -325,5 +324,11 @@
   "Requires your existing Glass Keep server": "Nécessite votre serveur Glass Keep existant",
   "This address did not return a Glass Keep server.": "Aucun serveur Glass Keep n’a été trouvé à cette adresse.",
   "Enter the server origin only, for example https://keep.example.com.": "Saisissez uniquement l’adresse de base du serveur, par exemple https://keep.example.com.",
-  "Could not reach the server. Check the address, connection and HTTPS certificate.": "Impossible de joindre le serveur. Vérifiez l’adresse, la connexion et le certificat HTTPS."
+  "Could not reach the server. Check the address, connection and HTTPS certificate.": "Impossible de joindre le serveur. Vérifiez l’adresse, la connexion et le certificat HTTPS.",
+  "The first question downloads a 533 MB Qwen model to your server. AI loads only when needed and unloads after 60 idle seconds. CPU and RAM are used while answering. Continue?": "La première question télécharge un modèle Qwen de 533 Mo sur votre serveur. L’IA se charge à la demande et se décharge après 60 secondes d’inactivité. Le processeur et la RAM sont utilisés pendant la réponse. Continuer ?",
+  "Downloading AI model… {progress}%": "Téléchargement du modèle IA… {progress} %",
+  "Loading AI model…": "Chargement du modèle IA…",
+  "Finding relevant notes…": "Recherche des notes pertinentes…",
+  "Writing answer…": "Rédaction de la réponse…",
+  "Source notes": "Notes sources"
 }

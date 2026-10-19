@@ -36,11 +36,12 @@ Download Windows `.exe`, Android `.apk`, and macOS `.dmg` clients from the [GitH
   * **Secret recovery key** download + **Sign in with Secret Key**
   * Each user sees **only their notes**
 
-* **Private AI Assistant (Llama 3.2)** ✅ NEW
-  * **100% Local & Private** — Runs entirely on your own server. No data ever leaves your hardware.
-  * **Note-Aware (RAG)** — The AI reads your own notes to answer questions factually.
-  * **Smart Search** — Ask questions like "What are my AWS commands?" or "How old am I?" and get direct answers based on your private data.
-  * **Privacy First** — Uses an optimized Llama 3.2 (1B) model running inside your Docker container.
+* **Private AI Assistant (Qwen + llama.cpp)**
+  * **Local inference** — Questions and note excerpts stay on your server; no cloud AI key is required.
+  * **Loads on demand** — Downloads a verified 533 MB model once, starts only for questions, and stops after 60 idle seconds.
+  * **Note-aware answers** — Ranked note retrieval with query expansion, progressive answers, and clickable source-note links.
+  * **Works across clients** — Web, Windows, macOS, and Android use the same server AI. Supports English, Hindi and French; no second model or vector service.
+  * See the [local AI guide](docs/local-ai.md) for resource limits, cache location, optional settings and accuracy limitations.
 
 * **Collaboration (real-time)** ✅ NEW
 

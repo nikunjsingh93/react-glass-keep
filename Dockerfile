@@ -1,5 +1,13 @@
+# --- Pinned CPU inference engine (model weights are downloaded only on first use)
+FROM debian:trixie-slim AS llama-builder
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl cmake ninja-build g++ libgomp1 && rm -rf /var/lib/apt/lists/*
+WORKDIR /llama
+RUN curl -fsSL https://github.com/ggml-org/llama.cpp/archive/620d2225cc436ab0b001e3200e590e3b286ef9ab.tar.gz | tar xz --strip-components=1
+RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DGGML_BACKEND_DL=ON -DGGML_NATIVE=OFF -DGGML_CPU_ALL_VARIANTS=ON -DLLAMA_BUILD_UI=OFF -DLLAMA_BUILD_NUMBER=11669 -DLLAMA_BUILD_COMMIT=620d2225 -DLLAMA_CURL=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=ON \
+    && cmake --build build --target llama-server -j 4
+
 # --- Build stage
-FROM node:24-bookworm-slim AS builder
+FROM node:24-trixie-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y python3 make g++ 
 
@@ -18,9 +26,14 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # --- Runtime
-FROM node:24-bookworm-slim
+FROM node:24-trixie-slim
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=llama-builder /llama/build/bin/ /opt/llama/
+ENV LLAMA_SERVER_BIN=/opt/llama/llama-server
+ENV LD_LIBRARY_PATH=/opt/llama
+RUN ln -s /opt/llama/llama-server /usr/local/bin/llama-server
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY ["server", "server"]

@@ -211,7 +211,6 @@
   "Enable AI": "AI चालू करें",
   "AI Assistant disabled": "AI सहायक बंद है",
   "AI Assistant enabled. Model will download on first use.": "AI सहायक चालू है। पहली बार उपयोग पर मॉडल डाउनलोड होगा।",
-  "This will download a ~700MB AI model (Llama-3.2-1B) to the server and may use significant CPU resources. The download will happen in the background. Continue?": "लगभग 700MB का AI मॉडल (Llama-3.2-1B) सर्वर पर डाउनलोड होगा और CPU का अधिक उपयोग हो सकता है। डाउनलोड पृष्ठभूमि में होगा। जारी रखें?",
   "Admin": "व्यवस्थापक",
   "Admin Panel": "व्यवस्थापक पैनल",
   "Back to Notes": "नोट्स पर लौटें",
@@ -325,5 +324,11 @@
   "Requires your existing Glass Keep server": "आपका मौजूदा Glass Keep सर्वर आवश्यक है",
   "This address did not return a Glass Keep server.": "इस पते पर Glass Keep सर्वर नहीं मिला।",
   "Enter the server origin only, for example https://keep.example.com.": "सिर्फ सर्वर का मूल पता दर्ज करें, जैसे https://keep.example.com।",
-  "Could not reach the server. Check the address, connection and HTTPS certificate.": "सर्वर तक नहीं पहुँच सके। पता, कनेक्शन और HTTPS प्रमाणपत्र जाँचें।"
+  "Could not reach the server. Check the address, connection and HTTPS certificate.": "सर्वर तक नहीं पहुँच सके। पता, कनेक्शन और HTTPS प्रमाणपत्र जाँचें।",
+  "The first question downloads a 533 MB Qwen model to your server. AI loads only when needed and unloads after 60 idle seconds. CPU and RAM are used while answering. Continue?": "पहला प्रश्न आपके सर्वर पर 533 MB का Qwen मॉडल डाउनलोड करता है। AI केवल ज़रूरत पर लोड होता है और 60 सेकंड निष्क्रिय रहने पर बंद हो जाता है। उत्तर देते समय CPU और RAM का उपयोग होता है। जारी रखें?",
+  "Downloading AI model… {progress}%": "AI मॉडल डाउनलोड हो रहा है… {progress}%",
+  "Loading AI model…": "AI मॉडल लोड हो रहा है…",
+  "Finding relevant notes…": "संबंधित नोट्स खोजे जा रहे हैं…",
+  "Writing answer…": "उत्तर लिखा जा रहा है…",
+  "Source notes": "स्रोत नोट्स"
 }

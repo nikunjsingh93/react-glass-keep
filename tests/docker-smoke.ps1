@@ -1,4 +1,4 @@
-param([string]$Image = 'nikunjsingh/glass-keep:1.0.11')
+param([string]$Image = 'nikunjsingh/glass-keep:1.0.12')
 $ErrorActionPreference = 'Stop'
 $expectedAsset = [regex]::Match((Get-Content -Raw (Join-Path $PSScriptRoot '../dist/index.html')), 'assets/index-[^" ]+\.js').Value
 foreach ($platform in @('linux/amd64', 'linux/arm64')) {
@@ -14,7 +14,7 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
             Start-Sleep -Milliseconds 200
         }
         if (-not $ready) { docker logs $containerId; throw "$platform did not become healthy" }
-        if ($health.version -ne '1.0.11') { throw 'Unexpected running release version' }
+        if ($health.version -ne '1.0.12') { throw 'Unexpected running release version' }
         $login = Invoke-RestMethod "$base/api/login" -Method Post -Headers @{'X-Forwarded-For'='192.0.2.10'} -ContentType 'application/json' -Body '{"email":"smoke-operator","password":"smoke-test-password-123"}'
         $containerLogs = docker logs $containerId 2>&1 | Out-String
         if ($containerLogs.Contains('ERR_ERL')) { throw 'Proxy validation failed' }
@@ -26,9 +26,9 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
         if ($backup.notes.Count -ne 1 -or -not $backup.notes[0].archived) { throw 'Archived note omitted from backup' }
         $html = (Invoke-WebRequest "$base/" -UseBasicParsing).Content
         if (-not $html.Contains($expectedAsset)) { throw 'Image does not contain the final tested frontend' }
-        docker exec $containerId node -e 'import("@huggingface/transformers").then(m=>{if(typeof m.pipeline!=="function")process.exit(1)})'
+        docker exec $containerId /usr/local/bin/llama-server --version
         if ($LASTEXITCODE -ne 0) { throw 'AI runtime could not load' }
-        Write-Output "${platform}: health, login, SQLite, ownership, archived JSON export, frontend and AI module passed"
+        Write-Output "${platform}: health, login, SQLite, ownership, archived JSON export, frontend and llama.cpp executable passed"
     } finally {
         if ($containerId) { docker rm -f $containerId | Out-Null }
     }

@@ -35,7 +35,7 @@ export default function NativeRoot() {
       {server && <p className="native-hint">{t("Switching servers keeps each server's login and offline edits separate. Return to the same address to sync pending changes.")}</p>}
       {error && <p role="alert">{t(error)}</p>}<button disabled={busy}>{t(busy ? 'Connecting…' : 'Connect')}</button>
       {server && <button type="button" onClick={() => setEditing(false)}>{t('Cancel')}</button>}
-      <small>{t('Glass Keep app')} · 1.0.7 · {t('Requires your existing Glass Keep server')}</small>
+      <small>{t('Glass Keep app')} · 1.0.8 · {t('Requires your existing Glass Keep server')}</small>
     </form>
   </main>;
   return <div className="native-app"><Suspense fallback={<LoadingScreen/>}><App/></Suspense></div>;

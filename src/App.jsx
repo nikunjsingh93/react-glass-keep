@@ -1720,8 +1720,8 @@ function SettingsPanel({ onAutoExport, onFindDuplicates, open, onClose, dark, on
                     if (!localAiEnabled) {
                       // Show confirmation dialog when enabling
                       showGenericConfirm({
-                        title: "Enable AI Assistant?",
-                        message: t("This will download a ~700MB AI model (Llama-3.2-1B) to the server and may use significant CPU resources. The download will happen in the background. Continue?"),
+                        title: t("Enable AI Assistant?"),
+                        message: t("The first question downloads a 533 MB Qwen model to your server. AI loads only when needed and unloads after 60 idle seconds. CPU and RAM are used while answering. Continue?"),
                         confirmText: t("Enable AI"),
                         cancelText: t("Cancel"),
                         danger: false,
@@ -2135,7 +2135,7 @@ function NotesUI({
   // Settings panel
   openSettingsPanel,
   // AI props
-  localAiEnabled, aiResponse, setAiResponse, isAiLoading, aiLoadingProgress, onAiSearch
+  localAiEnabled, aiResponse, setAiResponse, isAiLoading, aiLoadingProgress, onAiSearch, aiSources, aiStatus, onCancelAI
 }) {
   // Multi-select color popover (local UI state)
   const multiColorBtnRef = useRef(null);
@@ -2421,9 +2421,9 @@ function NotesUI({
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="text-indigo-600 dark:text-indigo-400" />
               <h3 className="font-semibold text-indigo-700 dark:text-indigo-300">{t("AI Assistant")}</h3>
-              {aiResponse && !isAiLoading && (
+              {(aiResponse || isAiLoading) && (
                 <button
-                  onClick={() => { setAiResponse(null); setSearch(''); }}
+                  onClick={() => { onCancelAI(); setAiResponse(null); setSearch(''); }}
                   className="ml-auto p-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10"
                   title={t("Clear response")}
                 >
@@ -2432,15 +2432,20 @@ function NotesUI({
               )}
             </div>
             <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
-              {isAiLoading ? (
+              {isAiLoading && (
                 <p className="animate-pulse text-gray-500 italic flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" />{t("AI Assistant is thinking...")}</p>
-              ) : (
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" />{t({downloading:"Downloading AI model… {progress}%",loading:"Loading AI model…",searching:"Finding relevant notes…",generating:"Writing answer…"}[aiStatus] || "AI Assistant is thinking...",{progress:aiLoadingProgress||0})}</p>
+              )}
+              {aiResponse && (
                 <div
                   className="text-gray-800 dark:text-gray-200 note-content"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(aiResponse || "") }}
                 />
               )}
+              {!!aiSources?.length && <div className="mt-4 border-t border-indigo-500/20 pt-3">
+                <p className="font-medium mb-2">{t("Source notes")}</p>
+                <div className="flex flex-wrap gap-2">{aiSources.map((note,index)=><a key={note.id} href={`#/notes/${encodeURIComponent(note.id)}`} title={note.excerpt} className="rounded-lg border border-indigo-500/30 px-3 py-1 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10">[{index+1}] {note.title}</a>)}</div>
+              </div>}
             </div>
           </div>
         </div>
@@ -3004,6 +3009,11 @@ export default function App() {
   const [aiResponse, setAiResponse] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiLoadingProgress, setAiLoadingProgress] = useState(null);
+  const [aiSources,setAiSources]=useState([]);
+  const [aiStatus,setAiStatus]=useState('queued');
+  const aiController=useRef(null);
+  const cancelAI=useCallback(()=>{aiController.current?.abort();aiController.current=null;setIsAiLoading(false);setAiResponse(null);setAiSources([]);},[]);
+  useEffect(()=>{cancelAI();return ()=>aiController.current?.abort();},[token,localAiEnabled,cancelAI]);
 
   // Composer
   const [composerType, setComposerType] = useState("text");
@@ -3563,25 +3573,22 @@ export default function App() {
   // Load notes
   const handleAiSearch = async (question) => {
     if (!question || question.trim().length < 3) return;
+    aiController.current?.abort();
+    const controller=new AbortController();aiController.current=controller;
     setIsAiLoading(true);
     setAiResponse(null);
+    setAiSources([]);setAiStatus('queued');
     setAiLoadingProgress(0);
 
     try {
-      const answer = await askAI(question, notes, (progress) => {
-        if (progress.status === 'progress') {
-          setAiLoadingProgress(progress.progress);
-        } else if (progress.status === 'ready') {
-          setAiLoadingProgress(100);
-        }
-      });
-      setAiResponse(answer);
+      await askAI(question,{signal:controller.signal,onUpdate:data=>{
+        if(aiController.current!==controller)return;
+        setAiResponse(data.answer||null);setAiSources(data.sources||[]);setAiStatus(data.status);setAiLoadingProgress(data.progress||0);
+      }});
     } catch (err) {
-      console.error("AI Error:", err);
-      setAiResponse("Sorry, I encountered an error while processing your request.");
+      if(err.name!=='AbortError'&&aiController.current===controller){setAiResponse(null);setAiSources([]);showToast(t(err.message),"error");}
     } finally {
-      setIsAiLoading(false);
-      setAiLoadingProgress(null);
+      if(aiController.current===controller){setIsAiLoading(false);setAiLoadingProgress(null);aiController.current=null;}
     }
   };
 
@@ -6215,6 +6222,9 @@ export default function App() {
         isAiLoading={isAiLoading}
         aiLoadingProgress={aiLoadingProgress}
         onAiSearch={handleAiSearch}
+        aiSources={aiSources}
+        aiStatus={aiStatus}
+        onCancelAI={cancelAI}
         // formatting props
         formatComposer={formatComposer}
         showComposerFmt={showComposerFmt}
