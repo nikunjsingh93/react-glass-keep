@@ -17,6 +17,7 @@ import {readBackup} from "./readBackup";
 import {appFetch, isNative, storageKey, saveBlob, openExternal, copyText, confirmAction, ownsStorageKey} from './platform';
 import useAndroidNoteBack from './useAndroidNoteBack';
 import useAutoExport from './useAutoExport';
+import useAccountAI from './useAccountAI';
 
 const AutoExportDialog = React.lazy(() => import('./AutoExportDialog'));
 
@@ -1613,6 +1614,16 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
 
 /** ---------- Settings Panel ---------- */
 function SettingsPanel({ onAutoExport, onFindDuplicates, open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled, showGenericConfirm, showToast }) {
+  const [savingAI, setSavingAI] = useState(false);
+  const changeAI = async value => {
+    setSavingAI(true);
+    try {
+      await setLocalAiEnabled(value);
+      showToast(t(value ? 'AI enabled for your account on all devices. The model is downloaded once on your server, only if needed.' : 'AI Assistant disabled'), value ? 'success' : 'info');
+    } catch {
+      showToast(t('Could not save your AI setting. Connect to your updated server and try again.'), 'error');
+    } finally { setSavingAI(false); }
+  };
   // Prevent body scroll when settings panel is open
   React.useEffect(() => {
     if (open) {
@@ -1709,31 +1720,28 @@ function SettingsPanel({ onAutoExport, onFindDuplicates, open, onClose, dark, on
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-medium">{t("Local AI Assistant")}</div>
-                  <div className="text-sm text-gray-500">{t("Ask questions about your notes (server-side model)")}</div>
+                  <div className="text-sm text-gray-500">{t("Applies to your account on all devices. The AI model stays on your server.")}</div>
                 </div>
                 <button
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localAiEnabled
                     ? 'bg-indigo-600'
                     : 'bg-gray-300 dark:bg-gray-600'
                     }`}
+                  disabled={savingAI}
                   onClick={() => {
                     if (!localAiEnabled) {
                       // Show confirmation dialog when enabling
                       showGenericConfirm({
                         title: t("Enable AI Assistant?"),
-                        message: t("The first question downloads a 533 MB Qwen model to your server. AI loads only when needed and unloads after 60 idle seconds. CPU and RAM are used while answering. Continue?"),
+                        message: t("Enable AI for your account on all devices? Your server downloads the 533 MB model once, only if it is not already cached. No model is downloaded to your phone or computer. AI uses server CPU and RAM while answering and unloads after 60 idle seconds. Continue?"),
                         confirmText: t("Enable AI"),
                         cancelText: t("Cancel"),
                         danger: false,
-                        onConfirm: async () => {
-                          setLocalAiEnabled(true);
-                          showToast(t("AI Assistant enabled. Model will download on first use."), "success");
-                        }
+                        onConfirm: () => changeAI(true)
                       });
                     } else {
                       // Disable without confirmation
-                      setLocalAiEnabled(false);
-                      showToast(t("AI Assistant disabled"), "info");
+                      changeAI(false);
                     }
                   }}
                 >
@@ -3003,12 +3011,7 @@ export default function App() {
   });
 
   // Local AI
-  const [localAiEnabled, setLocalAiEnabled] = useState(() => {
-    try {
-      const stored = localStorage.getItem("localAiEnabled");
-      return stored === null ? false : stored === "true";
-    } catch (e) { return false; }
-  });
+  const [localAiEnabled, setLocalAiEnabled] = useAccountAI({api, token, userId: currentUser?.id});
   const [aiResponse, setAiResponse] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiLoadingProgress, setAiLoadingProgress] = useState(null);
@@ -3204,7 +3207,6 @@ export default function App() {
   }, [sidebarWidth]);
 
   useEffect(() => {
-    try { localStorage.setItem("localAiEnabled", String(localAiEnabled)); } catch (e) { }
     if (!localAiEnabled) setAiResponse(null);
   }, [localAiEnabled]);
 

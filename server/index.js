@@ -13,6 +13,7 @@ const { rateLimit } = require("express-rate-limit");
 const { configureProxy } = require('./proxy');
 const { fingerprint, installNoteFeatures } = require('./noteFeatures');
 const { installAI } = require('./ai');
+const { installAccountPreferences } = require('./accountPreferences');
 
 const app = express();
 configureProxy(app);
@@ -426,6 +427,8 @@ function broadcastNoteUpdated(noteId) {
     for (const uid of recipientIds) sendEventToUser(uid, evt);
   } catch { }
 }
+
+installAccountPreferences(app, db, auth);
 
 app.get("/api/events", authFromQueryOrHeader, (req, res) => {
   // SSE headers

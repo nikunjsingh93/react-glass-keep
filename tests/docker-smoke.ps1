@@ -33,4 +33,3 @@ foreach ($platform in @('linux/amd64', 'linux/arm64')) {
         if ($containerId) { docker rm -f $containerId | Out-Null }
     }
 }
-

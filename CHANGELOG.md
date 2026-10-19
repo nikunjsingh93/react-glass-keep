@@ -2,6 +2,7 @@
 
 ## [1.0.14] - 2026-10-19
 ### Changed
+- Saves AI enablement per account on the server and syncs it across devices. Fresh accounts stay off by default; the warning explains that the model is downloaded once on the server. Devices keep an account-specific offline cache and refresh on focus, reconnection and every ten seconds while visible.
 - Aligns the web/server, Windows, macOS and Android release versions to **1.0.14**, including embedded app metadata and the connection-screen version.
 - Adds a shared release-version command and a native build check to prevent version drift in future releases. Includes all improvements from 1.0.13.
 

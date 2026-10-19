@@ -4,6 +4,8 @@ Glass Keep 1.0.12 replaces the old Llama/Transformers.js generator with a pinned
 
 ## Using it
 
+From **1.0.14**, enabling or disabling AI is saved to your account on this server and shared across web, Windows, macOS and Android. New accounts start with AI off and see a resource warning before enabling. Other devices refresh when opened, focused or reconnected, and every ten seconds while visible. An existing device's old enabled preference is migrated once if the account has no saved choice. Changing the setting requires a reachable, updated server; offline devices retain their own account's last synced setting. The model is downloaded once into the server cache and reused by all accounts and devices; phones and laptops never download model weights.
+
 Enable **Settings → Local AI Assistant**, enter a question in search, and press **Ask AI** or Enter. The button shows **Asking AI…** while the request runs and prevents duplicate submissions. The first question downloads a **532,517,120-byte (about 533 MB)** model from Hugging Face into `ai-models` beside your notes database. The download uses a pinned revision and verifies SHA-256 before loading. Allow additional free disk space for the search index and temporary download. Later questions use the cached file without downloading it again.
 
 The worker starts on a question, understands the query, retrieves matching saved notes, and writes a short answer. It stops after **60 seconds with no active request**, releasing its process allocations. The model remains on disk. System file caches may remain reclaimable by the OS. Loading is not instantaneous; CPU, disk speed, note context, and server memory affect latency. No GPU is required. The download size is not a RAM requirement or limit.

@@ -33,9 +33,18 @@ test('web and native clients display partial AI answers, source links, cancellat
       });
       await page.addInitScript(()=>{let id=0;window.__TAURI_INTERNALS__={transformCallback:()=>++id,unregisterCallback:()=>{},invoke:(command,args)=>command==='api_request'?window.nativeRequest(args):Promise.resolve()};});
     }else await page.route('**/api/ai/**',route=>{const result=fakeAI(new URL(route.request().url()).pathname,route.request().method());return route.fulfill({status:result.status,json:result.data});});
-    await page.addInitScript(({base,session,native})=>{Object.defineProperty(AbortSignal,'any',{value:undefined});Object.defineProperty(AbortSignal,'timeout',{value:undefined});localStorage.setItem('glass-keep-native-server',base);localStorage.setItem('glass-keep-auth'+(native?'@'+encodeURIComponent(base):''),JSON.stringify(session));localStorage.setItem('localAiEnabled','true');},{base,session,native});
+    await page.addInitScript(({base,session,native})=>{Object.defineProperty(AbortSignal,'any',{value:undefined});Object.defineProperty(AbortSignal,'timeout',{value:undefined});localStorage.setItem('glass-keep-native-server',base);localStorage.setItem('glass-keep-auth'+(native?'@'+encodeURIComponent(base):''),JSON.stringify(session));if(!native)localStorage.setItem('localAiEnabled','true');},{base,session,native});
     await page.goto(native?'http://127.0.0.1:1423/native.html':base);
     const search=page.getByPlaceholder('Search or Ask AI...', {exact:true});await expect(search).toBeVisible();
+    // A clean native device inherits the preference enabled by the web account.
+    if(native)assert.equal(await page.evaluate(()=>localStorage.getItem('localAiEnabled')),null);
+    const setPreference=async aiEnabled=>{
+      const response=await fetch(base+'/api/account/preferences',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.token}`},body:JSON.stringify({aiEnabled})});
+      assert.equal(response.status,200);
+      await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+    };
+    await setPreference(false);await expect(page.getByPlaceholder('Search...', {exact:true})).toBeVisible({timeout:15000});
+    await setPreference(true);await expect(search).toBeVisible({timeout:15000});
     const ask=page.getByRole('button',{name:'Ask AI',exact:true});await expect(ask).toBeVisible();await expect(ask).toBeDisabled();
     await search.fill('ab');await expect(ask).toBeDisabled();
     await search.fill('Which books should I read?');await expect(ask).toBeEnabled();await ask.click();
