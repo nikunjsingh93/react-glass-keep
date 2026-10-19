@@ -52,6 +52,10 @@ class AutoExportPlugin(private val activity: Activity): Plugin(activity) {
 
     @Command
     fun save(invoke: Invoke) {
+        Thread {saveFile(invoke)}.start()
+    }
+
+    private fun saveFile(invoke: Invoke) {
         val args = invoke.parseArgs(ExportArgs::class.java)
         if (!Regex("glass-keep-notes-[A-Za-z0-9-]+\\.json").matches(args.filename)) {
             invoke.reject("Invalid export filename")

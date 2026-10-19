@@ -117,7 +117,7 @@ async fn api_request(server: String, path: String, method: String, headers: Hash
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri::plugin::Builder::new("auto-export").setup(|app, api| {
+        .plugin(tauri::plugin::Builder::<tauri::Wry, ()>::new("auto-export").setup(|app, api| {
             #[cfg(target_os = "android")]
             app.manage(AndroidExports(api.register_android_plugin("io.github.nikunjsingh93.glasskeep", "AutoExportPlugin")?));
             #[cfg(not(target_os = "android"))]
