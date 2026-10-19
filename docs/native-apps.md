@@ -59,6 +59,8 @@ Windows installers currently have no commercial publisher certificate. Android d
 
 ## Verification
 
+Client 1.0.5 was tested on the same Android 16 phone with only a temporary account: selecting a unique export folder, writing valid JSON, restarting the app and writing again with the remembered permission, opened-note status-bar spacing, hardware Back returning to the notes list, and the padded launcher icon. The original server selection was restored afterward. The compiled Windows ARM64 client also saved a valid JSON file through the real Rust command and rejected an unapproved destination. Automated browser tests additionally cover remembered web folder handles and overdue exports after reload.
+
 Client 1.0.2 was also tested on the owner's Samsung SM-S938U1 running Android 16 through wireless debugging, using a temporary local server and test account. Checks covered connection, login, note creation, an offline note surviving an in-place APK update, later synchronization, ZIP saving through Android's document picker, ZIP import with duplicate detection, and the corrected cloud dialog and language picker colours. No production notes or cloud-provider credentials were used.
 
 `npm test` covers existing server/data behavior and native address validation. Build both web and native assets, then run:
@@ -67,7 +69,7 @@ Client 1.0.2 was also tested on the owner's Samsung SM-S938U1 running Android 16
 node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/auto-export.browser.mjs tests/native.browser.mjs
 ```
 
-The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and automatic native JSON saving. Rust tests reject API paths that escape the selected origin. Physical Android testing remain separate checks from compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.
+The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and automatic native JSON saving. Rust tests reject API paths that escape the selected origin and invalid export filenames. Physical device checks supplement compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.
 
 On each Mac runner, the workflow also verifies Rust origin restrictions, the packaged app's architecture/version/minimum OS, its local code signature, DMG integrity, and that the packaged app stays running through initialization. These checks do not replace interactive Mac testing of login, notes, dialogs and scheduled file saving.
 

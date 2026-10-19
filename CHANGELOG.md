@@ -8,6 +8,9 @@
 ### Fixed
 - Android adaptive launcher artwork now has an 18% inset and a matching purple background to avoid excessive zoom/cropping.
 - Retains Android safe-area and Back-button fixes from client 1.0.4.
+### Validation
+- Server/schedule tests, browser folder persistence and overdue-export tests, both Docker architectures, and all five native build jobs pass.
+- Android 16 device checks verified chosen-folder JSON exports across an app restart, note spacing, Back navigation and icon padding. A compiled Windows ARM64 client also saved valid JSON through its native file command.
 
 
 ## Android client 1.0.4 - 2026-10-18
