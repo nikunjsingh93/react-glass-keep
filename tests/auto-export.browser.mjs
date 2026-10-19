@@ -32,6 +32,13 @@ test('scheduled JSON exports include owned archived notes and attachments, impor
  await api('/notes/'+note.id,'DELETE');
  const restored=await api('/notes/import','POST',data);assert.equal(restored.imported,1);assert.equal((await api('/notes/archived'))[0].images[0].src,image.src);
  const {readBackup}=await import('../src/readBackup.js');const legacy=await readBackup(new File([zipSync({'backup.json':strToU8(JSON.stringify(data))})],'legacy.zip'));const duplicated=await api('/notes/import','POST',{notes:legacy});assert.equal(duplicated.imported,0);
+ await page.evaluate(()=>{window.showDirectoryPicker=async()=>{const root=await navigator.storage.getDirectory();return root.getDirectoryHandle('chosen-export-folder',{create:true});};});
+ await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Automatic JSON export',exact:true}).click();
+ await dialog.getByRole('button',{name:'Choose export folder',exact:true}).click();await expect(dialog.getByText('chosen-export-folder',{exact:true})).toBeVisible();
+ await dialog.getByRole('button',{name:'Download JSON now',exact:true}).click();
+ const fileCount=()=>page.evaluate(async()=>{const folder=await (await navigator.storage.getDirectory()).getDirectoryHandle('chosen-export-folder');let count=0;for await(const [name] of folder.entries())if(name.endsWith('.json'))count++;return count;});await expect.poll(fileCount).toBe(1);
+ await page.evaluate(key=>{const state=JSON.parse(localStorage.getItem(key));state.nextRun=1;localStorage.setItem(key,JSON.stringify(state));},key);await page.reload();await expect.poll(fileCount).toBe(2);
+ await page.evaluate(async()=>{const folder=await (await navigator.storage.getDirectory()).getDirectoryHandle('chosen-export-folder');for await(const [name] of folder.entries()){const file=await (await folder.getFileHandle(name)).getFile();const backup=JSON.parse(await file.text());if(backup.notes.length!==1||backup.notes[0].title!=='Personal export')throw Error('Chosen-folder export mismatch');}});
  const removed=await fetch(base+'/api/cloud-backup',{headers:{Authorization:'Bearer '+session.token}});assert.equal(removed.status,410);
  assert.deepEqual(errors,[]);
 });

@@ -3,7 +3,7 @@
 ## [1.0.9] / Native clients 1.0.5 - 2026-10-18
 ### Changed
 - Replaced Google Drive/OneDrive cloud connections and the server cloud scheduler with per-account, per-device automatic JSON exports every 1/7/30 days. No provider setup is needed.
-- Native clients save to Downloads/Glass Keep; the web app uses browser downloads. Overdue exports run when the app is reopened, with no background export while closed.
+- Choose and remember an export folder in native apps and supported browsers, including persistent Android folder access. Downloads remains available as a default. Overdue exports run when the app is reopened, with no background export while closed.
 - Existing notes and JSON/ZIP imports are preserved. Exports include owned archived notes and attachments, and protect unsaved drafts by exporting only synced server data.
 ### Fixed
 - Android adaptive launcher artwork now has an 18% inset and a matching purple background to avoid excessive zoom/cropping.

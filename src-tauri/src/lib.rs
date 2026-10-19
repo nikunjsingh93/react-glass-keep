@@ -13,21 +13,56 @@ fn valid_export_filename(name: &str) -> bool {
 struct AndroidExports(tauri::plugin::PluginHandle<tauri::Wry>);
 
 #[tauri::command]
-async fn save_auto_export(app: tauri::AppHandle, filename: String, json: String) -> Result<(), String> {
+async fn choose_export_folder(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let value=app.state::<AndroidExports>().0.run_mobile_plugin::<serde_json::Value>("chooseFolder", ())
+            .map_err(|e|e.to_string())?;
+        Ok(if value.get("directory").and_then(|v|v.as_str()).is_some(){Some(value)}else{None})
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            use tauri_plugin_dialog::DialogExt;
+            let Some(selected)=app.dialog().file().set_title("Choose Glass Keep export folder").blocking_pick_folder() else{return Ok(None)};
+            let directory=selected.into_path().map_err(|e|e.to_string())?.canonicalize().map_err(|e|e.to_string())?;
+            let config=app.path().app_config_dir().map_err(|e|e.to_string())?;
+            std::fs::create_dir_all(&config).map_err(|e|e.to_string())?;
+            let file=config.join("export-folders.json");
+            let _guard=EXPORT_FOLDER_LOCK.lock().map_err(|e|e.to_string())?;
+            let mut folders:Vec<std::path::PathBuf>=std::fs::read(&file).ok().and_then(|bytes|serde_json::from_slice(&bytes).ok()).unwrap_or_default();
+            if !folders.contains(&directory){folders.push(directory.clone());}
+            std::fs::write(file,serde_json::to_vec(&folders).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+            Ok(Some(serde_json::json!({"directory":directory,"name":directory.to_string_lossy()})))
+        }).await.map_err(|e|e.to_string())?
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+static EXPORT_FOLDER_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[tauri::command]
+async fn save_auto_export(app: tauri::AppHandle, filename: String, json: String, directory: Option<String>) -> Result<(), String> {
     if !valid_export_filename(&filename) || json.len() > 200 * 1024 * 1024 {
         return Err("Invalid export filename or backup exceeds 200 MB".into());
     }
     #[cfg(target_os = "android")]
     {
         #[derive(Serialize)]
-        struct Args {filename: String, json: String}
-        app.state::<AndroidExports>().0.run_mobile_plugin::<serde_json::Value>("save", Args {filename,json})
+        struct Args {filename: String, json: String, directory: Option<String>}
+        app.state::<AndroidExports>().0.run_mobile_plugin::<serde_json::Value>("save", Args {filename,json,directory})
             .map_err(|e| e.to_string())?;
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
-        let directory = app.path().download_dir().map_err(|e|e.to_string())?.join("Glass Keep");
+        let directory=if let Some(selected)=directory {
+            let path=std::path::PathBuf::from(selected).canonicalize().map_err(|_|"Export folder is unavailable. Choose it again.")?;
+            let config=app.path().app_config_dir().map_err(|e|e.to_string())?.join("export-folders.json");
+            let folders:Vec<std::path::PathBuf>=std::fs::read(config).ok().and_then(|bytes|serde_json::from_slice(&bytes).ok()).unwrap_or_default();
+            if !folders.contains(&path){return Err("Choose the export folder again to grant access.".into());}
+            path
+        }else{app.path().download_dir().map_err(|e|e.to_string())?.join("Glass Keep")};
         tauri::async_runtime::spawn_blocking(move || {
             use std::io::Write;
             std::fs::create_dir_all(&directory).map_err(|e|e.to_string())?;
@@ -93,7 +128,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .invoke_handler(tauri::generate_handler![api_request,save_auto_export])
+        .invoke_handler(tauri::generate_handler![api_request,save_auto_export,choose_export_folder])
         .run(tauri::generate_context!())
         .expect("Could not start Glass Keep");
 }

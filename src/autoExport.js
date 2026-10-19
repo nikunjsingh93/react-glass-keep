@@ -37,5 +37,6 @@ export function createAutoExport({storage,key,now=Date.now,download,active=()=>t
       return false;
     } finally {busy=false;}
   };
-  return {configure,run};
+  const destination=folder=>update({...readExport(storage,key),folder,retryAt:0,error:''});
+  return {configure,run,destination};
 }

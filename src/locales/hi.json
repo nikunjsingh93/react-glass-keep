@@ -307,5 +307,13 @@
   "Exports run while Glass Keep is open and signed in. An overdue export runs when you return. This schedule is saved separately for each account on this device.": "निर्यात तब चलता है जब Glass Keep खुला हो और आप साइन इन हों। छूटा हुआ निर्यात आपके वापस आने पर चलता है। इस डिवाइस पर हर खाते का शेड्यूल अलग सहेजा जाता है।",
   "Files are saved in Downloads / Glass Keep. Automatic saving on Android requires Android 10 or newer.": "फ़ाइलें Downloads / Glass Keep में सहेजी जाती हैं। Android पर स्वचालित सहेजने के लिए Android 10 या नया संस्करण चाहिए।",
   "Files use your browser download location. Allow automatic downloads for this site. Your browser may ask where to save; check its downloads list to confirm the file was saved.": "फ़ाइलें ब्राउज़र के डाउनलोड स्थान पर जाती हैं। इस साइट के लिए स्वचालित डाउनलोड की अनुमति दें। ब्राउज़र सहेजने का स्थान पूछ सकता है; फ़ाइल सहेजी गई है या नहीं, डाउनलोड सूची में देखें।",
-  "Exports include synced notes, archived notes and attachments. Save and sync drafts first. Files are not encrypted; keep your backup folder private. Existing exports are kept until you remove them.": "निर्यात में सिंक किए गए नोट्स, संग्रहित नोट्स और अटैचमेंट शामिल हैं। पहले ड्राफ्ट सहेजें और सिंक करें। फ़ाइलें एन्क्रिप्ट नहीं हैं; बैकअप फ़ोल्डर निजी रखें। पुराने निर्यात आपके हटाने तक रखे जाते हैं।"
+  "Exports include synced notes, archived notes and attachments. Save and sync drafts first. Files are not encrypted; keep your backup folder private. Existing exports are kept until you remove them.": "निर्यात में सिंक किए गए नोट्स, संग्रहित नोट्स और अटैचमेंट शामिल हैं। पहले ड्राफ्ट सहेजें और सिंक करें। फ़ाइलें एन्क्रिप्ट नहीं हैं; बैकअप फ़ोल्डर निजी रखें। पुराने निर्यात आपके हटाने तक रखे जाते हैं।",
+  "Export folder": "निर्यात फ़ोल्डर",
+  "Browser download location": "ब्राउज़र डाउनलोड स्थान",
+  "Downloads / Glass Keep": "Downloads / Glass Keep",
+  "Choose export folder": "निर्यात फ़ोल्डर चुनें",
+  "Use Downloads": "Downloads का उपयोग करें",
+  "This browser does not support folder selection. Change its download location in browser settings, or use a native app.": "यह ब्राउज़र फ़ोल्डर चुनने का समर्थन नहीं करता। ब्राउज़र सेटिंग्स में डाउनलोड स्थान बदलें या नेटिव ऐप का उपयोग करें।",
+  "Files save to your chosen folder, or Downloads / Glass Keep by default. On Android 7–9, choose a folder for automatic exports.": "फ़ाइलें आपके चुने फ़ोल्डर में, या डिफ़ॉल्ट रूप से Downloads / Glass Keep में सहेजी जाती हैं। Android 7–9 पर स्वचालित निर्यात के लिए फ़ोल्डर चुनें।",
+  "Choose a folder in a supported browser for direct saves. Otherwise allow automatic downloads for this site and check the browser downloads list to confirm each file was saved.": "समर्थित ब्राउज़र में सीधे सहेजने के लिए फ़ोल्डर चुनें। अन्यथा इस साइट के लिए स्वचालित डाउनलोड की अनुमति दें और फ़ाइल सहेजी गई है या नहीं, डाउनलोड सूची में देखें।"
 }

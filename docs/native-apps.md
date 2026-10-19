@@ -16,7 +16,7 @@ The notes interface is bundled, so it can open offline after setup. Owned notes 
 
 Backups, Markdown exports, images and unsynced drafts use the system save dialog. Import uses the existing file picker. External note links open in your normal browser, and copied note/public links point to the selected server instead of a local app address.
 
-Client 1.0.5 adds **Settings → Automatic JSON export**, with 1/7/30-day schedules and files saved to **Downloads/Glass Keep** while the app is open. Android automatic saving requires Android 10 or newer; older devices retain manual JSON export. See the [export guide](automatic-exports.md). No Google/Microsoft provider setup is required.
+Client 1.0.5 adds **Settings → Automatic JSON export**, with 1/7/30-day schedules and files saved to your chosen folder while the app is open (default: **Downloads/Glass Keep**). Android 7–9 requires choosing a folder. See the [export guide](automatic-exports.md). No Google/Microsoft provider setup is required.
 
 Use HTTPS outside a trusted local network. HTTP is supported for LAN deployments, and the connection screen explains that it is unencrypted. Certificate validation remains enabled; use a publicly trusted certificate (custom/self-signed CA import is not included yet). Enter the final server origin because API redirects are rejected to avoid forwarding authentication to another host. No new CORS setting is required on the server.
 
