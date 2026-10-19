@@ -2167,7 +2167,7 @@ function NotesUI({
     >
       {/* Multi-select toolbar (floats above header when active) */}
       {multiMode && (
-        <div className="p-3 sm:p-4 flex items-center justify-between sticky top-0 z-[25] glass-card mb-2" style={{ position: "sticky" }}><button className="border rounded px-2 py-1" onClick={()=>{onSelectAllPinned();onSelectAllOthers();}}>{t("Select all filtered")}</button><button className="border rounded px-2 py-1" onClick={()=>selectedIds.forEach(id=>onToggleSelect(id,false))}>{t("Clear selection")}</button>
+        <div className="app-selection-toolbar p-3 sm:p-4 flex items-center justify-between sticky top-0 z-[25] glass-card mb-2" style={{ position: "sticky" }}><button className="border rounded px-2 py-1" onClick={()=>{onSelectAllPinned();onSelectAllOthers();}}>{t("Select all filtered")}</button><button className="border rounded px-2 py-1" onClick={()=>selectedIds.forEach(id=>onToggleSelect(id,false))}>{t("Clear selection")}</button>
           <div className="flex items-center gap-2 flex-wrap">
             <button className="px-3 py-1.5 rounded-lg border border-[var(--border-light)] hover:bg-black/5 dark:hover:bg-white/10 text-sm" onClick={onBulkDownloadZip}>{t("Download (.zip)")}</button>
             <button className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm" onClick={onBulkDelete}>{t("Delete")}</button>
@@ -2218,7 +2218,7 @@ function NotesUI({
       )}
 
       {/* Header */}
-      <header className="p-4 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
+      <header className="app-header p-4 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
         <div className="flex items-center gap-3">
           {/* Hamburger - only show when sidebar is not permanent */}
           {!sidebarPermanent && (
@@ -2968,7 +2968,7 @@ export default function App() {
   const autoExport = useAutoExport({api,token,user:currentUser});
 
   // Theme
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(()=>document.documentElement.classList.contains('dark'));
 
   // Screen width for responsive behavior
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);

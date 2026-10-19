@@ -66,7 +66,7 @@ Client 1.0.2 was also tested on the owner's Samsung SM-S938U1 running Android 16
 `npm test` covers existing server/data behavior and native address validation. Build both web and native assets, then run:
 
 ```sh
-node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/auto-export.browser.mjs tests/native.browser.mjs
+node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/auto-export.browser.mjs tests/native.browser.mjs tests/startup.browser.mjs
 ```
 
 The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and automatic native JSON saving. Rust tests reject API paths that escape the selected origin and invalid export filenames. Physical device checks supplement compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.

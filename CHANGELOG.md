@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.10] / Native clients 1.0.6 - 2026-10-18
+### Fixed
+- Android's home-page search/menu header stays below the status bar while scrolling, with an opaque safe-area background that prevents notes from showing through behind the system bar.
+- Web, Windows, macOS and Android now show a centered, branded startup screen using the saved light/dark theme, or the system theme when no preference exists. The loading screen appears before React loads as well as during native lazy loading.
+- Startup loading respects reduced-motion preferences and English/Hindi language selection.
+### Validation
+- Browser checks cover saved/system startup themes, centered content, reduced motion and the native header position after scrolling with simulated safe-area insets.
+
 ## [1.0.9] / Native clients 1.0.5 - 2026-10-18
 ### Changed
 - Replaced Google Drive/OneDrive cloud connections and the server cloud scheduler with per-account, per-device automatic JSON exports every 1/7/30 days. No provider setup is needed.

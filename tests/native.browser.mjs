@@ -52,6 +52,11 @@ test('native client connects, isolates servers, queues offline edits and saves p
   await login();await create('First server only');
   await page.setViewportSize({width:390,height:844});
   await page.locator('.native-app').evaluate(root=>{root.style.setProperty('--native-safe-top','32px');root.style.setProperty('--native-safe-bottom','24px');});
+  await page.locator('.app-header').evaluate(header=>{const spacer=document.createElement('div');spacer.id='scroll-regression-space';spacer.style.height='2500px';header.parentElement.append(spacer);});
+  await page.evaluate(()=>window.scrollTo(0,900));
+  await expect.poll(async()=>Math.round((await page.locator('.app-header').boundingBox()).y)).toBe(32);
+  assert.ok(await page.evaluate(()=>!document.elementFromPoint(100,16)?.closest('.app-header')));
+  await page.evaluate(()=>{document.getElementById('scroll-regression-space').remove();window.scrollTo(0,0);});
   await page.locator('.note-card').filter({hasText:'First server only'}).click();
   const modal=page.locator('.modal-scrim');await expect(modal).toBeVisible();
   const bounds=await modal.boundingBox();assert.equal(bounds.y,32);assert.equal(bounds.y+bounds.height,820);
