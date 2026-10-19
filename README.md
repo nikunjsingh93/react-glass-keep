@@ -97,7 +97,7 @@ Download Windows `.exe`, Android `.apk`, and macOS `.dmg` clients from the [GitH
 * **Data**
 
   * **Export all** notes (JSON) and **Import** JSON/ZIP (merges; keeps existing notes)
-  * **Personal cloud backups:** connect Google Drive and/or OneDrive, schedule every 1/7/30 days, retain three compressed versions, and restore directly from ZIP. See the [setup and restore guide](docs/cloud-backups.md) for the one-time OAuth configuration.
+  * **Automatic JSON exports:** download your notes every 1/7/30 days while the app is open, then sync the download folder yourself with Syncthing or another service. No cloud-provider setup is required. See the [export and restore guide](docs/automatic-exports.md).
   * Per-note **Download .md**
   * Import from Google Keep (Google Takeout) — pick multiple .json files in one go to bring your Keep notes over. ✅ NEW
   * Backend: **Express API + SQLite** (`better-sqlite3`)

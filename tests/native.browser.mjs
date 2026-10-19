@@ -6,7 +6,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
-import {unzipSync} from 'fflate';
+
 
 test('native client connects, isolates servers, queues offline edits and saves portable ZIPs through native IPC',async t=>{
   const dir=await mkdtemp(path.join(tmpdir(),'glass-native-')),children=[],requests=[],commands=[],saved=[];
@@ -24,7 +24,7 @@ test('native client connects, isolates servers, queues offline edits and saves p
     return {status:response.status,headers:Object.fromEntries(response.headers),body:Buffer.from(await response.arrayBuffer()).toString('base64')};
   });
   await page.exposeFunction('nativeCommand',(command,args)=>{
-    commands.push({command,args});if(command==='plugin:dialog|save')return '/chosen/backup.zip';
+    commands.push({command,args});if(command==='save_auto_export'){saved.push(Buffer.from(args.json));return;}if(command==='plugin:dialog|save')return '/chosen/backup.zip';
     if(command==='plugin:fs|write_file'){saved.push(Buffer.from(Object.values(args)));return;}
     if(command==='plugin:dialog|ask')return true;
     if(['plugin:dialog|message','plugin:clipboard-manager|write_text','plugin:opener|open_url'].includes(command))return;
@@ -84,14 +84,16 @@ test('native client connects, isolates servers, queues offline edits and saves p
     if(dark){await page.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Dark Mode',exact:true}).click();await settings();}
     const colors=await page.getByLabel('Language',{exact:true}).evaluate(select=>({text:getComputedStyle(select).color,background:getComputedStyle(select).backgroundColor,optionText:getComputedStyle(select.options[0]).color,optionBackground:getComputedStyle(select.options[0]).backgroundColor}));
     assert.equal(colors.text,dark?'rgb(243, 244, 246)':'rgb(17, 24, 39)');assert.equal(colors.background,dark?'rgb(34, 34, 34)':'rgb(255, 255, 255)');assert.equal(colors.optionText,colors.text);assert.equal(colors.optionBackground,colors.background);
-    const borders=await page.getByRole('button',{name:'Cloud backup',exact:true}).evaluate(button=>({cloud:getComputedStyle(button).borderColor,language:getComputedStyle(document.querySelector('.themed-select').closest('label')).borderColor}));assert.equal(borders.cloud,borders.language);assert.notEqual(borders.cloud,'rgb(243, 244, 246)');
+    const borders=await page.getByRole('button',{name:'Automatic JSON export',exact:true}).evaluate(button=>({cloud:getComputedStyle(button).borderColor,language:getComputedStyle(document.querySelector('.themed-select').closest('label')).borderColor}));assert.equal(borders.cloud,borders.language);assert.notEqual(borders.cloud,'rgb(243, 244, 246)');
     await expect.poll(()=>page.getByLabel('Language',{exact:true}).evaluate(select=>Math.round(select.closest('[aria-hidden]').getBoundingClientRect().right))).toBe(1280);
     await page.screenshot({path:`artifacts/settings-${dark?'dark':'light'}.png`,animations:'disabled'});
   }
-  await page.getByRole('button',{name:'Cloud backup',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Cloud backup',exact:true})).toHaveCSS('background-color','rgb(34, 34, 34)');
-  await page.getByRole('button',{name:'Download backup ZIP',exact:true}).click();
-  await expect.poll(()=>saved.length).toBe(1);const backup=JSON.parse(new TextDecoder().decode(unzipSync(saved[0])['backup.json']));assert.equal(backup.notes.length,2);assert.ok(!JSON.stringify(backup).includes('Second server only'));
+  await page.getByRole('button',{name:'Automatic JSON export',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Automatic JSON export',exact:true})).toHaveCSS('background-color','rgb(34, 34, 34)');
+  await page.getByRole('button',{name:'Download JSON now',exact:true}).click();
+  await expect.poll(()=>saved.length).toBe(1);const backup=JSON.parse(saved[0].toString());assert.equal(backup.notes.length,2);assert.ok(!JSON.stringify(backup).includes('Second server only'));
+  await page.getByRole('combobox',{name:'Export every',exact:true}).selectOption('7');
+  await expect.poll(()=>page.evaluate(()=>Object.entries(localStorage).filter(([key])=>key.includes('glass-keep-auto-export-')).map(([,value])=>JSON.parse(value).days))).toEqual([7]);
   await page.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('glass-keep-native-server')),origins[0]);
   const keys=await page.evaluate(()=>Object.keys(localStorage));assert.ok(keys.includes(`glass-keep-auth@${encodeURIComponent(origins[1])}`));assert.ok(!keys.includes(`glass-keep-auth@${encodeURIComponent(origins[0])}`));assert.deepEqual(errors,[]);

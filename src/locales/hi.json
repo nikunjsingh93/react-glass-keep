@@ -295,5 +295,17 @@
   "Connected server": "कनेक्ट किया गया सर्वर",
   "Change server": "सर्वर बदलें",
   "Connection settings": "कनेक्शन सेटिंग्स",
-  "One-time setup by the server owner is needed. After setup, every user can connect their own cloud account without administrator access.": "सर्वर के मालिक को एक बार सेटअप करना होगा। उसके बाद हर उपयोगकर्ता एडमिन अधिकारों के बिना अपना क्लाउड खाता कनेक्ट कर सकता है।"
+  "One-time setup by the server owner is needed. After setup, every user can connect their own cloud account without administrator access.": "सर्वर के मालिक को एक बार सेटअप करना होगा। उसके बाद हर उपयोगकर्ता एडमिन अधिकारों के बिना अपना क्लाउड खाता कनेक्ट कर सकता है।",
+  "Automatic JSON export": "स्वचालित JSON निर्यात",
+  "Export every": "हर इतने दिनों में निर्यात करें",
+  "Off": "बंद",
+  "Last saved export": "पिछला सहेजा गया निर्यात",
+  "Last export requested": "पिछला निर्यात अनुरोध",
+  "Next export": "अगला निर्यात",
+  "Download JSON now": "अभी JSON डाउनलोड करें",
+  "Download your own notes and attachments as a portable JSON file. Sync the download folder yourself with Syncthing or another service.": "अपने नोट्स और अटैचमेंट JSON फ़ाइल में डाउनलोड करें। डाउनलोड फ़ोल्डर को Syncthing या किसी अन्य सेवा से स्वयं सिंक करें।",
+  "Exports run while Glass Keep is open and signed in. An overdue export runs when you return. This schedule is saved separately for each account on this device.": "निर्यात तब चलता है जब Glass Keep खुला हो और आप साइन इन हों। छूटा हुआ निर्यात आपके वापस आने पर चलता है। इस डिवाइस पर हर खाते का शेड्यूल अलग सहेजा जाता है।",
+  "Files are saved in Downloads / Glass Keep. Automatic saving on Android requires Android 10 or newer.": "फ़ाइलें Downloads / Glass Keep में सहेजी जाती हैं। Android पर स्वचालित सहेजने के लिए Android 10 या नया संस्करण चाहिए।",
+  "Files use your browser download location. Allow automatic downloads for this site. Your browser may ask where to save; check its downloads list to confirm the file was saved.": "फ़ाइलें ब्राउज़र के डाउनलोड स्थान पर जाती हैं। इस साइट के लिए स्वचालित डाउनलोड की अनुमति दें। ब्राउज़र सहेजने का स्थान पूछ सकता है; फ़ाइल सहेजी गई है या नहीं, डाउनलोड सूची में देखें।",
+  "Exports include synced notes, archived notes and attachments. Save and sync drafts first. Files are not encrypted; keep your backup folder private. Existing exports are kept until you remove them.": "निर्यात में सिंक किए गए नोट्स, संग्रहित नोट्स और अटैचमेंट शामिल हैं। पहले ड्राफ्ट सहेजें और सिंक करें। फ़ाइलें एन्क्रिप्ट नहीं हैं; बैकअप फ़ोल्डर निजी रखें। पुराने निर्यात आपके हटाने तक रखे जाते हैं।"
 }

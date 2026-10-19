@@ -2,6 +2,44 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use reqwest::{redirect::Policy, Client, Method, Url};
 use serde::Serialize;
 use std::{collections::HashMap, time::Duration};
+use tauri::Manager;
+
+fn valid_export_filename(name: &str) -> bool {
+    name.starts_with("glass-keep-notes-") && name.ends_with(".json") && name.len() < 160
+        && name.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'.')
+}
+
+#[cfg(target_os = "android")]
+struct AndroidExports(tauri::plugin::PluginHandle<tauri::Wry>);
+
+#[tauri::command]
+async fn save_auto_export(app: tauri::AppHandle, filename: String, json: String) -> Result<(), String> {
+    if !valid_export_filename(&filename) || json.len() > 200 * 1024 * 1024 {
+        return Err("Invalid export filename or backup exceeds 200 MB".into());
+    }
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Args {filename: String, json: String}
+        app.state::<AndroidExports>().0.run_mobile_plugin::<serde_json::Value>("save", Args {filename,json})
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let directory = app.path().download_dir().map_err(|e|e.to_string())?.join("Glass Keep");
+        tauri::async_runtime::spawn_blocking(move || {
+            use std::io::Write;
+            std::fs::create_dir_all(&directory).map_err(|e|e.to_string())?;
+            let path=directory.join(filename);
+            let mut file=std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e|e.to_string())?;
+            if let Err(error)=file.write_all(json.as_bytes()).and_then(|_|file.sync_all()) {
+                drop(file);let _=std::fs::remove_file(path);return Err(error.to_string());
+            }
+            Ok(())
+        }).await.map_err(|e|e.to_string())?
+    }
+}
 
 #[derive(Serialize)]
 struct ApiResponse { status: u16, headers: HashMap<String, String>, body: String }
@@ -44,11 +82,18 @@ async fn api_request(server: String, path: String, method: String, headers: Hash
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri::plugin::Builder::new("auto-export").setup(|app, api| {
+            #[cfg(target_os = "android")]
+            app.manage(AndroidExports(api.register_android_plugin("io.github.nikunjsingh93.glasskeep", "AutoExportPlugin")?));
+            #[cfg(not(target_os = "android"))]
+            let _ = (app, api);
+            Ok(())
+        }).build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .invoke_handler(tauri::generate_handler![api_request])
+        .invoke_handler(tauri::generate_handler![api_request,save_auto_export])
         .run(tauri::generate_context!())
         .expect("Could not start Glass Keep");
 }
@@ -56,6 +101,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::endpoint;
+    #[test]
+    fn exports_only_accept_timestamped_json_names() {
+        assert!(super::valid_export_filename("glass-keep-notes-1-2026-10-18T12-00-00-000Z.json"));
+        for name in ["../notes.json", "glass-keep-notes-../secret.json", "C:\\notes.json", "glass-keep-notes-one.txt"] {
+            assert!(!super::valid_export_filename(name));
+        }
+    }
     #[test]
     fn api_requests_cannot_escape_the_selected_origin() {
         assert!(endpoint("https://keep.example.com", "/api/health").is_ok());

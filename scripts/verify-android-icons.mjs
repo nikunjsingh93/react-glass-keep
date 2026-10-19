@@ -13,6 +13,12 @@ const table=new Map(markers.map((match,index)=>[match[2],{id:match[1],text:resou
 const required=name=>{const entry=table.get(name);assert.ok(entry,'Missing packaged launcher resource: '+name);return entry;};
 const manifest=dump('xmltree',apk,'--file','AndroidManifest.xml');
 const foreground=required('mipmap/ic_launcher_foreground'),background=required('color/ic_launcher_background');
+const padded=required('drawable/ic_launcher_padded');
+const paddedFile=[...padded.text.matchAll(/\(file\) (\S+) type=XML/g)][0]?.[1];
+assert.ok(paddedFile,'Missing padded foreground drawable');
+const inset=dump('xmltree',apk,'--file',paddedFile);
+assert.ok(inset.includes('inset')&&inset.includes('@'+foreground.id),'Missing launcher foreground padding');
+assert.ok(inset.includes('android:inset('),'Launcher inset was not packaged');
 for(const name of ['ic_launcher','ic_launcher_round','ic_launcher_foreground']){
   const resource=required('mipmap/'+name);
   const files=[...resource.text.matchAll(/\(([^)]+)\) \(file\) (\S+) type=(PNG|XML)/g)];
@@ -29,6 +35,6 @@ for(const name of ['ic_launcher','ic_launcher_round','ic_launcher_foreground']){
   assert.ok(manifest.includes(`android:${attribute}(`)&&manifest.includes('@'+resource.id),'Manifest does not select '+name);
   const adaptive=files.find(match=>match[1].includes('v26')&&match[3]==='XML');assert.ok(adaptive,'Missing adaptive '+name);
   const xml=dump('xmltree',apk,'--file',adaptive[2]);assert.ok(xml.includes('adaptive-icon'));
-  assert.ok(xml.includes('@'+foreground.id)&&xml.includes('@'+background.id),'Adaptive icon does not use the branded foreground and background');
+  assert.ok(xml.includes('@'+padded.id)&&xml.includes('@'+background.id),'Adaptive icon does not use the padded foreground and background');
 }
 console.log('Packaged Glass Keep standard, round and adaptive launcher resources verified across all five densities.');

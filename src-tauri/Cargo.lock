@@ -1405,11 +1405,12 @@ dependencies = [
 
 [[package]]
 name = "glass-keep"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "base64 0.22.1",
  "reqwest 0.12.28",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-clipboard-manager",

@@ -11,6 +11,9 @@ for(const name of ['mipmap-mdpi/ic_launcher.png','mipmap-xxxhdpi/ic_launcher.png
   if(!fs.existsSync(path.join(source,name)))throw new Error('Missing Glass Keep launcher asset: '+name);
 }
 fs.cpSync(source,path.join(android,'res'),{recursive:true});
+const kotlin=path.join(android,'java/io/github/nikunjsingh93/glasskeep');
+fs.mkdirSync(kotlin,{recursive:true});
+fs.copyFileSync('src-tauri/android/AutoExportPlugin.kt',path.join(kotlin,'AutoExportPlugin.kt'));
 let manifest=fs.readFileSync(manifestFile,'utf8');
 if(!/<application\b/.test(manifest))throw new Error('Android application manifest was not found');
 if(/android:icon="[^"]*"/.test(manifest))manifest=manifest.replace(/android:icon="[^"]*"/,'android:icon="@mipmap/ic_launcher"');

@@ -16,8 +16,9 @@ import NoteLayout from "./NoteLayout";
 import {readBackup} from "./readBackup";
 import {appFetch, isNative, storageKey, saveBlob, openExternal, copyText, confirmAction, ownsStorageKey} from './platform';
 import useAndroidNoteBack from './useAndroidNoteBack';
+import useAutoExport from './useAutoExport';
 
-const CloudBackupDialog = React.lazy(() => import('./CloudBackupDialog'));
+const AutoExportDialog = React.lazy(() => import('./AutoExportDialog'));
 
 /** ---------- API Helpers ---------- */
 const API_BASE = "/api";
@@ -1611,7 +1612,7 @@ function TagSidebar({ open, onClose, tagsWithCounts, activeTag, onSelect, dark, 
 }
 
 /** ---------- Settings Panel ---------- */
-function SettingsPanel({ onCloudBackup, onFindDuplicates, open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled, showGenericConfirm, showToast }) {
+function SettingsPanel({ onAutoExport, onFindDuplicates, open, onClose, dark, onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, alwaysShowSidebarOnWide, setAlwaysShowSidebarOnWide, localAiEnabled, setLocalAiEnabled, showGenericConfirm, showToast }) {
   // Prevent body scroll when settings panel is open
   React.useEffect(() => {
     if (open) {
@@ -1654,7 +1655,7 @@ function SettingsPanel({ onCloudBackup, onFindDuplicates, open, onClose, dark, o
           <LanguagePicker/>
           <ConnectedServer/>
           <button className="settings-card settings-action mb-4 w-full text-left" onClick={() => { onClose(); onFindDuplicates(); }}>{t("Find duplicates")}</button>
-          <button className="settings-card settings-action mb-4 w-full text-left" onClick={()=>{onClose();onCloudBackup();}}>{t("Cloud backup")}</button>
+          <button className="settings-card settings-action mb-4 w-full text-left" onClick={()=>{onClose();onAutoExport();}}>{t("Automatic JSON export")}</button>
           {/* Data Management Section */}
           <div className="mb-8">
             <h4 className="text-md font-semibold mb-4">{t("Data Management")}</h4>
@@ -2956,7 +2957,7 @@ export default function App() {
   useEffect(() => { const changed=()=>{document.documentElement.lang=getLanguage();setLanguageVersion(getLanguage());}; changed();window.addEventListener("language-changed",changed);return()=>window.removeEventListener("language-changed",changed); }, []);
   const [keepImportOpen,setKeepImportOpen]=useState(false);
   const [duplicatesOpen,setDuplicatesOpen]=useState(false);
-  const [cloudBackupOpen,setCloudBackupOpen]=useState(()=>/cloudBackup(?:Error)?=/.test(window.location.hash));
+  const [autoExportOpen,setAutoExportOpen]=useState(false);
 
   // auth session { token, user }
   const [session, setSession] = useState(getAuth());
@@ -2964,6 +2965,7 @@ export default function App() {
   const sessionTokenRef = useRef(token);
   sessionTokenRef.current = token;
   const currentUser = session?.user || null;
+  const autoExport = useAutoExport({api,token,user:currentUser});
 
   // Theme
   const [dark, setDark] = useState(false);
@@ -4085,7 +4087,7 @@ export default function App() {
     try {
       const keys = Object.keys(localStorage);
       keys.forEach(key => {
-        if (ownsStorageKey(key)) {
+        if (ownsStorageKey(key) && !key.includes('glass-keep-auto-export-')) {
           localStorage.removeItem(key);
         }
       });
@@ -6094,7 +6096,7 @@ export default function App() {
     <>
       <OfflineStatus client={offlineClient} onSynced={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>
       {!networkOnline && <p role="status" className="text-center bg-amber-100 text-gray-900 p-2">{t("You are offline. Changes are saved on this device and will sync when you reconnect.")}</p>}
-      {cloudBackupOpen && <React.Suspense fallback={null}><CloudBackupDialog api={api} token={token} onClose={()=>setCloudBackupOpen(false)} onImport={()=>importFileRef.current?.click()}/></React.Suspense>}
+      {autoExportOpen && <React.Suspense fallback={null}><AutoExportDialog backup={autoExport} onClose={()=>setAutoExportOpen(false)} onImport={()=>importFileRef.current?.click()}/></React.Suspense>}
       {keepImportOpen && <KeepImportDialog api={api} token={token} onClose={()=>setKeepImportOpen(false)} onImported={loadNotes}/>}
       {duplicatesOpen && <DuplicateDialog api={api} token={token} onClose={()=>setDuplicatesOpen(false)} onChanged={loadNotes}/>}
       <datalist id="existing-tags">{tagsWithCounts.map(({tag})=><option key={tag} value={tag}/>)}</datalist>
@@ -6120,7 +6122,7 @@ export default function App() {
         onImportAll={() => importFileRef.current?.click()}
         onImportGKeep={() => setKeepImportOpen(true)}
         onFindDuplicates={() => setDuplicatesOpen(true)}
-        onCloudBackup={()=>setCloudBackupOpen(true)}
+        onAutoExport={()=>setAutoExportOpen(true)}
         onImportMd={() => mdFileRef.current?.click()}
         onDownloadSecretKey={downloadSecretKey}
         alwaysShowSidebarOnWide={alwaysShowSidebarOnWide}

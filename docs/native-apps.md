@@ -12,11 +12,11 @@ On macOS 13 or newer, download the **arm64** DMG for Apple Silicon (M-series) or
 
 Open **Menu → Settings → Connected server** to see your server link or choose **Change server**. Before signing in, use **Connection settings** on the login screen. Each server has separate login, cached notes and offline operations, even if both instances have user ID 1. Pending edits remain associated with the original server; switching back allows them to sync. Sign out clears the current server's browser cache and session without removing other server connections.
 
-The notes interface is bundled, so it can open offline after setup. Owned notes that have been loaded remain available through the existing offline queue. Server-side AI, administration, sharing and cloud jobs still need a reachable server. Collaboration refreshes every ten seconds while the native client is visible, and when its window regains focus; the web version continues using realtime events.
+The notes interface is bundled, so it can open offline after setup. Owned notes that have been loaded remain available through the existing offline queue. Server-side AI, administration, sharing and fresh exports still need a reachable server. Collaboration refreshes every ten seconds while the native client is visible, and when its window regains focus; the web version continues using realtime events.
 
 Backups, Markdown exports, images and unsynced drafts use the system save dialog. Import uses the existing file picker. External note links open in your normal browser, and copied note/public links point to the selected server instead of a local app address.
 
-Cloud-account authorization opens your server in the normal browser because Google/Microsoft authentication must run outside the app webview. Sign in to the same Glass Keep account there, complete the cloud connection, then return to the app. Backup status updates automatically.
+Client 1.0.5 adds **Settings → Automatic JSON export**, with 1/7/30-day schedules and files saved to **Downloads/Glass Keep** while the app is open. Android automatic saving requires Android 10 or newer; older devices retain manual JSON export. See the [export guide](automatic-exports.md). No Google/Microsoft provider setup is required.
 
 Use HTTPS outside a trusted local network. HTTP is supported for LAN deployments, and the connection screen explains that it is unencrypted. Certificate validation remains enabled; use a publicly trusted certificate (custom/self-signed CA import is not included yet). Enter the final server origin because API redirects are rejected to avoid forwarding authentication to another host. No new CORS setting is required on the server.
 
@@ -64,11 +64,11 @@ Client 1.0.2 was also tested on the owner's Samsung SM-S938U1 running Android 16
 `npm test` covers existing server/data behavior and native address validation. Build both web and native assets, then run:
 
 ```sh
-node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/cloud-backup.browser.mjs tests/native.browser.mjs
+node --test tests/browser.test.mjs tests/web-features.browser.mjs tests/auto-export.browser.mjs tests/native.browser.mjs
 ```
 
-The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and native ZIP saving. Rust tests reject API paths that escape the selected origin. Physical Android testing and live cloud-provider sign-in remain separate checks from compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.
+The native browser test runs the bundled client against two real local servers with simulated Tauri IPC, covering login, note creation, offline operations, server isolation, logout and automatic native JSON saving. Rust tests reject API paths that escape the selected origin. Physical Android testing remain separate checks from compilation and browser/IPC tests. Home-screen widgets and Google Play distribution are not included in this first client.
 
-On each Mac runner, the workflow also verifies Rust origin restrictions, the packaged app's architecture/version/minimum OS, its local code signature, DMG integrity, and that the packaged app stays running through initialization. These checks do not replace interactive Mac testing of login, notes, dialogs and cloud-provider sign-in.
+On each Mac runner, the workflow also verifies Rust origin restrictions, the packaged app's architecture/version/minimum OS, its local code signature, DMG integrity, and that the packaged app stays running through initialization. These checks do not replace interactive Mac testing of login, notes, dialogs and scheduled file saving.
 
 On Windows, `tests/native-windows.browser.mjs` additionally launches the compiled executable with an isolated temporary WebView2 profile and a temporary local API. Set `GLASS_KEEP_WINDOWS_EXE` to the portable executable's absolute path, then run `node --test tests/native-windows.browser.mjs`. This checks the real Rust transport, login, a persisted note, reload and cross-origin path rejection without touching the normal app profile.

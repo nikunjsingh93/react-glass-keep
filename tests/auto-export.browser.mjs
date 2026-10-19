@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {chromium,expect} from '@playwright/test';
+import {spawn} from 'node:child_process';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {once} from 'node:events';
+import {zipSync,strToU8} from 'fflate';
+
+test('scheduled JSON exports include owned archived notes and attachments, import JSON and legacy ZIP, and catch up without duplicate downloads',async t=>{
+ const dir=await mkdtemp(path.join(tmpdir(),'glass-export-browser-')),base='http://127.0.0.1:18092';
+ const child=spawn(process.execPath,['server/index.js'],{env:{...process.env,NODE_ENV:'production',API_PORT:'18092',DB_FILE:path.join(dir,'notes.db'),JWT_SECRET:'export-browser-test-only',INITIAL_ADMIN_USERNAME:'operator',INITIAL_ADMIN_PASSWORD:'export-browser-password-123'},stdio:'pipe'});
+ let logs='';child.stderr.on('data',b=>logs+=b);t.after(async()=>{if(child.exitCode===null){child.kill();await once(child,'exit');}await rm(dir,{recursive:true,force:true});});
+ for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));if(i===99)throw Error(logs);}
+ const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());const context=await browser.newContext(),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ await page.goto(base);await page.getByPlaceholder('Username',{exact:true}).fill('operator');await page.getByPlaceholder('Password',{exact:true}).fill('export-browser-password-123');await page.getByRole('button',{name:'Sign In',exact:true}).click();await expect(page.getByPlaceholder('Write a note...')).toBeVisible();
+ const session=await page.evaluate(()=>JSON.parse(localStorage.getItem('glass-keep-auth')));
+ const api=async(route,method='GET',body,token=session.token)=>{const r=await fetch(base+'/api'+route,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});assert.ok(r.ok,await r.clone().text());return r.json();};
+ const image={id:'im',name:'pixel.png',src:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl9sAAAAASUVORK5CYII='};
+ const note=await api('/notes','POST',{title:'Personal export',content:'Keep this content',images:[image],items:[],tags:['backup']});await api('/notes/'+note.id+'/archive','POST',{archived:true});
+ await api('/admin/users','POST',{name:'Other',email:'other',password:'other-browser-password-123'});const second=await api('/login','POST',{email:'other',password:'other-browser-password-123'});await api('/notes','POST',{title:'Other private note'},second.token);
+ await page.reload();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.getByRole('button',{name:'Cloud backup',exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Automatic JSON export',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'Automatic JSON export',exact:true});await expect(dialog).toHaveCSS('background-color','rgba(255, 255, 255, 0.95)');
+ const schedule=dialog.getByRole('combobox',{name:'Export every',exact:true});for(const days of [0,1,7,30])await expect(schedule.locator('option[value="'+days+'"]')).toHaveCount(1);
+ const requested=page.waitForEvent('download');await schedule.selectOption('7');const download=await requested;assert.ok(download.suggestedFilename().endsWith('.json'));
+ const {readFile}=await import('node:fs/promises');const bytes=await readFile(await download.path()),data=JSON.parse(bytes);assert.equal(data.notes.length,1);assert.equal(data.notes[0].title,'Personal export');assert.equal(data.notes[0].archived,true);assert.equal(data.notes[0].images[0].src,image.src);assert.ok(!JSON.stringify(data).includes('Other private note'));
+ const key='glass-keep-auto-export-'+session.user.id;await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)).lastRun,key)).toBeGreaterThan(0);
+ await schedule.selectOption('30');await schedule.selectOption('1');let count=0;page.on('download',()=>count++);
+ await page.evaluate(key=>{const s=JSON.parse(localStorage.getItem(key));s.nextRun=1;s.lastRun=1;localStorage.setItem(key,JSON.stringify(s));},key);
+ const overdue=page.waitForEvent('download');await page.reload();await overdue;await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)).lastRun,key)).toBeGreaterThan(1);await page.reload();assert.equal(count,1);
+ await api('/notes/'+note.id,'DELETE');
+ const restored=await api('/notes/import','POST',data);assert.equal(restored.imported,1);assert.equal((await api('/notes/archived'))[0].images[0].src,image.src);
+ const {readBackup}=await import('../src/readBackup.js');const legacy=await readBackup(new File([zipSync({'backup.json':strToU8(JSON.stringify(data))})],'legacy.zip'));const duplicated=await api('/notes/import','POST',{notes:legacy});assert.equal(duplicated.imported,0);
+ const removed=await fetch(base+'/api/cloud-backup',{headers:{Authorization:'Bearer '+session.token}});assert.equal(removed.status,410);
+ assert.deepEqual(errors,[]);
+});
