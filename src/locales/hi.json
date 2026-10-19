@@ -294,5 +294,6 @@
   "Server connection": "सर्वर कनेक्शन",
   "Connected server": "कनेक्ट किया गया सर्वर",
   "Change server": "सर्वर बदलें",
-  "Connection settings": "कनेक्शन सेटिंग्स"
+  "Connection settings": "कनेक्शन सेटिंग्स",
+  "One-time setup by the server owner is needed. After setup, every user can connect their own cloud account without administrator access.": "सर्वर के मालिक को एक बार सेटअप करना होगा। उसके बाद हर उपयोगकर्ता एडमिन अधिकारों के बिना अपना क्लाउड खाता कनेक्ट कर सकता है।"
 }

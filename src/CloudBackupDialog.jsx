@@ -27,7 +27,7 @@ export default function CloudBackupDialog({api,token,onClose,onImport}) {
           {[1,7,30].map(value=><option key={value} value={value}>{t(value===1?'1 day':value===7?'7 days':'30 days')}</option>)}
         </select>
       </label>
-      {!connection.available && <p className="text-sm my-3">{t('This provider has not been enabled on this server. Ask the server owner to complete cloud connection setup.')}</p>}
+      {!connection.available && <p className="text-sm my-3">{t('One-time setup by the server owner is needed. After setup, every user can connect their own cloud account without administrator access.')}</p>}
       {connection.connected && <div className="text-sm my-3 space-y-1">
         <p>{t('Last successful backup')}: {date(connection.lastSuccess)}</p>
         <p>{t('Last check')}: {date(connection.lastChecked)}</p>

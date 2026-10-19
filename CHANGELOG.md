@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8] / Native clients 1.0.2 - 2026-10-18
+### Fixed
+- Cloud backup and other feature dialogs now use the same neutral charcoal background as Settings in dark mode, with a shared surface style in both themes.
+- Cloud setup messages now explain that the server owner registers each provider once; ordinary users then connect their own accounts without administrator access.
+### Distribution
+- Windows x64/ARM64 installers and portable clients, signed Android ARM64 APK, and Apple Silicon/Intel macOS DMGs accompany the release.
+
 ## [1.0.7] - 2026-10-18
 ### Fixed
 - Consistent theme-aware borders for language, local backup and cloud backup controls.

@@ -26,6 +26,8 @@ test('personal cloud settings, ZIP download and direct restore work in the brows
  const open=async()=>{await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Cloud backup',exact:true}).click();};
  await page.reload();await open();const dialog=page.getByRole('dialog',{name:'Cloud backup',exact:true});await expect(dialog).toBeVisible();await expect(dialog.getByText('Google Drive',{exact:true})).toBeVisible();await expect(dialog.getByText('OneDrive',{exact:true})).toBeVisible();
  await expect(dialog.getByRole('button',{name:'Connect',exact:true}).first()).toBeDisabled();
+ await expect(dialog).toHaveCSS('background-color','rgba(255, 255, 255, 0.95)');
+ await expect(dialog.getByText('One-time setup by the server owner is needed. After setup, every user can connect their own cloud account without administrator access.',{exact:true})).toHaveCount(2);
  const select=dialog.getByRole('combobox',{name:'Google Drive: Back up every',exact:true});for(const value of ['1','7','30'])await expect(select.locator(`option[value="${value}"]`)).toHaveCount(1);
  const downloadPromise=page.waitForEvent('download');await dialog.getByRole('button',{name:'Download backup ZIP',exact:true}).click();const download=await downloadPromise;const bytes=await readFile(await download.path());const data=JSON.parse(new TextDecoder().decode(unzipSync(bytes)['backup.json']));assert.equal(data.notes.length,1);assert.equal(data.notes[0].images.length,1);assert.equal(data.notes[0].title,'Personal cloud restore');assert.ok(!JSON.stringify(data).includes('Other private note'));
  await api('/notes/'+note.id,'DELETE');await expect(page.locator('.note-card')).toHaveCount(0);

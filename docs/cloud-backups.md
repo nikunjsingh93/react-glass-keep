@@ -24,6 +24,8 @@ Google Drive uses a visible `Glass Keep Backups …` folder. OneDrive uses a `Gl
 
 The instance owner registers an OAuth application with each provider they want to enable. Ordinary users then connect their own accounts through the provider's sign-in screen; they do not enter client secrets. No shared OAuth credentials are bundled in the Docker image.
 
+This is one-time application setup, not administrator approval for each user. Google and Microsoft need a registered application ID and an approved callback address before they can offer consent and issue tokens. Once the owner configures a provider, every ordinary Glass Keep user can connect their own cloud account independently. The owner does not enter users' cloud passwords or connect a shared cloud account. The server retains each user's authorized tokens to run scheduled backups while their devices are offline. Simply pasting a Drive/OneDrive folder link does not grant permission to upload files.
+
 In Portainer, edit the container/stack environment, add the values below, and recreate/update the container while retaining its existing data mount:
 
 ```env

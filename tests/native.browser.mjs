@@ -59,7 +59,9 @@ test('native client connects, isolates servers, queues offline edits and saves p
     await expect.poll(()=>page.getByLabel('Language',{exact:true}).evaluate(select=>Math.round(select.closest('[aria-hidden]').getBoundingClientRect().right))).toBe(1280);
     await page.screenshot({path:`artifacts/settings-${dark?'dark':'light'}.png`,animations:'disabled'});
   }
-  await page.getByRole('button',{name:'Cloud backup',exact:true}).click();await page.getByRole('button',{name:'Download backup ZIP',exact:true}).click();
+  await page.getByRole('button',{name:'Cloud backup',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Cloud backup',exact:true})).toHaveCSS('background-color','rgb(34, 34, 34)');
+  await page.getByRole('button',{name:'Download backup ZIP',exact:true}).click();
   await expect.poll(()=>saved.length).toBe(1);const backup=JSON.parse(new TextDecoder().decode(unzipSync(saved[0])['backup.json']));assert.equal(backup.notes.length,2);assert.ok(!JSON.stringify(backup).includes('Second server only'));
   await page.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('glass-keep-native-server')),origins[0]);
