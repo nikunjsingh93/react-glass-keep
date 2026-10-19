@@ -36,4 +36,12 @@ test('compiled Windows application connects and writes through the real Rust tra
   const response=await fetch(origin+'/api/notes',{headers:{Authorization:'Bearer '+auth.token}});const notes=await response.json();assert.equal(notes[0].title,'Real Windows Rust transport');
   await page.reload();await expect(page.locator('.note-card').filter({hasText:'Real Windows Rust transport'})).toBeVisible();
   const rejected=await page.evaluate(async()=>{try{await window.__TAURI_INTERNALS__.invoke('api_request',{server:'http://127.0.0.1:18096',path:'//other.example/api/login',method:'GET',headers:{},body:null});return false;}catch{return true;}});assert.equal(rejected,true);assert.deepEqual(errors,[]);
+  if(process.env.GLASS_KEEP_PUBLIC_SERVER){
+    await page.getByRole('button',{name:'Change server',exact:true}).click();
+    await page.getByLabel('Server address',{exact:true}).fill(process.env.GLASS_KEEP_PUBLIC_SERVER);
+    await page.getByRole('button',{name:'Connect',exact:true}).click();
+    await expect(page.getByPlaceholder('Username',{exact:true})).toBeVisible();
+    // Public-server verification stops at login: no account credentials or real notes are used.
+    assert.equal(await page.evaluate(()=>localStorage.getItem('glass-keep-native-server')),new URL(process.env.GLASS_KEEP_PUBLIC_SERVER).origin);
+  }
 });
