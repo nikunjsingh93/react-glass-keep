@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.17] - 2026-10-19
+### Changed
+- Makes Ask AI compact and keeps it beside the search field on phones, tablets and desktops, including Android. Uses the same neutral themed border and hover styling as other controls instead of a solid purple background.
+- Tightens phone header spacing and keeps full accessible labels, busy feedback, duplicate prevention and keyboard submission. Long translated button labels truncate within the available space while preserving their accessible name and tooltip.
+
 ## [1.0.16] - 2026-10-19
 ### Added
 - Russian (Русский) in web and native language settings, sign-in, server connection and startup screens. Includes 338 interface strings and the latest account-wide AI messages; the saved choice also works offline.

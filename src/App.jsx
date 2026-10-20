@@ -2228,13 +2228,13 @@ function NotesUI({
       )}
 
       {/* Header */}
-      <header className="app-header p-4 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
-        <div className="flex items-center gap-3">
+      <header className="app-header p-3 sm:p-6 flex justify-between items-center sticky top-0 z-20 glass-card mb-6">
+        <div className="shrink-0 flex items-center gap-2 sm:gap-3">
           {/* Hamburger - only show when sidebar is not permanent */}
           {!sidebarPermanent && (
             <button
               onClick={openSidebar}
-              className="p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="p-1.5 sm:p-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               title={t("Open tags")}
               aria-label={t("Open tags")}
             >
@@ -2264,13 +2264,13 @@ function NotesUI({
           )}
         </div>
 
-        <div className="min-w-0 flex-grow flex justify-center px-2 sm:px-8">
-          <div className="w-full max-w-lg flex flex-col lg:flex-row items-stretch gap-2">
+        <div className="min-w-0 flex-grow flex justify-center px-1 sm:px-8">
+          <div className="w-full max-w-lg flex flex-row items-center gap-1.5">
             <div className="relative min-w-0 flex-1">
             <input
               type="text"
               placeholder={localAiEnabled ? t("Search or Ask AI...") : t("Search...")}
-              className="w-full h-full bg-transparent border border-[var(--border-light)] rounded-lg pl-4 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
+              className="w-full h-10 bg-transparent border border-[var(--border-light)] rounded-lg pl-3 pr-7 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-500 dark:placeholder-gray-400"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -2297,16 +2297,18 @@ function NotesUI({
               type="button"
               disabled={isAiLoading || search.trim().length < 3}
               aria-busy={isAiLoading}
-              className="min-h-10 inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+              aria-label={t(isAiLoading ? "Asking AI…" : "Ask AI")}
+              title={t(isAiLoading ? "Asking AI…" : "Ask AI")}
+              className="ai-ask-button h-8 max-w-[45%] inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-[var(--border-light)] bg-transparent px-2 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               onClick={() => onAiSearch?.(search)}
             >
-              <Sparkles size={16} className={isAiLoading ? 'animate-pulse' : ''} aria-hidden="true"/>
-              {t(isAiLoading ? "Asking AI…" : "Ask AI")}
+              <span className={`hidden sm:inline-flex shrink-0 [&>svg]:size-3 ${isAiLoading ? 'animate-pulse' : ''}`} aria-hidden="true"><Sparkles/></span>
+              <span className="min-w-0 truncate">{t(isAiLoading ? "Asking AI…" : "Ask AI")}</span>
             </button>}
           </div>
         </div>
 
-        <div className="relative flex items-center gap-3">
+        <div className="relative shrink-0 flex items-center gap-3">
           <span className={`text-sm hidden sm:inline ${dark ? "text-gray-100" : "text-gray-900"}`}>
             {currentUser?.name ? `Hi, ${currentUser.name}` : currentUser?.email}
           </span>

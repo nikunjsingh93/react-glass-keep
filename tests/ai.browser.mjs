@@ -7,6 +7,32 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
 
+async function checkCompactAI(page, native, busy) {
+  for(const language of ['en','hi','fr','ru']) {
+    await page.evaluate(language=>{localStorage.setItem('glass-keep-language',language);window.dispatchEvent(new Event('language-changed'));},language);
+    for(const dark of [false,true]) {
+      await page.locator('html').evaluate((root,dark)=>root.classList.toggle('dark',dark),dark);
+      await expect(page.locator('body')).toHaveCSS('background-color',dark?'rgb(26, 26, 26)':'rgb(240, 242, 245)');
+      for(const width of [320,390,768,1280]) {
+        await page.setViewportSize({width,height:844});await page.mouse.move(0,840);
+        const input=await page.locator('.app-header input[type="text"]').boundingBox();
+        const button=page.locator('.ai-ask-button'),bounds=await button.boundingBox();
+        assert.ok(Math.abs(bounds.y+bounds.height/2-input.y-input.height/2)<1,'Ask AI must stay beside search at every size');
+        assert.equal(bounds.height,32,'Ask AI must use the compact button height');
+        assert.ok(bounds.x>=input.x+input.width&&bounds.x+bounds.width<=width,'Search and AI must not overlap or overflow');
+        assert.ok(input.width>=64,'The search field must remain usable');
+        const logo=await page.locator('.app-header img').boundingBox();
+        assert.ok(logo.x+logo.width<=input.x,'The logo must not overlap the search field');
+        const colors=await button.evaluate(button=>({background:getComputedStyle(button).backgroundColor,border:getComputedStyle(button).borderColor,inputBorder:getComputedStyle(document.querySelector('.app-header input')).borderColor}));
+        assert.equal(colors.background,'rgba(0, 0, 0, 0)','Ask AI must have a neutral transparent background');assert.equal(colors.border,colors.inputBorder);
+        if(width===390&&language==='en')await page.screenshot({path:`artifacts/ai-compact-${native?'native':'web'}-${busy?'busy':'idle'}-${dark?'dark':'light'}.png`});
+      }
+    }
+  }
+  await page.evaluate(()=>{localStorage.setItem('glass-keep-language','en');window.dispatchEvent(new Event('language-changed'));document.documentElement.classList.remove('dark');});
+  await page.setViewportSize({width:1280,height:844});
+}
+
 test('web and native clients display partial AI answers, source links, cancellation and clear errors',async t=>{
   const dir=await mkdtemp(path.join(tmpdir(),'glass-ai-browser-')),children=[],base='http://127.0.0.1:18101';
   children.push(spawn(process.execPath,['server/index.js'],{env:{...process.env,NODE_ENV:'production',API_PORT:'18101',DB_FILE:path.join(dir,'notes.db'),JWT_SECRET:'ai-browser-fixture',INITIAL_ADMIN_USERNAME:'operator',INITIAL_ADMIN_PASSWORD:'ai-browser-password-123'},stdio:'ignore'}));
@@ -46,6 +72,7 @@ test('web and native clients display partial AI answers, source links, cancellat
     await setPreference(false);await expect(page.getByPlaceholder('Search...', {exact:true})).toBeVisible({timeout:15000});
     await setPreference(true);await expect(search).toBeVisible({timeout:15000});
     const ask=page.getByRole('button',{name:'Ask AI',exact:true});await expect(ask).toBeVisible();await expect(ask).toBeDisabled();
+    await checkCompactAI(page,native,false);
     await search.fill('ab');await expect(ask).toBeDisabled();
     await search.fill('Which books should I read?');await expect(ask).toBeEnabled();await ask.click();
     await expect(page.getByRole('button',{name:'Asking AI…',exact:true})).toBeDisabled();
@@ -62,6 +89,7 @@ test('web and native clients display partial AI answers, source links, cancellat
     mode='wait';await search.fill('Cancel this question');await search.press('Enter');await expect(page.getByText('Loading AI model…',{exact:true})).toBeVisible();
     await page.setViewportSize({width:390,height:844});
     const busy=page.getByRole('button',{name:'Asking AI…',exact:true});await expect(busy).toBeVisible();
+    await checkCompactAI(page,native,true);await page.setViewportSize({width:390,height:844});
     const bounds=await busy.boundingBox();assert.ok(bounds.x>=0&&bounds.x+bounds.width<=390,'The labeled button must fit on a phone');
     for(const width of [320,768]){await page.setViewportSize({width,height:844});const box=await busy.boundingBox();assert.ok(box.x>=0&&box.x+box.width<=width,'The button must fit narrow and tablet screens');}
     await page.setViewportSize({width:390,height:844});
