@@ -17,7 +17,13 @@ test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep
  for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));if(i===99)throw Error(logs);}
  const browser=await chromium.launch({channel:'msedge',headless:true});t.after(()=>browser.close());
  const context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(base);await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('ru');
+ await page.goto(base);await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('de');
+ await expect(page.getByRole('button',{name:'Anmelden',exact:true})).toBeVisible();
+ await expect(page.getByPlaceholder('Benutzername',{exact:true})).toBeVisible();
+ await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','de');
+ await expect(page.getByRole('combobox',{name:'Sprache',exact:true})).toHaveValue('de');
+ await page.getByRole('combobox',{name:'Sprache',exact:true}).selectOption('en');
+ await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('ru');
  await expect(page.getByRole('button',{name:'Войти',exact:true})).toBeVisible();
  await expect(page.getByPlaceholder('Имя пользователя',{exact:true})).toBeVisible();
  await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','ru');
@@ -35,6 +41,20 @@ test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep
  await page.getByPlaceholder('Username',{exact:true}).fill('operator');await page.getByPlaceholder('Password',{exact:true}).fill('browser-features-password-123');await page.getByRole('button',{name:'Sign In',exact:true}).click();
  await expect(page.getByPlaceholder('Write a note...')).toBeVisible();
  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('de');
+ await expect(page.getByRole('heading',{name:'Einstellungen',exact:true})).toBeVisible();
+ await page.locator('.settings-surface').getByText('Lokaler KI-Assistent',{exact:true}).locator('../..').getByRole('button').click();
+ await expect(page.getByRole('heading',{name:'KI-Assistent aktivieren?',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Abbrechen',exact:true}).click();
+ await page.setViewportSize({width:390,height:844});
+ await page.screenshot({path:'artifacts/german-settings-phone.png',animations:'disabled'});
+ await page.setViewportSize({width:1280,height:1000});
+ await page.getByRole('button',{name:'Automatischer JSON-Export',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Automatischer JSON-Export',exact:true})).toBeVisible();
+ await expect(page.getByRole('combobox',{name:'Exportieren alle',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Schließen',exact:true}).click();
+ await page.getByRole('button',{name:'Menü',exact:true}).click();await page.getByRole('button',{name:'Einstellungen',exact:true}).click();
+ await page.getByRole('combobox',{name:'Sprache',exact:true}).selectOption('en');
  await page.getByRole('combobox',{name:'Language',exact:true}).selectOption('ru');
  await expect(page.getByRole('heading',{name:'Настройки',exact:true})).toBeVisible();
  await page.locator('.settings-surface').getByText('Локальный ИИ-ассистент',{exact:true}).locator('../..').getByRole('button').click();

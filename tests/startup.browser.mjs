@@ -26,7 +26,7 @@ test('web and native startup screens are centered and use saved/system themes be
     await page.screenshot({path:`artifacts/startup-${platform?'native':'web'}-${dark?'dark':'light'}.png`});
     await context.close();
   }
-  for(const url of urls)for(const [language,text] of [['fr','Chargement de Glass Keep…'],['ru','Загрузка Glass Keep…']]) {
+  for(const url of urls)for(const [language,text] of [['de','Glass Keep wird geladen…'],['fr','Chargement de Glass Keep…'],['ru','Загрузка Glass Keep…']]) {
     const context=await browser.newContext({reducedMotion:'reduce'}),page=await context.newPage();
     await page.addInitScript(language=>localStorage.setItem('glass-keep-language',language),language);
     await page.route(/\/assets\/.*\.js$/,route=>route.fulfill({contentType:'application/javascript',body:''}));await page.goto(url);await expect(page.locator('.startup-spinner')).toHaveCSS('animation-name','none');

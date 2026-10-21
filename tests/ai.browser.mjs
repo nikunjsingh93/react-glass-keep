@@ -8,7 +8,7 @@ import path from 'node:path';
 import {once} from 'node:events';
 
 async function checkCompactAI(page, native, busy) {
-  for(const language of ['en','hi','fr','ru']) {
+  for(const language of ['en','de','hi','fr','ru']) {
     await page.evaluate(language=>{localStorage.setItem('glass-keep-language',language);window.dispatchEvent(new Event('language-changed'));},language);
     for(const dark of [false,true]) {
       await page.locator('html').evaluate((root,dark)=>root.classList.toggle('dark',dark),dark);

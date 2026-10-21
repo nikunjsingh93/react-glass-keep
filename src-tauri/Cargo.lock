@@ -1405,7 +1405,7 @@ dependencies = [
 
 [[package]]
 name = "glass-keep"
-version = "1.0.17"
+version = "1.0.18"
 dependencies = [
  "base64 0.22.1",
  "reqwest 0.12.28",

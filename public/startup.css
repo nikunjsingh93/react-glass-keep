@@ -5,6 +5,6 @@ body{margin:0;background:var(--startup-bg)}
 .startup-screen img{width:80px;height:80px;display:block}
 .startup-screen p{margin:0}
 .startup-spinner{width:28px;height:28px;border:3px solid transparent;border-top-color:var(--startup-accent);border-right-color:var(--startup-accent);border-radius:50%;animation:startup-spin .8s linear infinite}
-.startup-hi,.startup-fr,.startup-ru{display:none}html:lang(hi) .startup-en,html:lang(fr) .startup-en,html:lang(ru) .startup-en{display:none}html:lang(hi) .startup-hi,html:lang(fr) .startup-fr,html:lang(ru) .startup-ru{display:inline}
+.startup-de,.startup-hi,.startup-fr,.startup-ru{display:none}html:lang(de) .startup-en,html:lang(hi) .startup-en,html:lang(fr) .startup-en,html:lang(ru) .startup-en{display:none}html:lang(de) .startup-de,html:lang(hi) .startup-hi,html:lang(fr) .startup-fr,html:lang(ru) .startup-ru{display:inline}
 @keyframes startup-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.startup-spinner{animation:none}}

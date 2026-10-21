@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.18] - 2026-10-21
+### Added
+- German (Deutsch) across the shared web, Windows, macOS and Android interface, including sign-in, server connection, Settings, AI controls and startup/loading screens. The saved language remains available offline; existing notes keep their original content.
+- Incorporates all 338 German translations contributed by [piwanowitsch](https://github.com/piwanowitsch) in [PR #35](https://github.com/nikunjsingh93/react-glass-keep/pull/35), with corrected language registration and full startup integration.
+### Validation
+- Checks translation coverage/placeholders, German selection and persistence, translated settings and exports, startup text before React loads, and compact AI layout in all five languages.
+
 ## [1.0.17] - 2026-10-19
 ### Changed
 - Makes Ask AI compact and keeps it beside the search field on phones, tablets and desktops, including Android. Uses the same neutral themed border and hover styling as other controls instead of a solid purple background.

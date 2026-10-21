@@ -4,7 +4,7 @@
 
 ## Connect and use
 
-Choose English, हिन्दी, Français or Русский on the server-connection/sign-in screen or in Settings. The choice is remembered on this device and the translations are bundled for offline use. Note titles and content are not translated.
+Choose English, Deutsch, हिन्दी, Français or Русский on the server-connection/sign-in screen or in Settings. The choice is remembered on this device and the translations are bundled for offline use. Note titles and content are not translated.
 
 1. Install the Windows setup executable for your processor (x64 for most PCs, ARM64 for Windows on ARM), or the signed ARM64 APK for Android 7.0 and newer.
 2. Start Glass Keep and enter the public server origin, such as `https://keep.example.com`. Do not include `/api`, a path, or a login token.

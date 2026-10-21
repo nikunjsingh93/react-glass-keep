@@ -444,7 +444,7 @@ This lets sign-in rate limiting identify individual users from the forwarded cli
 
 ### Web features
 
-- **Language:** choose English, हिन्दी, Français or Русский on the sign-in screen or in Settings (also on the native server-connection screen). The choice is remembered on this device, including offline use. Notes are kept in their original language.
+- **Language:** choose English, Deutsch, हिन्दी, Français or Русский on the sign-in screen or in Settings (also on the native server-connection screen). The choice is remembered on this device, including offline use. Notes are kept in their original language.
 - **Grid:** recent notes start left to right, with subsequent notes filling the shortest column to avoid blank row spaces. Pinned notes remain in their own section.
 - **Tags:** existing tags appear as suggestions in the editor. Select several tags in the sidebar to show notes matching **all** selected tags. Choose Notes (All) to clear the filter.
 - **Selection:** Menu → Multi select → Select all filtered selects the current search/tag results. Changing the search or tags clears the selection. Review the confirmation before bulk deletion.
