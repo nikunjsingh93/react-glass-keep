@@ -2976,6 +2976,7 @@ export default function App() {
   const [, setLanguageVersion] = useState(getLanguage());
   useEffect(() => { const changed=()=>{document.documentElement.lang=getLanguage();setLanguageVersion(getLanguage());}; changed();window.addEventListener("language-changed",changed);return()=>window.removeEventListener("language-changed",changed); }, []);
   const [keepImportOpen,setKeepImportOpen]=useState(false);
+  const [keepImportFiles,setKeepImportFiles]=useState(null);
   const [duplicatesOpen,setDuplicatesOpen]=useState(false);
   const [autoExportOpen,setAutoExportOpen]=useState(false);
 
@@ -4374,9 +4375,9 @@ export default function App() {
   };
 
   const importAll = async (fileList) => {
+    const file = fileList?.[0];
     try {
-      if (!fileList || !fileList.length) return;
-      const file = fileList[0];
+      if (!file) return;
       const notesArr = await readBackup(file);
       if (!notesArr.length) { alert(t("No notes found in file.")); return; }
       let imported=0,skipped=0;
@@ -4384,7 +4385,8 @@ export default function App() {
       await loadNotes();
       alert(t('Imported {count} notes. Skipped {skipped} duplicate notes.',{count:imported,skipped}));
     } catch (e) {
-      alert(e.message || "Import failed");
+      if(e.code==='GOOGLE_KEEP_TAKEOUT'){setKeepImportFiles([file]);setKeepImportOpen(true);return;}
+      alert(t(e.message || "Import failed"));
     }
   };
 
@@ -6117,7 +6119,7 @@ export default function App() {
       <OfflineStatus client={offlineClient} onSynced={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>
       {!networkOnline && <p role="status" className="text-center bg-amber-100 text-gray-900 p-2">{t("You are offline. Changes are saved on this device and will sync when you reconnect.")}</p>}
       {autoExportOpen && <React.Suspense fallback={null}><AutoExportDialog backup={autoExport} onClose={()=>setAutoExportOpen(false)} onImport={()=>importFileRef.current?.click()}/></React.Suspense>}
-      {keepImportOpen && <KeepImportDialog api={api} token={token} onClose={()=>setKeepImportOpen(false)} onImported={loadNotes}/>}
+      {keepImportOpen && <KeepImportDialog api={api} token={token} initialFiles={keepImportFiles} onClose={()=>{setKeepImportOpen(false);setKeepImportFiles(null);}} onImported={loadNotes}/>}
       {duplicatesOpen && <DuplicateDialog api={api} token={token} onClose={()=>setDuplicatesOpen(false)} onChanged={loadNotes}/>}
       <datalist id="existing-tags">{tagsWithCounts.map(({tag})=><option key={tag} value={tag}/>)}</datalist>
       {/* Tag Sidebar / Drawer */}

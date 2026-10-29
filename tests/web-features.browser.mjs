@@ -8,6 +8,7 @@ import path from 'node:path';
 import {once} from 'node:events';
 import {zipSync,strToU8} from 'fflate';
 import {checkSelectionToolbar} from './selection-toolbar.mjs';
+import {largeTakeoutFixture,largeTakeoutImage} from './large-takeout-fixture.mjs';
 
 test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep links and offline edits work in browser',async t=>{
  const dir=await mkdtemp(path.join(tmpdir(),'glass-features-')),base='http://127.0.0.1:18090';
@@ -116,6 +117,16 @@ test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep
  await page.getByLabel('ZIP or JSON files',{exact:true}).setInputFiles({name:'takeout.zip',mimeType:'application/zip',buffer:Buffer.from(zipped)});
  await expect(page.getByText('Notes ready: 1',{exact:false})).toBeVisible();await page.getByRole('button',{name:'Import',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Imported: 1');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
  assert.equal((await api('/notes')).find(n=>n.title==='Browser ZIP import').images.length,1);
+ const largePath=path.join(dir,'takeout-450MiB.zip');await largeTakeoutFixture().writeTo(largePath);
+ await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+ const picker=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Import backup (.json / .zip)',exact:false}).click();await(await picker).setFiles(largePath);
+ await expect(page.getByRole('dialog',{name:'Import Google Keep',exact:true})).toBeVisible();
+ await expect(page.getByText('Notes ready: 1',{exact:false})).toBeVisible();
+ await page.getByRole('button',{name:'Import',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Imported: 1');
+ await page.screenshot({path:'artifacts/large-takeout-import.png',animations:'disabled'});
+ await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
+ const largeNote=(await api('/notes')).find(n=>n.title==='Large Takeout fixture');assert.equal(largeNote.images[0].src,'data:image/png;base64,'+largeTakeoutImage.toString('base64'));
+ await expect.poll(()=>page.locator('.note-card').filter({hasText:'Large Takeout fixture'}).locator('img').first().evaluate(image=>image.naturalWidth)).toBe(32);
   await page.goto(base+'/#/notes/'+one.id);
  await page.getByRole('button',{name:'More options',exact:true}).click();
  await page.getByRole('button',{name:'Public sharing',exact:true}).click();

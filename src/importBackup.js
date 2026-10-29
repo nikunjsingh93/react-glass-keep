@@ -8,7 +8,7 @@ export async function importNoteBatches(notes, send, maxBytes = 10 * 1024 * 1024
     batch = []; bytes = 12;
   };
   try {
-    for (const note of notes) {
+    for await (const note of notes) {
       const size = new TextEncoder().encode(JSON.stringify(note)).byteLength + 1;
       if (size + 12 > 19 * 1024 * 1024) throw new Error('One note exceeds the API upload limit.');
       if (batch.length && bytes + size > maxBytes) await flush();
@@ -17,6 +17,6 @@ export async function importNoteBatches(notes, send, maxBytes = 10 * 1024 * 1024
     await flush();
     return imported;
   } catch (error) {
-    throw new Error(`Import stopped after ${imported} notes. ${error.message}`);
+    throw Object.assign(new Error(`Import stopped after ${imported} notes. ${error.message}`),{imported,cause:error});
   }
 }

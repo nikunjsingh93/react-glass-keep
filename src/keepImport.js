@@ -1,5 +1,5 @@
-import {unzip} from 'fflate';
-const MAX_BYTES=100*1024*1024;
+import {openZipArchive,importPath,ZIP_LIMITS} from './zipArchive.js';
+const MAX_JSON=2*1024*1024, MAX_METADATA=64*1024*1024, MAX_ATTACHMENT=12*1024*1024;
 const imageTypes={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp'};
 const colorMap={DEFAULT:'default',RED:'red',ORANGE:'peach',YELLOW:'yellow',GREEN:'green',TEAL:'mint',BLUE:'blue',CERULEAN:'sky',PURPLE:'purple',PINK:'mauve',BROWN:'sand',GRAY:'sage'};
 const safePath=p=>String(p).replaceAll('\\','/').replace(/^\.\//,'');
@@ -8,29 +8,38 @@ function dataURL(bytes,name) {
   let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));
   return `data:${type};base64,${btoa(binary)}`;
 }
-export async function readKeepFiles(files) {
-  const entries=new Map();let total=0;
+export async function readKeepFiles(files,{signal,onProgress}={}) {
+  const entries=new Map();let total=0,metadata=0;
+  const add=(name,entry)=>{
+    name=importPath(name);total+=entry.size;
+    if(entries.has(name)||entries.size>=ZIP_LIMITS.entries||total>ZIP_LIMITS.expanded)throw new Error('ZIP exceeds the safe import limits or contains invalid paths.');
+    entries.set(name,entry);
+  };
   for(const file of Array.from(files || [])) {
-    if(file.size>MAX_BYTES)throw new Error('Import files must be smaller than 100 MB.');
+    signal?.throwIfAborted();
     if(/\.zip$/i.test(file.name)) {
-      let rejected=false,announced=0,count=0;
-      const zipBytes=new Uint8Array(await file.arrayBuffer());
-      const result=await new Promise((resolve,reject)=>unzip(zipBytes,{filter:info=>{
-        announced+=info.originalSize;count++;
-        if(announced+total>MAX_BYTES || count>5000 || safePath(info.name).split('/').includes('..')){rejected=true;return false;}
-        return true;
-      }},(error,result)=>error?reject(error):resolve(result)));
-      if(rejected)throw new Error('ZIP exceeds the safe import limits or contains invalid paths.');
-      for(const [name,data] of Object.entries(result)){total+=data.byteLength;entries.set(safePath(name),data);}
-    } else {total+=file.size;if(total>MAX_BYTES)throw new Error('Import exceeds 100 MB.');entries.set(safePath(file.webkitRelativePath || file.name),new Uint8Array(await file.arrayBuffer()));}
+      for(const [name,entry] of await openZipArchive(file,{signal}))add(name,entry);
+    } else add(file.webkitRelativePath || file.name,{size:file.size,async read({maxBytes,signal}={}){
+      signal?.throwIfAborted();if(file.size>maxBytes)throw new Error('One import file exceeds the safe per-file limit.');
+      const data=new Uint8Array(await file.arrayBuffer());signal?.throwIfAborted();return data;
+    }});
+  }
+  const hasKeepFolder=[...entries.keys()].some(name=>/(^|\/)Keep\/.*\.json$/i.test(name));
+  for(const [name,entry] of entries) {
+    if(!/\.json$/i.test(name)||(hasKeepFolder&&!/(^|\/)Keep\//i.test(name)))continue;
+    metadata+=entry.size;if(metadata>MAX_METADATA)throw new Error('The export contains too much note metadata. Import smaller folders instead.');
+    entries.set(name,await entry.read({maxBytes:MAX_JSON,signal}));onProgress?.();
   }
   return entries;
 }
 export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
-  const notes=[],warnings=[];let skipped=0;
+  const notes=[],warnings=[],byName=new Map();let skipped=0;
+  for(const name of entries.keys()){const base=name.split('/').pop();if(!byName.has(base))byName.set(base,[]);byName.get(base).push(name);}
   for(const [name,bytes] of entries) {
-    if(!/\.json$/i.test(name))continue;
+    if(!/\.json$/i.test(name)||!(bytes instanceof Uint8Array))continue;
     let obj;try{obj=JSON.parse(new TextDecoder().decode(bytes));}catch{warnings.push(`Invalid JSON: ${name}`);continue;}
+    if(!obj||Array.isArray(obj)||typeof obj!=='object'||typeof obj.title!=='string'||!['textContent','listContent','createdTimestampUsec','userEditedTimestampUsec','isArchived','sharees'].some(key=>key in obj))continue;
+    try {
     if(obj.isTrashed){skipped++;continue;}
     const sharees=Array.isArray(obj.sharees)?obj.sharees:[];
     const owner=sharees.find(s=>s.isOwner===true);
@@ -47,15 +56,34 @@ export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
     for(const attachment of obj.attachments || []) {
       const filePath=safePath(attachment.filePath || '');
       const relative=name.slice(0,name.lastIndexOf('/')+1)+filePath;
-      let data=entries.get(relative) || entries.get(filePath);
-      if(!data){const matches=[...entries].filter(([p])=>p.endsWith('/'+filePath));if(matches.length===1)data=matches[0][1];}
+      let entryName=entries.has(relative)?relative:entries.has(filePath)?filePath:null;
+      if(!entryName){const matches=(byName.get(filePath.split('/').pop()) || []).filter(p=>p.endsWith('/'+filePath));if(matches.length===1)entryName=matches[0];}
+      const data=entries.get(entryName);
       if(!data){warnings.push(`Missing attachment: ${filePath}`);continue;}
-      const src=dataURL(data,filePath);if(src)images.push({id:crypto.randomUUID(),name:filePath.split('/').pop(),src});else warnings.push(`Unsupported attachment: ${filePath}`);
+      if(!imageTypes[filePath.split('.').pop()?.toLowerCase()]){warnings.push(`Unsupported attachment: ${filePath}`);continue;}
+      images.push({id:crypto.randomUUID(),name:filePath.split('/').pop(),src:data instanceof Uint8Array?dataURL(data,filePath):null,...(data instanceof Uint8Array?{}:{entryName})});
     }
     const ms=Number(obj.userEditedTimestampUsec || obj.createdTimestampUsec || 0)/1000 || Date.now();
     notes.push({id:crypto.randomUUID(),type:items.length?'checklist':'text',title:String(obj.title || ''),content:items.length?'':String(obj.textContent || ''),items,
       tags:(obj.labels || []).map(l=>l.name).filter(Boolean),images,color:colorMap[obj.color] || 'default',pinned:!!obj.isPinned,archived:!!obj.isArchived,
       timestamp:new Date(ms).toISOString(),position:ms,collaborators:sharees.filter(s=>!s.isOwner && s.email && (!s.type || s.type==='USER')).map(s=>({email:s.email}))});
+    } catch { warnings.push(`Invalid JSON: ${name}`); }
   }
   return {notes,warnings,skipped};
+}
+
+export async function* keepNotesWithAttachments(notes,entries,{signal}={}) {
+  for(const note of notes){
+    signal?.throwIfAborted();const images=[];
+    let budget=new TextEncoder().encode(JSON.stringify({...note,images:[]})).byteLength;
+    for(const image of note.images){
+      if(!image.entryName){images.push(image);continue;}
+      const entry=entries.get(image.entryName);
+      budget+=Math.ceil(entry.size/3)*4+new TextEncoder().encode(JSON.stringify({id:image.id,name:image.name,src:''})).byteLength+128;
+      if(budget>19*1024*1024)throw new Error('One note exceeds the API upload limit.');
+      const data=await entry.read({maxBytes:MAX_ATTACHMENT,signal});
+      images.push({id:image.id,name:image.name,src:dataURL(data,image.name)});
+    }
+    yield {...note,images};
+  }
 }

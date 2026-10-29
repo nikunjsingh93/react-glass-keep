@@ -336,5 +336,18 @@
   "AI enabled for your account on all devices. The model is downloaded once on your server, only if needed.": "ИИ включён для вашего аккаунта на всех устройствах. При необходимости модель загружается на сервер только один раз.",
   "Could not save your AI setting. Connect to your updated server and try again.": "Не удалось сохранить настройку ИИ. Подключитесь к обновлённому серверу и попробуйте ещё раз.",
   "Enable AI for your account on all devices? Your server downloads the 533 MB model once, only if it is not already cached. No model is downloaded to your phone or computer. AI uses server CPU and RAM while answering and unloads after 60 idle seconds. Continue?": "Включить ИИ для вашего аккаунта на всех устройствах? Сервер один раз загрузит модель размером 533 МБ, если её ещё нет в кэше. На телефон или компьютер модель не загружается. Во время ответа ИИ использует процессор и оперативную память сервера и выгружается через 60 секунд бездействия. Продолжить?",
-  "Enable AI Assistant?": "Включить ИИ-ассистента?"
+  "Enable AI Assistant?": "Включить ИИ-ассистента?",
+  "The ZIP archive is damaged or unsupported. Extract it and choose the Takeout folder instead.": "ZIP-архив повреждён или не поддерживается. Распакуйте его и выберите папку Takeout.",
+  "ZIP archives must be 2 GB or smaller. Extract the archive and choose the Takeout folder instead.": "Размер ZIP-архива не должен превышать 2 ГБ. Распакуйте его и выберите папку Takeout.",
+  "ZIP exceeds the safe import limits or contains invalid paths.": "ZIP превышает безопасные ограничения импорта или содержит недопустимые пути.",
+  "One import file exceeds the safe per-file limit.": "Один из файлов превышает безопасный предел размера файла.",
+  "The export contains too much note metadata. Import smaller folders instead.": "Экспорт содержит слишком много метаданных заметок. Импортируйте папки меньшего размера.",
+  "Use Import Google Keep for Takeout ZIPs; Import backup is for Glass Keep JSON or ZIP backups.": "Для ZIP Takeout используйте «Импорт Google Keep». «Импорт резервной копии» предназначен для JSON- или ZIP-копий Glass Keep.",
+  "Large exports are supported. For low-memory devices, extract the ZIP and choose the Takeout folder.": "Поддерживаются большие экспорты. На устройствах с небольшим объёмом памяти распакуйте ZIP и выберите папку Takeout.",
+  "Reading Google Keep export…": "Чтение экспорта Google Keep…",
+  "Importing {done} of {total} notes…": "Импорт заметок: {done} из {total}…",
+  "Showing the first {count} notes.": "Показаны первые {count} заметок.",
+  "No Google Keep notes were found. Choose a Google Keep Takeout ZIP or folder.": "Заметки Google Keep не найдены. Выберите ZIP или папку Google Keep Takeout.",
+  "Import stopped after {count} notes. {reason}": "Импорт остановлен после {count} заметок. {reason}",
+  "One note exceeds the API upload limit.": "Одна заметка превышает допустимый размер загрузки на сервер."
 }

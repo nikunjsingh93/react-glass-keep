@@ -100,7 +100,7 @@ Download Windows `.exe`, Android `.apk`, and macOS `.dmg` clients from the [GitH
   * **Export all** notes (JSON) and **Import** JSON/ZIP (merges; keeps existing notes)
   * **Automatic JSON exports:** download your notes every 1/7/30 days while the app is open, then sync the download folder yourself with Syncthing or another service. No cloud-provider setup is required. See the [export and restore guide](docs/automatic-exports.md).
   * Per-note **Download .md**
-  * Import from Google Keep (Google Takeout) — pick multiple .json files in one go to bring your Keep notes over. ✅ NEW
+  * Import from Google Keep (Google Takeout) — choose a ZIP, an extracted Keep folder or JSON files, with attachment previews and batched uploads. See the [large Takeout import guide](docs/google-keep-import.md).
   * Backend: **Express API + SQLite** (`better-sqlite3`)
 * **UI/Theme** ✅ IMPROVED
 

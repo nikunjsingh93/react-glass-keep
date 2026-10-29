@@ -336,5 +336,18 @@
   "AI enabled for your account on all devices. The model is downloaded once on your server, only if needed.": "KI für Ihr Konto auf allen Geräten aktiviert. Das Modell wird nur bei Bedarf und einmalig auf Ihren Server heruntergeladen.",
   "Could not save your AI setting. Connect to your updated server and try again.": "Die KI-Einstellung konnte nicht gespeichert werden. Verbinden Sie sich mit Ihrem aktualisierten Server und versuchen Sie es erneut.",
   "Enable AI for your account on all devices? Your server downloads the 533 MB model once, only if it is not already cached. No model is downloaded to your phone or computer. AI uses server CPU and RAM while answering and unloads after 60 idle seconds. Continue?": "KI für Ihr Konto auf allen Geräten aktivieren? Ihr Server lädt das 533 MB große Modell einmalig herunter, sofern es nicht bereits im Cache liegt. Auf Ihr Smartphone oder Ihren Computer wird kein Modell heruntergeladen. Die KI beansprucht beim Antworten CPU und RAM des Servers und wird nach 60 Sekunden Inaktivität entladen. Fortfahren?",
-  "Enable AI Assistant?": "KI-Assistent aktivieren?"
+  "Enable AI Assistant?": "KI-Assistent aktivieren?",
+  "The ZIP archive is damaged or unsupported. Extract it and choose the Takeout folder instead.": "Das ZIP-Archiv ist beschädigt oder wird nicht unterstützt. Entpacken Sie es und wählen Sie den Takeout-Ordner.",
+  "ZIP archives must be 2 GB or smaller. Extract the archive and choose the Takeout folder instead.": "ZIP-Archive dürfen höchstens 2 GB groß sein. Entpacken Sie das Archiv und wählen Sie den Takeout-Ordner.",
+  "ZIP exceeds the safe import limits or contains invalid paths.": "Das ZIP-Archiv überschreitet die sicheren Importgrenzen oder enthält ungültige Pfade.",
+  "One import file exceeds the safe per-file limit.": "Eine Importdatei überschreitet die sichere Größenbegrenzung pro Datei.",
+  "The export contains too much note metadata. Import smaller folders instead.": "Der Export enthält zu viele Notizmetadaten. Importieren Sie kleinere Ordner.",
+  "Use Import Google Keep for Takeout ZIPs; Import backup is for Glass Keep JSON or ZIP backups.": "Verwenden Sie Google Keep importieren für Takeout-ZIPs. Backup importieren ist für JSON- oder ZIP-Backups von Glass Keep vorgesehen.",
+  "Large exports are supported. For low-memory devices, extract the ZIP and choose the Takeout folder.": "Große Exporte werden unterstützt. Entpacken Sie auf Geräten mit wenig Arbeitsspeicher das ZIP und wählen Sie den Takeout-Ordner.",
+  "Reading Google Keep export…": "Google-Keep-Export wird gelesen…",
+  "Importing {done} of {total} notes…": "{done} von {total} Notizen werden importiert…",
+  "Showing the first {count} notes.": "Die ersten {count} Notizen werden angezeigt.",
+  "No Google Keep notes were found. Choose a Google Keep Takeout ZIP or folder.": "Keine Google-Keep-Notizen gefunden. Wählen Sie ein Google-Keep-Takeout-ZIP oder einen entsprechenden Ordner.",
+  "Import stopped after {count} notes. {reason}": "Import nach {count} Notizen angehalten. {reason}",
+  "One note exceeds the API upload limit.": "Eine Notiz überschreitet die Upload-Grenze des Servers."
 }

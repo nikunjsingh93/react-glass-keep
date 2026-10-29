@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import 'fake-indexeddb/auto';
 import {createOfflineClient,accountState} from '../src/offline.js';
 import {treeOrder,toggleBranch,moveBranch,indentBranch,removeBranch} from '../src/checklist.js';
-import {parseKeepEntries,readKeepFiles} from '../src/keepImport.js';
+import {parseKeepEntries,readKeepFiles,keepNotesWithAttachments} from '../src/keepImport.js';
 import {zipSync,strToU8} from 'fflate';
 
 test('nested checklist branches move, indent and toggle as a unit',()=>{
@@ -18,11 +18,12 @@ test('nested checklist branches move, indent and toggle as a unit',()=>{
 test('Keep ZIP imports images, nested items, archive and sharing without importing other owners by default',async()=>{
   const entries={'Takeout/Keep/note.json':strToU8(JSON.stringify({title:'Shopping',isArchived:true,listContent:[{id:'a',text:'Food'},{id:'b',text:'Milk',superListItemId:'a'}],attachments:[{filePath:'image.png'}],sharees:[{email:'partner@example.com',type:'USER'}]})), 'Takeout/Keep/image.png':new Uint8Array([137,80,78,71]),'Takeout/Keep/shared.json':strToU8(JSON.stringify({title:'Shared',sharees:[{email:'other@example.com',isOwner:true}]}))};
   const bytes=zipSync(entries);
-  const files=await readKeepFiles([{name:'takeout.zip',size:bytes.length,arrayBuffer:async()=>bytes.buffer}]);
+  const files=await readKeepFiles([new File([bytes],'takeout.zip')]);
   const result=parseKeepEntries(files);
-  assert.equal(result.notes.length,1);assert.equal(result.skipped,1);assert.equal(result.notes[0].items[1].parentId,'a');assert.equal(result.notes[0].archived,true);assert.match(result.notes[0].images[0].src,/^data:image\/png;base64,/);assert.deepEqual(result.notes[0].collaborators,[{email:'partner@example.com'}]);assert.deepEqual(result.warnings,[]);
+  const hydrated=[];for await(const note of keepNotesWithAttachments(result.notes,files))hydrated.push(note);
+  assert.equal(result.notes.length,1);assert.equal(result.skipped,1);assert.equal(result.notes[0].items[1].parentId,'a');assert.equal(result.notes[0].archived,true);assert.match(hydrated[0].images[0].src,/^data:image\/png;base64,/);assert.deepEqual(result.notes[0].collaborators,[{email:'partner@example.com'}]);assert.deepEqual(result.warnings,[]);
   assert.equal(parseKeepEntries(files,{onlyOwned:false}).notes.length,2);
-  const bad=zipSync({'../note.json':strToU8('{}')});await assert.rejects(()=>readKeepFiles([{name:'bad.zip',size:bad.length,arrayBuffer:async()=>bad.buffer}]),/invalid paths/);
+  const bad=zipSync({'../note.json':strToU8('{}')});await assert.rejects(()=>readKeepFiles([new File([bad],'bad.zip')]),/invalid paths/);
 });
 
 test('offline outbox survives client recreation, advances revisions, isolates accounts and exposes conflicts',async()=>{

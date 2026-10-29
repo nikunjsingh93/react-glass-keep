@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.19] - 2026-10-28
+### Fixed
+- Handles large Google Keep Takeout ZIPs without the old 100 MiB eager-import cap: indexes ZIP metadata with file slices and reads attachments one note at a time into bounded API batches.
+- Recognizes Takeout ZIPs selected through Import backup and opens the correct Google Keep importer before the unrelated 200 MiB backup limit is applied. Addresses the workflow reported in issue #37.
+- Adds reading/import progress, bounded previews, cancellation between batches and translated guidance. Preserves ownership filtering, duplicate detection, optional sharing restoration and existing JSON/ZIP backup compatibility.
+- Retains archive, metadata, per-file and per-note limits with CRC/path/expanded-size validation; documents extracted-folder fallback for ZIP64 and other unsupported archive formats.
+### Validation
+- Tests include a synthetic 450 MiB Takeout ZIP through the actual web file picker, bounded reads, deferred attachments, safe paths, corrupt/oversize entries, streamed descriptors, Unicode names, cancellation and existing import/export behavior. The reporter's private archive was not available for testing.
+
 ## [1.0.18] - 2026-10-21
 ### Added
 - German (Deutsch) across the shared web, Windows, macOS and Android interface, including sign-in, server connection, Settings, AI controls and startup/loading screens. The saved language remains available offline; existing notes keep their original content.

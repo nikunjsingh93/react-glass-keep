@@ -336,5 +336,18 @@
   "AI enabled for your account on all devices. The model is downloaded once on your server, only if needed.": "आपके खाते के सभी डिवाइस पर AI चालू है। ज़रूरत होने पर मॉडल केवल एक बार आपके सर्वर पर डाउनलोड होता है।",
   "Could not save your AI setting. Connect to your updated server and try again.": "AI सेटिंग सेव नहीं हुई। अपडेट किए गए सर्वर से जुड़ें और फिर कोशिश करें।",
   "Enable AI for your account on all devices? Your server downloads the 533 MB model once, only if it is not already cached. No model is downloaded to your phone or computer. AI uses server CPU and RAM while answering and unloads after 60 idle seconds. Continue?": "अपने खाते के सभी डिवाइस पर AI चालू करें? अगर मॉडल पहले से कैश में नहीं है, तो आपका सर्वर 533 MB मॉडल एक बार डाउनलोड करता है। आपके फ़ोन या कंप्यूटर पर मॉडल डाउनलोड नहीं होता। उत्तर देते समय AI सर्वर के CPU और RAM का उपयोग करता है और 60 सेकंड निष्क्रिय रहने पर बंद हो जाता है। जारी रखें?",
-  "Enable AI Assistant?": "AI सहायक चालू करें?"
+  "Enable AI Assistant?": "AI सहायक चालू करें?",
+  "The ZIP archive is damaged or unsupported. Extract it and choose the Takeout folder instead.": "ZIP फ़ाइल खराब है या समर्थित नहीं है। उसे निकालें और Takeout फ़ोल्डर चुनें।",
+  "ZIP archives must be 2 GB or smaller. Extract the archive and choose the Takeout folder instead.": "ZIP फ़ाइल 2 GB या उससे छोटी होनी चाहिए। उसे निकालें और Takeout फ़ोल्डर चुनें।",
+  "ZIP exceeds the safe import limits or contains invalid paths.": "ZIP सुरक्षित आयात सीमा से बड़ी है या उसमें अमान्य पथ हैं।",
+  "One import file exceeds the safe per-file limit.": "आयात की एक फ़ाइल प्रति-फ़ाइल सुरक्षित आकार सीमा से बड़ी है।",
+  "The export contains too much note metadata. Import smaller folders instead.": "निर्यात में नोट का मेटाडेटा बहुत अधिक है। छोटे फ़ोल्डर आयात करें।",
+  "Use Import Google Keep for Takeout ZIPs; Import backup is for Glass Keep JSON or ZIP backups.": "Takeout ZIP के लिए Google Keep आयात करें चुनें। बैकअप आयात करें केवल Glass Keep JSON या ZIP बैकअप के लिए है।",
+  "Large exports are supported. For low-memory devices, extract the ZIP and choose the Takeout folder.": "बड़े निर्यात समर्थित हैं। कम मेमोरी वाले डिवाइस पर ZIP निकालें और Takeout फ़ोल्डर चुनें।",
+  "Reading Google Keep export…": "Google Keep निर्यात पढ़ा जा रहा है…",
+  "Importing {done} of {total} notes…": "{total} में से {done} नोट आयात किए जा रहे हैं…",
+  "Showing the first {count} notes.": "पहले {count} नोट दिखाए जा रहे हैं।",
+  "No Google Keep notes were found. Choose a Google Keep Takeout ZIP or folder.": "कोई Google Keep नोट नहीं मिला। Google Keep Takeout ZIP या फ़ोल्डर चुनें।",
+  "Import stopped after {count} notes. {reason}": "{count} नोट के बाद आयात रुक गया। {reason}",
+  "One note exceeds the API upload limit.": "एक नोट सर्वर पर अपलोड करने की सीमा से बड़ा है।"
 }

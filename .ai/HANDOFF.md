@@ -2,113 +2,96 @@
 
 ## Last updated
 
-- **Date:** 2026-10-22 (America/New_York).
-- **Agent:** Codex, using this conversation plus source and read-only GitHub checks.
-- **Branch / baseline commit:** `main` / `77c218e779bb8c26b8b5eaa57cac13770d5ef349`.
-- **Version:** web/server and all native clients are **1.0.18**.
-- This is the initial shared handoff. It does not imply access to conversations
-  outside this chat or to the owner's current production deployment.
+- Date: **2026-10-28**, America/New_York; agent: Codex.
+- Branch: `main`; baseline before this task: `1a62f2b450c3d9e6f182584121759bbeb5cefa85`.
+- App/server/native metadata: **1.0.19**.
+- Read `AGENTS.md` and `PROJECT.md` before continuing. Source/tests and fresh
+  GitHub state take precedence over this snapshot.
 
-## Current task and working tree
+## Current task: large Google Keep import, issue #37
 
-The owner requested persistent cross-agent Markdown memory from an attached guide.
-Created these four files only:
+The reporter selected a 400+ MB Google Takeout ZIP and saw the 200 MB error.
+Inspection found two separate paths: Glass Keep backup import had a 200 MiB cap,
+and the dedicated Keep importer eagerly loaded/unzipped everything with a 100 MiB
+cap. Choosing the correct menu alone was therefore not enough.
 
-- `AGENTS.md`: shared startup, working, verification and checkpoint instructions.
-- `CLAUDE.md`: points to the same instructions and project/handoff files.
-- `.ai/PROJECT.md`: durable architecture, decisions, pitfalls and release workflow.
-- `.ai/HANDOFF.md`: this checkpoint.
+Implemented and locally verified:
 
-There were no existing instruction/memory files to overwrite, and the working tree
-was clean before this task. The owner subsequently requested that these files be
-pushed. All four files are committed together and pushed to `origin/main` in the
-documentation commit containing this checkpoint; use Git history for its hash.
-They are not ignored and travel with the repository. No application code,
-dependencies, versions, runtime data or deployment settings were changed. No new
-app release is needed for this documentation setup.
+- `src/zipArchive.js`: bounded ZIP directory indexing with Blob slices, lazy
+  chunked reads, CRC/local-header/path/declared-size checks. Standard stored and
+  DEFLATE entries; unsupported ZIP64/encrypted/multidisk formats use folder fallback.
+- `src/keepImport.js`: bounded note JSON preview and lazy attachments; async note
+  generation checks the note upload budget before accumulating many attachments.
+- `src/importBackup.js`: accepts async iterables and preserves partial-progress
+  errors; retains existing request-size limits.
+- `src/readBackup.js`, `src/App.jsx`: detect a Takeout ZIP before applying the
+  unrelated backup limit and open the correct importer with the selected file.
+- `src/FeaturePanels.jsx`: reading/import progress, bounded previews, stable parsed
+  previews, close/unmount cancellation between batches and disabled import options
+  while submitting. Existing duplicate/ownership/sharing controls remain.
+- All four locale JSON files include the new messages. `docs/google-keep-import.md`,
+  README, changelog, version metadata and Docker smoke expectations are updated.
+- New ZIP/large-import tests and a synthetic 450 MiB fixture are tracked. No
+  reporter archive or production notes were accessed.
 
-## Last completed application work
+## Verification actually run in this task
 
-| Version / commit | Completed behavior |
-| --- | --- |
-| 1.0.18 / `77c218e` | German integration using all 338 strings contributed by piwanowitsch in PR #35; corrected locale registration, picker, startup/loading screens, docs and tests. |
-| 1.0.17 / `621a536` | Compact neutral Ask AI button beside search at every tested width, preserved busy/keyboard behavior and prevented logo overlap. |
-| 1.0.16 / `82c67ab` | Russian support, including newer AI strings and startup text; contributor Neko1800 credited. |
-| 1.0.15 / `30c5b75` | Android Settings/tags safe areas and Back handling; consistent responsive selection toolbar. |
-| 1.0.14 / `21616f7`, `5e62741`, `0703a47` | Unified release versions, account-wide AI preference sync and protection against stale reads/mutations. |
+- `npm test`: **30 passed** (run before the metadata-only version bump).
+- `npm run build` and `npm run native:build`: passed, including final 1.0.19 builds.
+- `node --test tests/i18n.test.js tests/web-features.browser.mjs tests/auto-export.browser.mjs tests/native.browser.mjs`:
+  **4 passed**. Includes the actual browser file picker with a 450 MiB synthetic
+  Takeout selected through Import backup, preserved image content, legacy JSON/ZIP
+  restore, native/offline behavior and matching locale placeholders.
+- `node --test tests/keep-import.test.js tests/web-features.browser.mjs` after
+  improving the fixture image: **7 passed**, including visible image decoding.
+- ZIP tests cover lazy reads, cancellation, CRC corruption, unsafe paths, oversize
+  content, streamed data descriptors, Unicode paths and declared-size overruns.
+- `git diff --check` and syntax checks for ZIP/Keep modules passed.
+- Additional ignored local helper passed with 81 notes / 405 MiB of synthetic
+  attachments: preview read zero attachments, each attachment was read once, and
+  the largest request was 6,990,916 bytes (below the 10 MiB batch target).
+- No new physical Android or interactive Mac test has been run.
 
-Older relevant work is in `CHANGELOG.md`: on-demand Qwen/llama.cpp replaced the old
-ONNX generator; local automatic JSON exports replaced Google Drive/OneDrive OAuth
-backups; Android icon/safe-area/Back fixes and native connection/offline handling
-were implemented. Preserve these decisions as described in `PROJECT.md`.
+## Publication checkpoint
 
-## Verified external state (2026-10-22)
+This checkpoint accompanies the source fix before its release build/push finishes.
+The last previously published app version is 1.0.18. Publication of 1.0.19, native
+build artifacts, Docker promotion and final GitHub release are still to be verified.
+Do not report them as complete based on this checkpoint alone. No issue comment
+was posted and issue #37 has not been automatically closed.
 
-- [v1.0.18](https://github.com/nikunjsingh93/react-glass-keep/releases/tag/v1.0.18)
-  is the latest public, non-prerelease GitHub release with eight assets: seven
-  Windows/Android/macOS binaries plus SHA-256 checksums.
-- [Native workflow run 39658747867](https://github.com/nikunjsingh93/react-glass-keep/actions/runs/39658747867)
-  succeeded for the baseline release commit during the preceding implementation task.
-- Docker `nikunjsingh/glass-keep:1.0.18` and `:latest` were published and verified
-  during that task, with AMD64/ARM64 index digest
-  `sha256:57ba92eec602e7fb56b5bda2c22b1cbecea74fab2e7f9a13000c9cb4127d493f`.
-  Registry tags are mutable; the Docker registry was not rechecked for this
-  documentation-only checkpoint.
-- PR #35 is now **closed, unmerged**. Its translation was incorporated directly
-  and credited. Do not merge/reopen it as unfinished work.
-- The open GitHub issues/PRs query returned `[]`. This is a dated snapshot, not a
-  permanent statement that the project has no future work.
-- The owner deploys through Portainer and installs clients themselves. Current
-  production/server/device versions were not inspected and must not be inferred.
+## Important limits and recovery
 
-## Verification and its limits
+- ZIP: 2 GiB; total unpacked content: 4 GiB; 50,000 entries; directory: 16 MiB.
+- JSON: 2 MiB per note file and 64 MiB combined metadata. Images: 12 MiB each;
+  encoded note must fit the existing 19 MiB API import guard.
+- Glass Keep JSON/backup.json ZIP imports retain the 200 MiB backup limit.
+- Closing the dialog prevents future preparation/batches; a server request already
+  accepted can finish. Earlier successful batches remain saved. Retry with
+  duplicate skipping enabled.
+- The large fixture includes unused stored HTML; the test proves bounded archive
+  reads/routing and note/image preservation. It is not the reporter's private ZIP.
+- Full app display/cache memory still depends on the final note/image dataset.
+  See `docs/google-keep-import.md`; do not promise arbitrary archive sizes or
+  low-memory-device success just because the eager ZIP allocation was removed.
 
-### Performed for this documentation task
+## Previous completed state and preferences
 
-- Read the supplied guide, existing source/configuration, current docs/changelog,
-  recent Git history and relevant test definitions.
-- Checked `git status --short`, branch and HEAD; baseline was clean.
-- Ran `node scripts/version.mjs --check`: all release metadata matches **1.0.18**.
-- Queried GitHub's latest release, PR #35 and open issues/PRs as recorded above.
-- Checked the new files' local references, Git visibility, whitespace and final
-  changed-file scope after writing them.
-- Committed the four-file setup and pushed it to `origin/main`; verified the remote
-  branch matches the local commit and the working tree is clean.
+- German shipped in 1.0.18 from piwanowitsch's PR #35 translation, with correct
+  imports/startup/tests. PR #35 was closed unmerged after direct incorporation.
+- Shared cross-agent memory files were committed/pushed in `1a62f2b` on 2026-10-22.
+- The owner declined paid-hosting promotion when reviewing PR #36. Keep README
+  focused on self-hosting; no new hosted deployment integration is assigned.
+- The owner deploys through Portainer and installs clients themselves. Publishing
+  an image does not verify their running deployment. Preserve existing data and
+  the approved Android signing identity.
 
-No application tests, builds, Docker rebuilds or physical-device checks were run
-for this Markdown-only task. Do not report historical release checks as rerun today.
+## Exact next steps
 
-### Historical checks actually run for release 1.0.18
-
-- `npm run native:build` and `npm run build`: passed.
-- `node --test tests/i18n.test.js tests/native.browser.mjs tests/web-features.browser.mjs tests/startup.browser.mjs tests/ai.browser.mjs`:
-  all five test entries passed. Includes locale coverage/placeholders, German
-  selection/reload/settings/export, first-paint startup, existing Android drawer
-  Back/safe-area behavior, and AI layout in all five languages.
-- `./tests/docker-smoke.ps1 -Image nikunjsingh/glass-keep:1.0.18`: passed on both
-  architectures, including packaged frontend and llama.cpp executable.
-- All five native CI jobs passed. Compiled Windows x64 and ARM64 clients were
-  additionally tested with isolated profiles, including German persistence,
-  connection, note writing and AI button availability. Those extended local
-  helpers were ignored machine-local files, not a portable test dependency.
-- Android APK metadata was checked: `versionName=1.0.18`, `versionCode=1000018`.
-  No new physical Android test or interactive Mac session was performed for this release.
-
-## Unfinished work, limits and next steps
-
-There is no partially implemented application feature or known release blocker
-remaining from the latest task. The memory setup is documentation only. No new
-feature request has been assigned; do not invent one or repeat German integration.
-
-1. When resuming, read `AGENTS.md` and `PROJECT.md`, inspect `git status`/HEAD and
-   refresh any GitHub state relevant to the next user request.
-2. The memory setup is checked in; there is no remaining documentation publishing
-   task or application release to create for it.
-3. Implement the owner's next requested task, using the focused verification and
-   release process in `PROJECT.md`, then update this handoff immediately after
-   substantial progress and before ending the session when possible.
-
-Known product/platform limits (not unfinished fixes assigned here) include Linux
-native packaging, widgets, Google Play distribution, Mac notarization and Windows
-commercial signing. See `PROJECT.md` and the native guide before proposing work.
-Keep the approved Android signing identity; do not generate a replacement.
+1. Commit/push the verified source fix and this checkpoint without closing or
+   commenting on issue #37.
+2. Build all matching 1.0.19 clients through the native workflow; build/test/push
+   AMD64/ARM64 Docker and promote the verified image to latest.
+3. Verify compiled Windows clients and APK metadata; collect seven binaries plus
+   checksums. Publish a public Latest GitHub release and update this handoff with
+   actual source commit, run, image digest, results and any remaining blockers.

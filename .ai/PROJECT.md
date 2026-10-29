@@ -1,6 +1,6 @@
 # Glass Keep project knowledge
 
-Last reconciled with source: **2026-10-22**, release **1.0.18**. This file records
+Last reconciled with source: **2026-10-28**, version **1.0.19**. This file records
 lasting architecture and decisions. Read [HANDOFF.md](HANDOFF.md) for recent state
 and [../AGENTS.md](../AGENTS.md) for working instructions.
 
@@ -36,7 +36,7 @@ Use `package.json`, lockfiles, and the workflow for exact dependency versions.
 | Extra note behavior | `server/noteFeatures.js`: deep/public links, duplicates, copy-related behavior and operation replay support. Check both server modules when editing note routes. |
 | Account AI preference | `server/accountPreferences.js`, `src/useAccountAI.js`: persisted per-user setting with account/server-scoped device cache and stale-response protection. |
 | AI service | `server/ai.js` manages private requests; `ai-search.js` retrieves authorized notes; `ai-runtime.js` downloads/verifies weights and manages the worker; `ai-model.json` pins the model. `src/ai.js` consumes request snapshots. |
-| Imports/exports | `keepImport.js`, `readBackup.js`, `importBackup.js`, `autoExport.js`, `useAutoExport.js`, `exportFolders.js`. |
+| Imports/exports | `keepImport.js`, `zipArchive.js`, `readBackup.js`, `importBackup.js`, `autoExport.js`, `useAutoExport.js`, `exportFolders.js`. |
 | Startup/languages | `src/i18n.js`, `src/locales/*.json`, `LanguagePicker.jsx`; `public/startup-theme.js`, `startup.css`, both HTML files and `LoadingScreen.jsx` handle first paint. |
 | Packaging | `Dockerfile`, `src-tauri/` configs/icons, `scripts/prepare-android*.mjs`, platform verification scripts, `.github/workflows/native-apps.yml`. |
 
@@ -103,6 +103,20 @@ Users can sync the chosen folder themselves (for example with Syncthing). Existi
 exports are kept until manually removed; do not add silent pruning or cloud setup.
 See [automatic exports](../docs/automatic-exports.md); `cloud-backups.md` points there.
 
+### Google Keep import (1.0.19)
+
+`zipArchive.js` indexes standard ZIP central-directory metadata with Blob slices,
+then reads/validates requested entries in chunks. `keepImport.js` loads bounded
+note JSON for preview, retains lazy attachment handles and produces notes through
+an async generator for `importNoteBatches`. Do not return to reading/expanding an
+entire large Takeout into memory or creating all image data URLs during preview.
+The 200 MiB Glass Keep backup limit is a different path: Takeout ZIPs selected there
+are detected first and routed to the Google Keep dialog. A synthetic 450 MiB ZIP
+is covered by unit and actual browser file-picker tests, not a private user export.
+Keep CRC/path/size checks, cancellation between batches and the per-note upload
+budget. ZIP64/encrypted/multidisk archives need the extracted-folder fallback.
+Current limits and recovery steps are in [the Takeout guide](../docs/google-keep-import.md).
+
 ## UI conventions and regression traps
 
 - Preserve Android safe-area offsets for sticky headers, note modals, Settings and
@@ -168,6 +182,8 @@ passing mocked AI/browser tests; see `tests/docker-ai.mjs` before using them.
 ## Release and deployment conventions
 
 The owner deploys through **Portainer** and uses **one Nginx Proxy Manager hop**.
+The owner prefers a self-hosting-focused README without paid-hosting promotion
+(decision made when reviewing PR #36).
 `TRUST_PROXY=1` fixes forwarded-IP rate-limit warnings for that topology. Do not
 set blanket `trust proxy=true`; re-evaluate trust if the proxy topology changes.
 
