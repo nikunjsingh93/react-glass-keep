@@ -1,6 +1,6 @@
 # Glass Keep project knowledge
 
-Last reconciled with source: **2026-10-28**, version **1.0.19**. This file records
+Last reconciled with source: **2026-10-29**, version **1.0.19**. This file records
 lasting architecture and decisions. Read [HANDOFF.md](HANDOFF.md) for recent state
 and [../AGENTS.md](../AGENTS.md) for working instructions.
 
@@ -164,6 +164,10 @@ and do not run duplicate fixtures on the same ports concurrently.
 
 For an actual Windows executable, set `GLASS_KEEP_WINDOWS_EXE` and run
 `node --test tests/native-windows.browser.mjs`. It uses a temporary WebView2 profile.
+For large file-picker fixtures in a CDP-connected WebView2, Playwright's normal
+file transfer can refuse files over 50 MB because it treats the browser as remote.
+This is a test-tool limit, not an app import cap. The 450 MiB compiled-client check
+used CDP `DOM.setFileInputFiles` with the isolated fixture's local path instead.
 The CI native-only install uses `npm ci --ignore-scripts`; backend tests require a
 working `better-sqlite3` native module. Mac/Android builds require their toolchains;
 use the tracked native guide and workflow rather than inventing a cross-build.

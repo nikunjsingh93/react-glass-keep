@@ -2,7 +2,7 @@
 
 ## Last updated
 
-- Date: **2026-10-28**, America/New_York; agent: Codex.
+- Date: **2026-10-29**, America/New_York; agent: Codex. Task began 2026-10-28.
 - Branch: `main`; baseline before this task: `1a62f2b450c3d9e6f182584121759bbeb5cefa85`.
 - App/server/native metadata: **1.0.19**.
 - Read `AGENTS.md` and `PROJECT.md` before continuing. Source/tests and fresh
@@ -52,13 +52,32 @@ Implemented and locally verified:
   the largest request was 6,990,916 bytes (below the 10 MiB batch target).
 - No new physical Android or interactive Mac test has been run.
 
-## Publication checkpoint
+## Publication completed and verified
 
-This checkpoint accompanies the source fix before its release build/push finishes.
-The last previously published app version is 1.0.18. Publication of 1.0.19, native
-build artifacts, Docker promotion and final GitHub release are still to be verified.
-Do not report them as complete based on this checkpoint alone. No issue comment
-was posted and issue #37 has not been automatically closed.
+- Source fix committed and pushed to `main` as
+  `2f1253e15f83d737a85eef08ca5dfd15cc677307`.
+- [Native workflow run 40814065789](https://github.com/nikunjsingh93/react-glass-keep/actions/runs/40814065789)
+  succeeded for that exact commit; all five platform jobs passed.
+- [v1.0.19](https://github.com/nikunjsingh93/react-glass-keep/releases/tag/v1.0.19)
+  is public, non-prerelease and Latest, with seven verified binaries and
+  `SHA256SUMS.txt`. All web/server/native metadata matches 1.0.19.
+- Docker `nikunjsingh/glass-keep:1.0.19` and `:latest` were published for AMD64/ARM64;
+  verified index digest:
+  `sha256:15becc253c9f4d31de762165a78af38d218e0e3ccfb3409bc69ee7c6adc2adac`.
+  Docker Desktop was stopped at first and was started through its CLI for the build.
+- `./tests/docker-smoke.ps1 -Image nikunjsingh/glass-keep:1.0.19` passed on both
+  architectures, including version, proxy, SQLite, archived export, frontend hash
+  and bundled llama.cpp executable checks.
+- Compiled Windows x64 and ARM64 basic checks passed with temporary profiles.
+  ARM64 additionally imported the synthetic 450 MiB ZIP via the backup entry point
+  and rendered its image. An initial attempt hit Playwright's 50 MB remote-transfer
+  cap; using CDP's local-file input command resolved that test-harness limitation.
+- APK metadata is `versionName=1.0.19`, `versionCode=1000019`, with the existing
+  signing identity. No new physical Android or interactive Mac test was performed.
+- Issue #37 is still **open** for reporter confirmation. No issue comment was
+  posted and no automatic closure was requested.
+- This completion checkpoint is committed/pushed in a documentation-only follow-up;
+  use Git history for its hash. The working tree was verified clean after pushing.
 
 ## Important limits and recovery
 
@@ -88,10 +107,11 @@ was posted and issue #37 has not been automatically closed.
 
 ## Exact next steps
 
-1. Commit/push the verified source fix and this checkpoint without closing or
-   commenting on issue #37.
-2. Build all matching 1.0.19 clients through the native workflow; build/test/push
-   AMD64/ARM64 Docker and promote the verified image to latest.
-3. Verify compiled Windows clients and APK metadata; collect seven binaries plus
-   checksums. Publish a public Latest GitHub release and update this handoff with
-   actual source commit, run, image digest, results and any remaining blockers.
+1. The owner can update through Portainer and install the new clients. Their
+   production deployment has not been inspected or changed by this task.
+2. Have the reporter confirm their actual archive on 1.0.19; it was not available
+   to this agent. Check ZIP format and per-note/per-file limits if a new failure
+   is reported. Do not simply remove safety limits or return to eager extraction.
+3. No implementation, build or publishing work remains from this task. Leave
+   issue comments/closure to the owner unless they explicitly request an action.
+   Refresh GitHub/local state before beginning the next assigned task.
