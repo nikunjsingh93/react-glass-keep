@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.20] - 2026-10-29
+### Fixed
+- Makes Google Keep import choices explicit with visible Takeout ZIP, Takeout folder, and JSON-plus-images buttons on web and native clients. Removes the unused legacy text-only importer.
+- Allows selecting JSON and pictures together or adding missing images afterward without losing the selected notes. Resolves unique attachment filenames from flattened file selections while refusing ambiguous matches.
+- Lists missing images before uploading and requires an explicit choice to import without them. Explains why selecting JSON alone cannot read nearby pictures, with guidance in all supported languages.
+- Preserves the large ZIP importer, lazy attachment reads, duplicate checks and existing backup formats. Reimporting complete notes adds image-bearing copies without modifying earlier text-only imports.
+### Validation
+- Regression checks use real ZIP, extracted-folder and multi-file pickers in web and native interfaces, verify stored image content and rendered images, and check visible controls on narrow and desktop screens. Includes missing-image recovery and ambiguous-filename unit coverage.
+
 ## [1.0.19] - 2026-10-28
 ### Fixed
 - Handles large Google Keep Takeout ZIPs without the old 100 MiB eager-import cap: indexes ZIP metadata with file slices and reads attachments one note at a time into bounded API batches.

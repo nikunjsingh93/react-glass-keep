@@ -2,11 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {zipSync,strToU8,Zip,ZipDeflate} from 'fflate';
 import {openZipArchive} from '../src/zipArchive.js';
-import {readKeepFiles,parseKeepEntries,keepNotesWithAttachments} from '../src/keepImport.js';
+import {readKeepFiles,parseKeepEntries,keepNotesWithAttachments,mergeKeepFiles} from '../src/keepImport.js';
 import {readBackup} from '../src/readBackup.js';
 import {importNoteBatches} from '../src/importBackup.js';
 import {largeTakeoutFixture,largeTakeoutImage} from './large-takeout-fixture.mjs';
 const zipFile=entries=>new File([zipSync(entries)],'export.zip');
+
+test('loose JSON and images can be added separately, with unique flattened path resolution',async()=>{
+  const json=new File([JSON.stringify({title:'Loose note',textContent:'Picture',attachments:[{filePath:'attachments/photo.png'}]})],'note.json');
+  const picture=new File([largeTakeoutImage],'photo.png');
+  const missing=parseKeepEntries(await readKeepFiles([json]));
+  assert.equal(missing.missingAttachments.length,1);assert.equal(missing.notes[0].images.length,0);
+  const files=mergeKeepFiles([json],[picture,json]);assert.equal(files.length,2);
+  const entries=await readKeepFiles(files),preview=parseKeepEntries(entries);
+  assert.deepEqual(preview.missingAttachments,[]);assert.equal(preview.notes[0].images.length,1);
+  for await(const note of keepNotesWithAttachments(preview.notes,entries))assert.equal(note.images[0].src,'data:image/png;base64,'+largeTakeoutImage.toString('base64'));
+  const image=name=>{const file=new File([largeTakeoutImage],'photo.png');Object.defineProperty(file,'webkitRelativePath',{value:name});return file;};
+  const ambiguous=parseKeepEntries(await readKeepFiles([json,image('one/photo.png'),image('two/photo.png')]));
+  assert.equal(ambiguous.missingAttachments.length,1);assert.equal(ambiguous.notes[0].images.length,0,'Never select an arbitrary picture with the same basename');
+  const exact=parseKeepEntries(await readKeepFiles([json,image('attachments/photo.png'),image('other/photo.png')]));
+  assert.deepEqual(exact.missingAttachments,[]);assert.equal(exact.notes[0].images[0].entryName,'attachments/photo.png');
+});
 
 test('450 MiB Takeout is routed correctly and imported without reading the whole ZIP or unused HTML',async()=>{
   const file=largeTakeoutFixture();

@@ -2093,7 +2093,7 @@ function NotesUI({
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
   togglePin,
   addImagesToState,
-  onExportAll, onImportAll, onImportGKeep, onImportMd, onDownloadSecretKey, importFileRef, gkeepFileRef, mdFileRef, signOut,
+  onExportAll, onImportAll, onImportMd, onDownloadSecretKey, importFileRef, mdFileRef, signOut,
   filteredEmptyWithSearch, allEmpty,
   headerMenuOpen, setHeaderMenuOpen,
   headerMenuRef, headerBtnRef,
@@ -2389,20 +2389,6 @@ function NotesUI({
             onChange={async (e) => {
               if (e.target.files && e.target.files.length) {
                 await onImportAll?.(e.target.files);
-                e.target.value = "";
-              }
-            }}
-          />
-          {/* Hidden Google Keep import input (multiple) */}
-          <input
-            ref={gkeepFileRef}
-            type="file"
-            accept="application/json"
-            multiple
-            className="hidden"
-            onChange={async (e) => {
-              if (e.target.files && e.target.files.length) {
-                await onImportGKeep?.(e.target.files);
                 e.target.value = "";
               }
             }}
@@ -3149,7 +3135,6 @@ export default function App() {
   const headerMenuRef = useRef(null);
   const headerBtnRef = useRef(null);
   const importFileRef = useRef(null);
-  const gkeepFileRef = useRef(null);
   const mdFileRef = useRef(null);
 
   // Modal kebab anchor
@@ -4387,55 +4372,6 @@ export default function App() {
     } catch (e) {
       if(e.code==='GOOGLE_KEEP_TAKEOUT'){setKeepImportFiles([file]);setKeepImportOpen(true);return;}
       alert(t(e.message || "Import failed"));
-    }
-  };
-
-  /** -------- Import Google Keep single-note JSON files (multiple) -------- */
-  const importGKeep = async (fileList) => {
-    try {
-      const files = Array.from(fileList || []);
-      if (!files.length) return;
-      const texts = await Promise.all(files.map((f) => f.text().catch(() => null)));
-      const notesArr = [];
-      for (const t of texts) {
-        if (!t) continue;
-        try {
-          const obj = JSON.parse(t);
-          if (!obj || typeof obj !== "object") continue;
-          const title = String(obj.title || "");
-          const hasChecklist = Array.isArray(obj.listContent) && obj.listContent.length > 0;
-          const items = hasChecklist
-            ? obj.listContent.map((it) => ({ id: uid(), text: String(it?.text || ""), done: !!it?.isChecked }))
-            : [];
-          const content = hasChecklist ? "" : String(obj.textContent || "");
-          const usec = Number(obj.userEditedTimestampUsec || obj.createdTimestampUsec || 0);
-          const ms = Number.isFinite(usec) && usec > 0 ? Math.floor(usec / 1000) : Date.now();
-          const timestamp = new Date(ms).toISOString();
-          // Extract labels to tags
-          const tags = Array.isArray(obj.labels)
-            ? obj.labels.map((l) => (typeof l?.name === 'string' ? l.name.trim() : '')).filter(Boolean)
-            : [];
-          notesArr.push({
-            id: uid(),
-            type: hasChecklist ? "checklist" : "text",
-            title,
-            content,
-            items,
-            tags,
-            images: [],
-            color: "default",
-            pinned: !!obj.isPinned,
-            position: ms,
-            timestamp,
-          });
-        } catch (e) { }
-      }
-      if (!notesArr.length) { alert(t("No valid Google Keep notes found.")); return; }
-      await api("/notes/import", { method: "POST", token, body: { notes: notesArr } });
-      await loadNotes();
-      alert(`Imported ${notesArr.length} Google Keep note(s).`);
-    } catch (e) {
-      alert(e.message || "Google Keep import failed");
     }
   };
 
@@ -6216,11 +6152,9 @@ export default function App() {
         allEmpty={allEmpty}
         onExportAll={exportAll}
         onImportAll={importAll}
-        onImportGKeep={importGKeep}
         onImportMd={importMd}
         onDownloadSecretKey={downloadSecretKey}
         importFileRef={importFileRef}
-        gkeepFileRef={gkeepFileRef}
         mdFileRef={mdFileRef}
         headerMenuOpen={headerMenuOpen}
         setHeaderMenuOpen={setHeaderMenuOpen}

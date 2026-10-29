@@ -5,6 +5,27 @@ Takeout ZIP, or extract it and choose the exported **Keep** folder. Include the
 JSON note files and their attachments together. Keep's duplicate HTML files are
 not needed. The dialog previews notes before uploading anything.
 
+The dialog has three visible buttons:
+
+- **Choose Takeout ZIP** opens the original Google Takeout ZIP.
+- **Choose Takeout folder** reads the extracted Keep folder, including nested
+  image folders. Choose ZIP instead if your browser cannot select folders.
+- **Add JSON files and images** accepts multiple JSON files and supported PNG,
+  JPEG, GIF and WebP pictures. You can select them together or add pictures after
+  selecting JSON. Adding files keeps the current selection; choosing a folder
+  or ZIP starts a new selection.
+
+Selecting only JSON files does not give the app permission to read nearby images,
+even when they are in the same folder on your computer. Missing image references
+are listed before import. Add those pictures, use the complete folder/ZIP, or
+explicitly select **Import anyway without missing images** for a partial import.
+Attachment paths are matched first; a unique filename can also match images
+selected individually. Ambiguous filenames are reported rather than guessed.
+
+If you already imported text-only copies, importing the complete notes adds new
+copies with images; it does not modify the earlier notes. Review the old copies
+before deleting them. Duplicate skipping compares image content as well as text.
+
 From **1.0.19**, selecting a Takeout ZIP through **Import backup** automatically
 opens the Google Keep importer. That backup option is otherwise for Glass Keep's
 own JSON or `backup.json` ZIP format, which retains its 200 MiB limit.

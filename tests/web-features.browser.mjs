@@ -6,9 +6,9 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
-import {zipSync,strToU8} from 'fflate';
 import {checkSelectionToolbar} from './selection-toolbar.mjs';
 import {largeTakeoutFixture,largeTakeoutImage} from './large-takeout-fixture.mjs';
+import {checkKeepImportPickers} from './keep-import.browser-checks.mjs';
 
 test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep links and offline edits work in browser',async t=>{
  const dir=await mkdtemp(path.join(tmpdir(),'glass-features-')),base='http://127.0.0.1:18090';
@@ -112,11 +112,7 @@ test('Hindi, horizontal grid, tag intersection, filtered selection, copies, deep
  await page.getByRole('button',{name:'Open tags',exact:true}).click();await page.locator('aside').getByRole('button',{name:'Notes (All)',exact:true}).click();
  await page.locator('.note-card').filter({hasText:'Both tags'}).click();await expect(page.getByRole('button',{name:'Make a copy',exact:true})).toHaveCount(0);await page.getByRole('button',{name:'More options',exact:true}).click();await page.getByRole('button',{name:'Make a copy',exact:true}).click();await expect(page.locator('.note-card').filter({hasText:'Both tags (copy)'})).toHaveCount(1);
  await page.getByRole('button',{name:'Close',exact:true}).click();
- await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Import Google Keep (ZIP / folder / JSON)',exact:false}).click();
- const zipped=zipSync({'Takeout/Keep/Image.json':strToU8(JSON.stringify({title:'Browser ZIP import',textContent:'Image attached',attachments:[{filePath:'test.png'}]})),'Takeout/Keep/test.png':new Uint8Array([137,80,78,71])});
- await page.getByLabel('ZIP or JSON files',{exact:true}).setInputFiles({name:'takeout.zip',mimeType:'application/zip',buffer:Buffer.from(zipped)});
- await expect(page.getByText('Notes ready: 1',{exact:false})).toBeVisible();await page.getByRole('button',{name:'Import',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Imported: 1');await page.getByRole('dialog').getByRole('button',{name:'Close',exact:true}).click();
- assert.equal((await api('/notes')).find(n=>n.title==='Browser ZIP import').images.length,1);
+ await checkKeepImportPickers(page,dir,()=>api('/notes'));
  const largePath=path.join(dir,'takeout-450MiB.zip');await largeTakeoutFixture().writeTo(largePath);
  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
  const picker=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Import backup (.json / .zip)',exact:false}).click();await(await picker).setFiles(largePath);

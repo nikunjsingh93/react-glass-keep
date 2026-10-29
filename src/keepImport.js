@@ -3,6 +3,11 @@ const MAX_JSON=2*1024*1024, MAX_METADATA=64*1024*1024, MAX_ATTACHMENT=12*1024*10
 const imageTypes={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp'};
 const colorMap={DEFAULT:'default',RED:'red',ORANGE:'peach',YELLOW:'yellow',GREEN:'green',TEAL:'mint',BLUE:'blue',CERULEAN:'sky',PURPLE:'purple',PINK:'mauve',BROWN:'sand',GRAY:'sage'};
 const safePath=p=>String(p).replaceAll('\\','/').replace(/^\.\//,'');
+export function mergeKeepFiles(previous,next) {
+  const files=new Map(Array.from(previous || [],file=>[file.webkitRelativePath || file.name,file]));
+  for(const file of Array.from(next || []))files.set(file.webkitRelativePath || file.name,file);
+  return [...files.values()];
+}
 function dataURL(bytes,name) {
   const type=imageTypes[name.split('.').pop()?.toLowerCase()]; if(!type)return null;
   let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));
@@ -33,7 +38,7 @@ export async function readKeepFiles(files,{signal,onProgress}={}) {
   return entries;
 }
 export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
-  const notes=[],warnings=[],byName=new Map();let skipped=0;
+  const notes=[],warnings=[],missingAttachments=[],byName=new Map();let skipped=0;
   for(const name of entries.keys()){const base=name.split('/').pop();if(!byName.has(base))byName.set(base,[]);byName.get(base).push(name);}
   for(const [name,bytes] of entries) {
     if(!/\.json$/i.test(name)||!(bytes instanceof Uint8Array))continue;
@@ -52,24 +57,30 @@ export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
       if(depth>0 && !item.parentId)item.parentId=previousRoot;
       if(!item.parentId)previousRoot=item.id;
     });
-    const images=[];
+    const images=[],missingImages=[];
     for(const attachment of obj.attachments || []) {
       const filePath=safePath(attachment.filePath || '');
       const relative=name.slice(0,name.lastIndexOf('/')+1)+filePath;
       let entryName=entries.has(relative)?relative:entries.has(filePath)?filePath:null;
-      if(!entryName){const matches=(byName.get(filePath.split('/').pop()) || []).filter(p=>p.endsWith('/'+filePath));if(matches.length===1)entryName=matches[0];}
+      if(!entryName){
+        const candidates=byName.get(filePath.split('/').pop()) || [];
+        const matches=candidates.filter(p=>p.endsWith('/'+filePath));
+        if(matches.length===1)entryName=matches[0];
+        else if(!matches.length&&candidates.length===1)entryName=candidates[0];
+      }
       const data=entries.get(entryName);
-      if(!data){warnings.push(`Missing attachment: ${filePath}`);continue;}
       if(!imageTypes[filePath.split('.').pop()?.toLowerCase()]){warnings.push(`Unsupported attachment: ${filePath}`);continue;}
+      if(!data){missingImages.push({noteName:name,filePath});continue;}
       images.push({id:crypto.randomUUID(),name:filePath.split('/').pop(),src:data instanceof Uint8Array?dataURL(data,filePath):null,...(data instanceof Uint8Array?{}:{entryName})});
     }
     const ms=Number(obj.userEditedTimestampUsec || obj.createdTimestampUsec || 0)/1000 || Date.now();
     notes.push({id:crypto.randomUUID(),type:items.length?'checklist':'text',title:String(obj.title || ''),content:items.length?'':String(obj.textContent || ''),items,
       tags:(obj.labels || []).map(l=>l.name).filter(Boolean),images,color:colorMap[obj.color] || 'default',pinned:!!obj.isPinned,archived:!!obj.isArchived,
       timestamp:new Date(ms).toISOString(),position:ms,collaborators:sharees.filter(s=>!s.isOwner && s.email && (!s.type || s.type==='USER')).map(s=>({email:s.email}))});
+    missingAttachments.push(...missingImages);
     } catch { warnings.push(`Invalid JSON: ${name}`); }
   }
-  return {notes,warnings,skipped};
+  return {notes,warnings,missingAttachments,skipped};
 }
 
 export async function* keepNotesWithAttachments(notes,entries,{signal}={}) {

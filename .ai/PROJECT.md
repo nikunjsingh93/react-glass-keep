@@ -1,6 +1,6 @@
 # Glass Keep project knowledge
 
-Last reconciled with source: **2026-10-29**, version **1.0.19**. This file records
+Last reconciled with source: **2026-10-29**, version **1.0.20**. This file records
 lasting architecture and decisions. Read [HANDOFF.md](HANDOFF.md) for recent state
 and [../AGENTS.md](../AGENTS.md) for working instructions.
 
@@ -116,6 +116,16 @@ is covered by unit and actual browser file-picker tests, not a private user expo
 Keep CRC/path/size checks, cancellation between batches and the per-note upload
 budget. ZIP64/encrypted/multidisk archives need the extracted-folder fallback.
 Current limits and recovery steps are in [the Takeout guide](../docs/google-keep-import.md).
+
+In 1.0.20 the dialog uses visible ZIP/folder/JSON-and-images picker buttons.
+Individual JSON selection cannot read neighboring pictures without explicit file
+selection. Keep images selectable and allow adding them to an existing selection.
+Missing supported images block import until supplied or explicitly acknowledged;
+match full paths first, then unique basenames only. Never guess between ambiguous
+filenames. The dormant App.jsx text-only Keep importer/input was removed; keep one
+shared import implementation. Duplicate detection includes image content, so
+reimporting complete notes creates new image-bearing copies without modifying
+earlier text-only notes. Document this recovery behavior rather than deleting data.
 
 ## UI conventions and regression traps
 

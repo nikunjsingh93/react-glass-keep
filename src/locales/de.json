@@ -349,5 +349,14 @@
   "Showing the first {count} notes.": "Die ersten {count} Notizen werden angezeigt.",
   "No Google Keep notes were found. Choose a Google Keep Takeout ZIP or folder.": "Keine Google-Keep-Notizen gefunden. Wählen Sie ein Google-Keep-Takeout-ZIP oder einen entsprechenden Ordner.",
   "Import stopped after {count} notes. {reason}": "Import nach {count} Notizen angehalten. {reason}",
-  "One note exceeds the API upload limit.": "Eine Notiz überschreitet die Upload-Grenze des Servers."
+  "One note exceeds the API upload limit.": "Eine Notiz überschreitet die Upload-Grenze des Servers.",
+  "Choose Takeout ZIP": "Takeout-ZIP auswählen",
+  "Choose Takeout folder": "Takeout-Ordner auswählen",
+  "Add JSON files and images": "JSON-Dateien und Bilder hinzufügen",
+  "Takeout ZIP": "Takeout-ZIP",
+  "JSON files and images": "JSON-Dateien und Bilder",
+  "For pictures, choose the whole folder or ZIP, or select the JSON files and their images together. JSON files alone cannot include nearby images.": "Wählen Sie für Bilder den gesamten Ordner oder das ZIP, oder wählen Sie die JSON-Dateien und ihre Bilder zusammen aus. JSON-Dateien allein enthalten keine daneben gespeicherten Bilder.",
+  "Missing images: {count}": "Fehlende Bilder: {count}",
+  "Add the missing images with Add JSON files and images, or choose the complete Takeout folder or ZIP.": "Fügen Sie fehlende Bilder über „JSON-Dateien und Bilder hinzufügen“ hinzu, oder wählen Sie den vollständigen Takeout-Ordner oder das ZIP.",
+  "Import anyway without missing images": "Trotzdem ohne die fehlenden Bilder importieren"
 }

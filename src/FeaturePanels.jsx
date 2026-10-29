@@ -1,6 +1,6 @@
 import React,{useState,useEffect,useMemo,useRef} from 'react';
 import {createPortal} from 'react-dom';
-import {readKeepFiles,parseKeepEntries,keepNotesWithAttachments} from './keepImport';
+import {readKeepFiles,parseKeepEntries,keepNotesWithAttachments,mergeKeepFiles} from './keepImport';
 import {importNoteBatches} from './importBackup';
 import {renderMarkdown} from './markdown';
 import {t} from './i18n';
@@ -26,19 +26,23 @@ export function Dialog({title,onClose,children}) {return createPortal(<div class
 export function KeepImportDialog({api,token,onClose,onImported,initialFiles}) {
   const [entries,setEntries]=useState(null),[onlyOwned,setOnlyOwned]=useState(true),[restoreSharing,setRestoreSharing]=useState(false),[deduplicate,setDeduplicate]=useState(true),[accountEmail,setAccountEmail]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[report,setReport]=useState(null);
   const [reading,setReading]=useState(false),[processed,setProcessed]=useState(0);
-  const operation=useRef(null);
+  const [allowMissing,setAllowMissing]=useState(false);
+  const operation=useRef(null),selectedFiles=useRef([]),zipInput=useRef(null),folderInput=useRef(null),filesInput=useRef(null);
   const preview=useMemo(()=>entries?parseKeepEntries(entries,{onlyOwned,accountEmail}):null,[entries,onlyOwned,accountEmail]);
+  const missing=preview?.missingAttachments || [];
   useEffect(()=>()=>operation.current?.abort(),[token]);
   const close=()=>{operation.current?.abort();onClose();};
-  const choose=async files=>{
+  const choose=async (files,append=false)=>{
+    if(!files?.length)return;
     operation.current?.abort();const controller=new AbortController();operation.current=controller;
-    setError('');setEntries(null);setReport(null);setReading(true);
-    try{const next=await readKeepFiles(files,{signal:controller.signal});if(operation.current===controller)setEntries(next);}
+    selectedFiles.current=append?mergeKeepFiles(selectedFiles.current,files):Array.from(files);
+    setError('');setEntries(null);setReport(null);setReading(true);setAllowMissing(false);
+    try{const next=await readKeepFiles(selectedFiles.current,{signal:controller.signal});if(operation.current===controller)setEntries(next);}
     catch(e){if(!controller.signal.aborted&&operation.current===controller)setError(e.message);}
     finally{if(operation.current===controller)setReading(false);}
   };
   useEffect(()=>{if(initialFiles)void choose(initialFiles);},[initialFiles]);
-  const run=async()=>{if(busy||reading||!preview?.notes.length)return;const controller=new AbortController();operation.current=controller;setBusy(true);setError('');setProcessed(0);try{
+  const run=async()=>{if(busy||reading||!preview?.notes.length||(missing.length&&!allowMissing))return;const controller=new AbortController();operation.current=controller;setBusy(true);setError('');setProcessed(0);try{
     const totals={imported:0,skipped:preview.skipped,sharingWarnings:[]};
     await importNoteBatches(keepNotesWithAttachments(preview.notes,entries,{signal:controller.signal}),async body=>{
       controller.signal.throwIfAborted();
@@ -51,8 +55,15 @@ export function KeepImportDialog({api,token,onClose,onImported,initialFiles}) {
   return <Dialog title={t('Import Google Keep')} onClose={close}>
     <p>{t('Choose a Takeout ZIP or a folder containing JSON files and attachments.')}</p>
     <p className="text-sm mt-2">{t('Large exports are supported. For low-memory devices, extract the ZIP and choose the Takeout folder.')}</p>
-    <label className="block mt-3">{t('ZIP or JSON files')}<input aria-label={t('ZIP or JSON files')} type="file" accept=".zip,.json" multiple disabled={busy||reading} onChange={e=>choose(e.target.files)}/></label>
-    <label className="block mt-3">{t('Takeout folder')}<input aria-label={t('Takeout folder')} type="file" webkitdirectory="" multiple disabled={busy||reading} onChange={e=>choose(e.target.files)}/></label>
+    <div className="flex flex-wrap gap-2 my-3">
+      <button className="settings-action rounded-lg px-3 py-2 text-sm disabled:opacity-50" disabled={busy||reading} onClick={()=>zipInput.current?.click()}>{t('Choose Takeout ZIP')}</button>
+      <button className="settings-action rounded-lg px-3 py-2 text-sm disabled:opacity-50" disabled={busy||reading} onClick={()=>folderInput.current?.click()}>{t('Choose Takeout folder')}</button>
+      <button className="settings-action rounded-lg px-3 py-2 text-sm disabled:opacity-50" disabled={busy||reading} onClick={()=>filesInput.current?.click()}>{t('Add JSON files and images')}</button>
+    </div>
+    <input ref={zipInput} aria-label={t('Takeout ZIP')} className="hidden" type="file" accept=".zip,application/zip" disabled={busy||reading} onChange={e=>{void choose(e.target.files);e.target.value='';}}/>
+    <input ref={folderInput} aria-label={t('Takeout folder')} className="hidden" type="file" webkitdirectory="" multiple disabled={busy||reading} onChange={e=>{void choose(e.target.files);e.target.value='';}}/>
+    <input ref={filesInput} aria-label={t('JSON files and images')} className="hidden" type="file" accept=".json,.png,.jpg,.jpeg,.gif,.webp,application/json,image/png,image/jpeg,image/gif,image/webp" multiple disabled={busy||reading} onChange={e=>{void choose(e.target.files,true);e.target.value='';}}/>
+    <p className="text-sm">{t('For pictures, choose the whole folder or ZIP, or select the JSON files and their images together. JSON files alone cannot include nearby images.')}</p>
     <label className="block my-3">{t('Google Keep account email')}<input value={accountEmail} disabled={busy} onChange={e=>setAccountEmail(e.target.value)} className="border border-[var(--border-light)] rounded p-2 bg-transparent w-full"/></label>
     <label className="block my-2"><input type="checkbox" checked={onlyOwned} disabled={busy} onChange={e=>setOnlyOwned(e.target.checked)}/> {t('Import only notes I own')}</label>
     <label className="block my-2"><input type="checkbox" checked={deduplicate} disabled={busy} onChange={e=>setDeduplicate(e.target.checked)}/> {t('Skip duplicate notes')}</label>
@@ -61,9 +72,15 @@ export function KeepImportDialog({api,token,onClose,onImported,initialFiles}) {
     {reading&&<p role="status" className="mt-3">{t('Reading Google Keep export…')}</p>}
     {busy&&<p role="status" className="mt-3">{t('Importing {done} of {total} notes…',{done:processed,total:preview?.notes.length||0})}</p>}
     {preview && <div className="my-3"><p>{t('Notes ready')}: {preview.notes.length} · {t('Skipped')}: {preview.skipped}</p><ul className="text-sm max-h-36 overflow-auto">{preview.notes.slice(0,100).map(n=><li key={n.id}>{n.title || t('Untitled')} · {n.images.length} {t('images')}{restoreSharing && n.collaborators.length>0?` · ${n.collaborators.map(c=>c.email).join(', ')}`:''}</li>)}</ul>{preview.notes.length>100&&<p>{t('Showing the first {count} notes.',{count:100})}</p>}{preview.warnings.slice(0,100).map((w,i)=><p key={i} className="text-amber-700">{w}</p>)}{!preview.notes.length&&!preview.skipped&&<p role="alert">{t('No Google Keep notes were found. Choose a Google Keep Takeout ZIP or folder.')}</p>}</div>}
+    {!!missing.length&&<div className="settings-card my-3">
+      <p role="alert">{t('Missing images: {count}',{count:missing.length})}</p>
+      <p className="text-sm my-2">{t('Add the missing images with Add JSON files and images, or choose the complete Takeout folder or ZIP.')}</p>
+      <ul className="text-sm max-h-24 overflow-auto break-all">{missing.slice(0,100).map((item,index)=><li key={index}>{item.filePath}</li>)}</ul>
+      <label className="block mt-2"><input type="checkbox" checked={allowMissing} disabled={busy} onChange={e=>setAllowMissing(e.target.checked)}/> {t('Import anyway without missing images')}</label>
+    </div>}
     {report && <p role="status">{t('Imported')}: {report.imported} · {t('Skipped')}: {report.skipped}{report.sharingWarnings.length>0?` · ${t('Unmatched users')}: ${[...new Set(report.sharingWarnings)].join(', ')}`:''}</p>}
     {error && <p role="alert" className="text-red-600">{t(error)}</p>}
-    <button className="bg-indigo-600 text-white rounded px-4 py-2 mt-4 disabled:opacity-50" disabled={busy || reading || !preview?.notes.length || !!report} onClick={run}>{t(busy?'Importing…':'Import')}</button>
+    <button className="bg-indigo-600 text-white rounded px-4 py-2 mt-4 disabled:opacity-50" disabled={busy || reading || !preview?.notes.length || !!report || (!!missing.length&&!allowMissing)} onClick={run}>{t(busy?'Importing…':'Import')}</button>
   </Dialog>;
 }
 

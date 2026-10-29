@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {once} from 'node:events';
 import {checkSelectionToolbar} from './selection-toolbar.mjs';
+import {checkKeepImportPickers} from './keep-import.browser-checks.mjs';
 
 
 test('native client connects, isolates servers, queues offline edits and saves portable ZIPs through native IPC',async t=>{
@@ -154,7 +155,12 @@ test('native client connects, isolates servers, queues offline edits and saves p
   await expect.poll(()=>saved.length).toBe(1);const backup=JSON.parse(saved[0].toString());assert.equal(commands.find(c=>c.command==='save_auto_export').args.directory,'C:/test-sync-folder');assert.equal(backup.notes.length,2);assert.ok(!JSON.stringify(backup).includes('Second server only'));
   await page.getByRole('combobox',{name:'Export every',exact:true}).selectOption('7');
   await expect.poll(()=>page.evaluate(()=>Object.entries(localStorage).filter(([key])=>key.includes('glass-keep-auto-export-')).map(([,value])=>JSON.parse(value).days))).toEqual([7]);
-  await page.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
+  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await checkKeepImportPickers(page,dir,async()=>{
+    const auth=await page.evaluate(()=>JSON.parse(localStorage.getItem('glass-keep-auth@'+encodeURIComponent(localStorage.getItem('glass-keep-native-server')))));
+    return (await fetch(origins[0]+'/api/notes',{headers:{Authorization:'Bearer '+auth.token}})).json();
+  });
+  await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
   assert.equal(await page.evaluate(()=>localStorage.getItem('glass-keep-native-server')),origins[0]);
   const keys=await page.evaluate(()=>Object.keys(localStorage));assert.ok(keys.includes(`glass-keep-auth@${encodeURIComponent(origins[1])}`));assert.ok(!keys.includes(`glass-keep-auth@${encodeURIComponent(origins[0])}`));assert.deepEqual(errors,[]);
 });
