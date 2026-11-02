@@ -84,7 +84,7 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
     throw offlineError();
   }
   async function api(path,options={}) {
-    const auth=session(),method=options.method || 'GET',kind=operationKind(path,method),operationId=kind?crypto.randomUUID():undefined;
+    const auth=session(),method=options.method || 'GET',kind=operationKind(path,method),operationId=options.operationId || (kind?crypto.randomUUID():undefined);
     const isAccountRequest=auth?.token && options.token===auth.token;
     if(isAccountRequest && kind) {
       const state=await accountState(auth.user.id);
@@ -93,7 +93,7 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
     if(isAccountRequest && !isOnline())return method==='GET'?cached(path,options):queue(path,options,operationId);
     try {
       const result=await request(path,{...options,operationId});
-      if(isAccountRequest && path.startsWith('/notes')) {
+      if(isAccountRequest && path.startsWith('/notes') && (kind || (result?.id&&result.revision) || (method==='GET'&&['/notes','/notes/archived'].includes(path)&&Array.isArray(result)))) {
         return await accountState(auth.user.id,s=>{
           const pending=new Set(s.ops.map(o=>o.noteId));
           if(method==='GET' && ['/notes','/notes/archived'].includes(path) && Array.isArray(result)) {
@@ -108,7 +108,7 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
         });
       }
       return result;
-    }catch(error){if(isAccountRequest && networkFailure(error)){return method==='GET'?cached(path,options):queue(path,options,operationId);}throw error;}
+    }catch(error){if(isAccountRequest && networkFailure(error)){if(method==='GET')return cached(path,options);if(kind)return queue(path,options,operationId);}throw error;}
   }
   async function resolveConflict(noteId,choice) {
     const auth=session();if(!isOnline())throw offlineError();

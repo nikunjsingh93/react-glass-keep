@@ -358,5 +358,22 @@
   "For pictures, choose the whole folder or ZIP, or select the JSON files and their images together. JSON files alone cannot include nearby images.": "चित्रों के लिए पूरा फ़ोल्डर या ZIP चुनें, या JSON फ़ाइलें और उनके चित्र साथ चुनें। केवल JSON फ़ाइलों से उसी फ़ोल्डर में रखे चित्र नहीं मिल सकते।",
   "Missing images: {count}": "गुम चित्र: {count}",
   "Add the missing images with Add JSON files and images, or choose the complete Takeout folder or ZIP.": "गुम चित्र जोड़ने के लिए «JSON फ़ाइलें और चित्र जोड़ें» चुनें, या पूरा Takeout फ़ोल्डर या ZIP चुनें।",
-  "Import anyway without missing images": "गुम चित्रों के बिना फिर भी आयात करें"
+  "Import anyway without missing images": "गुम चित्रों के बिना फिर भी आयात करें",
+  "This note exceeds the 128 MiB import limit.": "यह नोट 128 MiB की आयात सीमा से बड़ा है।",
+  "An image exceeds the 12 MiB import limit.": "एक चित्र 12 MiB की आयात सीमा से बड़ा है।",
+  "Import paused after {count} notes. Resume to continue. {reason}": "{count} नोट के बाद आयात रुक गया। जारी रखने के लिए फिर शुरू करें। {reason}",
+  "Retrying import request ({attempt}/{total})…": "आयात अनुरोध फिर भेजा जा रहा है ({attempt}/{total})…",
+  "Notes needing attention: {count}. Other notes were imported.": "ध्यान देने योग्य नोट: {count}। अन्य नोट आयात कर दिए गए।",
+  "Download import report": "आयात रिपोर्ट डाउनलोड करें",
+  "Retry failed notes": "असफल नोट फिर आयात करें",
+  "Resume import": "आयात जारी रखें",
+  "Import upload expired. Retry this note.": "आयात अपलोड की समय सीमा समाप्त हो गई। यह नोट फिर आयात करें।",
+  "Invalid import upload.": "आयात अपलोड अमान्य है।",
+  "Import upload already exists with different options.": "यह आयात अपलोड अन्य विकल्पों के साथ पहले से मौजूद है।",
+  "Import upload storage is busy. Retry later.": "आयात का अस्थायी संग्रहण व्यस्त है। बाद में फिर कोशिश करें।",
+  "Invalid import chunk.": "आयात डेटा का भाग अमान्य है।",
+  "Import chunk already exists with different data.": "यह आयात भाग अन्य डेटा के साथ पहले से मौजूद है।",
+  "Import upload is incomplete.": "आयात अपलोड अधूरा है।",
+  "Invalid imported note": "आयात किया गया नोट अमान्य है",
+  "Server response was interrupted.": "सर्वर का उत्तर बीच में रुक गया।"
 }

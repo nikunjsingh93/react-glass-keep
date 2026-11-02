@@ -358,5 +358,22 @@
   "For pictures, choose the whole folder or ZIP, or select the JSON files and their images together. JSON files alone cannot include nearby images.": "Для импорта изображений выберите папку целиком или ZIP либо выделите файлы JSON вместе с изображениями. Выбор только файлов JSON не даёт доступа к соседним изображениям.",
   "Missing images: {count}": "Отсутствующие изображения: {count}",
   "Add the missing images with Add JSON files and images, or choose the complete Takeout folder or ZIP.": "Добавьте отсутствующие изображения через «Добавить файлы JSON и изображения» или выберите полную папку Takeout либо ZIP.",
-  "Import anyway without missing images": "Всё равно импортировать без отсутствующих изображений"
+  "Import anyway without missing images": "Всё равно импортировать без отсутствующих изображений",
+  "This note exceeds the 128 MiB import limit.": "Эта заметка превышает лимит импорта в 128 МиБ.",
+  "An image exceeds the 12 MiB import limit.": "Одно изображение превышает лимит импорта в 12 МиБ.",
+  "Import paused after {count} notes. Resume to continue. {reason}": "Импорт приостановлен после {count} заметок. Возобновите его для продолжения. {reason}",
+  "Retrying import request ({attempt}/{total})…": "Повтор запроса импорта ({attempt}/{total})…",
+  "Notes needing attention: {count}. Other notes were imported.": "Заметок, требующих внимания: {count}. Остальные заметки импортированы.",
+  "Download import report": "Скачать отчёт об импорте",
+  "Retry failed notes": "Повторить импорт неудавшихся заметок",
+  "Resume import": "Возобновить импорт",
+  "Import upload expired. Retry this note.": "Срок загрузки истёк. Повторите импорт этой заметки.",
+  "Invalid import upload.": "Некорректная загрузка импорта.",
+  "Import upload already exists with different options.": "Загрузка импорта уже существует с другими параметрами.",
+  "Import upload storage is busy. Retry later.": "Временное хранилище импорта занято. Повторите позже.",
+  "Invalid import chunk.": "Некорректный блок импорта.",
+  "Import chunk already exists with different data.": "Блок импорта уже существует с другими данными.",
+  "Import upload is incomplete.": "Загрузка импорта не завершена.",
+  "Invalid imported note": "Некорректная импортируемая заметка",
+  "Server response was interrupted.": "Ответ сервера был прерван."
 }

@@ -9,6 +9,7 @@ import net from 'node:net';
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import {createImportTransport} from '../src/importTransport.js';
 
 async function startServer(t, overrides={}, prepareDatabase) {
   const dir=await mkdtemp(path.join(tmpdir(),'glass-keep-test-'));
@@ -44,6 +45,44 @@ test('Nginx proxy headers identify separate clients and do not produce validatio
   }
   assert.equal((await api('/login',{method:'POST',headers:{'X-Forwarded-For':'192.0.2.2'},body:{email:'operator',password:'test-password-long-enough'}})).status,200);
   assert.doesNotMatch(logs(),/ERR_ERL|ValidationError/);
+});
+
+test('large notes upload in bounded chunks, commit atomically, isolate users, and replay safely after lost replies',async t=>{
+  const {api,dbFile,logs}=await startServer(t);
+  const token=(await api('/login',{method:'POST',body:{email:'operator',password:'test-password-long-enough'}})).data.token;
+  await api('/admin/users',{method:'POST',token,body:{name:'Other',email:'other-import',password:'other-import-password-123'}});
+  const other=(await api('/login',{method:'POST',body:{email:'other-import',password:'other-import-password-123'}})).data.token;
+  let lost=true,largest=0;const state={operations:new Map(),uploads:new Map()};
+  const request=async(route,options)=>{
+    largest=Math.max(largest,Buffer.byteLength(JSON.stringify(options.body||{})));
+    const response=await api(route,{...options,headers:options.operationId?{'X-Operation-Id':options.operationId}:{}});
+    if(response.status>=400)throw Object.assign(Error(response.data.error+' '+logs()),{status:response.status});
+    if(route.endsWith('/commit')&&lost){lost=false;throw Object.assign(Error('Lost response after commit'),{isNetworkError:true});}
+    return response.data;
+  };
+  const note={id:'large-note-fixture-123456789',title:'Large UTF-8 😃 note',content:'Original content',images:[{id:'a',name:'one.png',src:'data:image/png;base64,'+'A'.repeat(11*1024*1024)},{id:'b',name:'two.png',src:'data:image/png;base64,'+'B'.repeat(11*1024*1024)}]};
+  const transport=createImportTransport(request,token,{deduplicate:false,wait:async()=>{},state});
+  assert.equal((await transport.sendLarge(note)).imported,1);
+  assert.equal((await transport.sendLarge(note)).imported,1,'Completed upload replays its original result');
+  const notes=(await api('/notes',{token})).data;assert.equal(notes.length,1);assert.deepEqual(notes[0].images,note.images);assert.equal(notes[0].title,note.title);assert.ok(largest<512*1024);
+  const uploadId=state.uploads.get(note.id),uploadPath='/notes/import/uploads/'+uploadId;
+  assert.equal((await api(uploadPath+'/commit',{method:'POST',token:other,body:{}})).status,404);
+  assert.equal((await api('/notes/import/uploads/incomplete-upload-12345',{method:'PUT',token,body:{bytes:300000,chunks:2}})).status,200);
+  assert.equal((await api('/notes/import/uploads/incomplete-upload-12345/commit',{method:'POST',token,body:{}})).status,409);
+  assert.equal((await api('/notes',{token})).data.length,1,'Incomplete upload must never create a partial note');
+  assert.equal((await api('/notes/import/uploads/incomplete-upload-12345/chunks/0',{method:'PUT',token,body:{data:'bad'}})).status,400);
+  const db=new Database(dbFile);try{
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM note_import_chunks WHERE upload_id=?').get(uploadId).n,0,'Commit releases staged data');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM note_import_hashes').get().n,1);
+  await api(`/notes/${notes[0].id}`,{method:'PATCH',token,body:{content:'Edited content',revision:notes[0].revision}});
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM note_import_hashes').get().n,0,'Editing invalidates duplicate fingerprints');
+  const original={title:note.title,content:note.content,images:note.images};
+  assert.equal((await createImportTransport(request,token,{wait:async()=>{}}).sendLarge({...original,id:'another-large-note-12345'})).imported,1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM note_import_hashes').get().n,2);
+  assert.equal((await api('/notes/import',{method:'POST',token,body:{notes:[{title:'After large note',images:[]}]}})).data.imported,1);
+  db.prepare('UPDATE note_import_uploads SET expires=0 WHERE id=?').run('incomplete-upload-12345');
+  assert.equal((await api('/notes/import/uploads/incomplete-upload-12345/commit',{method:'POST',token,body:{}})).status,404);
+  }finally{db.close();}
 });
 
 test('duplicate import, share restoration, private links, public revocation and mutation replay',async t=>{

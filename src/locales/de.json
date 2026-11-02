@@ -358,5 +358,22 @@
   "For pictures, choose the whole folder or ZIP, or select the JSON files and their images together. JSON files alone cannot include nearby images.": "Wählen Sie für Bilder den gesamten Ordner oder das ZIP, oder wählen Sie die JSON-Dateien und ihre Bilder zusammen aus. JSON-Dateien allein enthalten keine daneben gespeicherten Bilder.",
   "Missing images: {count}": "Fehlende Bilder: {count}",
   "Add the missing images with Add JSON files and images, or choose the complete Takeout folder or ZIP.": "Fügen Sie fehlende Bilder über „JSON-Dateien und Bilder hinzufügen“ hinzu, oder wählen Sie den vollständigen Takeout-Ordner oder das ZIP.",
-  "Import anyway without missing images": "Trotzdem ohne die fehlenden Bilder importieren"
+  "Import anyway without missing images": "Trotzdem ohne die fehlenden Bilder importieren",
+  "This note exceeds the 128 MiB import limit.": "Diese Notiz überschreitet die Importgrenze von 128 MiB.",
+  "An image exceeds the 12 MiB import limit.": "Ein Bild überschreitet die Importgrenze von 12 MiB.",
+  "Import paused after {count} notes. Resume to continue. {reason}": "Import nach {count} Notizen pausiert. Setzen Sie ihn fort. {reason}",
+  "Retrying import request ({attempt}/{total})…": "Importanfrage wird erneut versucht ({attempt}/{total})…",
+  "Notes needing attention: {count}. Other notes were imported.": "Zu prüfende Notizen: {count}. Andere Notizen wurden importiert.",
+  "Download import report": "Importbericht herunterladen",
+  "Retry failed notes": "Fehlgeschlagene Notizen erneut versuchen",
+  "Resume import": "Import fortsetzen",
+  "Import upload expired. Retry this note.": "Der Import-Upload ist abgelaufen. Versuchen Sie diese Notiz erneut.",
+  "Invalid import upload.": "Ungültiger Import-Upload.",
+  "Import upload already exists with different options.": "Der Import-Upload existiert bereits mit anderen Optionen.",
+  "Import upload storage is busy. Retry later.": "Der Import-Zwischenspeicher ist belegt. Versuchen Sie es später erneut.",
+  "Invalid import chunk.": "Ungültiger Import-Datenblock.",
+  "Import chunk already exists with different data.": "Der Import-Datenblock existiert bereits mit anderen Daten.",
+  "Import upload is incomplete.": "Der Import-Upload ist unvollständig.",
+  "Invalid imported note": "Ungültige importierte Notiz",
+  "Server response was interrupted.": "Die Serverantwort wurde unterbrochen."
 }

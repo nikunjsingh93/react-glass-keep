@@ -83,18 +83,24 @@ export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
   return {notes,warnings,missingAttachments,skipped};
 }
 
-export async function* keepNotesWithAttachments(notes,entries,{signal}={}) {
+export async function* keepNotesWithAttachments(notes,entries,{signal,onError}={}) {
   for(const note of notes){
+    try {
     signal?.throwIfAborted();const images=[];
     let budget=new TextEncoder().encode(JSON.stringify({...note,images:[]})).byteLength;
     for(const image of note.images){
+      const entry=image.entryName?entries.get(image.entryName):null;
+      if(entry?.size>MAX_ATTACHMENT)throw new Error('An image exceeds the 12 MiB import limit.');
+      budget+=entry?Math.ceil(entry.size/3)*4+new TextEncoder().encode(JSON.stringify({id:image.id,name:image.name,src:''})).byteLength+128:new TextEncoder().encode(JSON.stringify(image)).byteLength+1;
+    }
+    if(budget>128*1024*1024)throw new Error('This note exceeds the 128 MiB import limit.');
+    for(const image of note.images){
       if(!image.entryName){images.push(image);continue;}
       const entry=entries.get(image.entryName);
-      budget+=Math.ceil(entry.size/3)*4+new TextEncoder().encode(JSON.stringify({id:image.id,name:image.name,src:''})).byteLength+128;
-      if(budget>19*1024*1024)throw new Error('One note exceeds the API upload limit.');
       const data=await entry.read({maxBytes:MAX_ATTACHMENT,signal});
       images.push({id:image.id,name:image.name,src:dataURL(data,image.name)});
     }
     yield {...note,images};
+    }catch(error){if(signal?.aborted||!onError)throw error;await onError(note,error);}
   }
 }

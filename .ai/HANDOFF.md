@@ -1,87 +1,65 @@
 # Development handoff
 
-## Last updated
+## Current task — resilient large Keep imports (#37)
 
-- Date: **2026-10-29**, America/New_York; agent: Codex.
-- Branch: `main`; baseline: `bdeac2b744065ef9b5474aa29b0c24b76c808db9`.
-- Web/server/native metadata: **1.0.20**.
-- Source fix committed/pushed as `f392b7e1b09d6f982bec7702b6beee111768646f`.
-- This completion checkpoint is a documentation-only follow-up. Use Git history
-  for its hash; working-tree cleanliness is checked after pushing.
-- Read `AGENTS.md` and `PROJECT.md`; source/tests and fresh external state prevail.
+- Date: **2026-11-02**, America/New_York; agent: Codex; branch main.
+- Baseline: `594eb273a7fbb01599329e3d7c12a6bc14cf0837`; versions now **1.0.21**.
+- Local changes are not committed or published yet. Read AGENTS.md/PROJECT.md.
 
-## Completed task — Google Keep picker and missing pictures, issue #37
+## Implemented
 
-The reporter could not find ZIP/folder options and imported JSON without images.
-The shared importer had raw file inputs; the individual-file accept filter excluded
-images. Browsers cannot read unselected neighboring files from JSON alone.
+- Server `noteImport.js`: authenticated SQLite chunk staging, 256 KiB decoded chunks,
+  128 MiB encoded-note cap, per-account/global quotas, one-hour expiry with minute
+  cleanup/startup cleanup, atomic whole-note commit and replayable results.
+- Duplicate fingerprint cache with SQL content/ownership invalidation. Backfills
+  only missing IDs then hashes one note at a time; never rehashes every image on
+  each batch. SELECT iterator + cache writes initially failed in better-sqlite3;
+  fixed using a small ID list before per-note reads/writes.
+- `importTransport.js`: <=512 KiB batches, five transient retries/backoff, stable
+  operation/upload IDs across resume, small chunk requests and best-effort cleanup.
+  Import-specific 120-second request timeout and real parent cancellation.
+- Offline wrapper preserves explicit operation IDs/network errors and does not
+  rewrite all cached notes for import/chunk acknowledgments.
+- Keep UI pauses/resumes unconfirmed notes, continues past individual bad notes,
+  shows titles/reasons and downloadable failure report, retries failed notes only.
+  Notes/pictures are not split, resized, dropped or saved partially after failure.
+- Import-time full-library refreshes deferred, server events batched per affected
+  user, full note content logging removed. Generic backup restores use transport too.
+- All supported locales, guide, changelog, versions and Docker smoke expectation updated.
 
-- `FeaturePanels.jsx`: visible Choose Takeout ZIP, Choose Takeout folder and Add
-  JSON files and images buttons. JSON/image selections accumulate; ZIP/folder
-  choices replace the selection. Missing pictures are listed; uploading requires
-  supplying them or explicitly acknowledging an incomplete import. Reset inputs
-  allow selecting the same files again. New guidance translated in every locale.
-- `keepImport.js`: merges File handles without eager content reads. Exact paths
-  take priority, with unique-basename fallback for flat individual selections;
-  ambiguous names are reported instead of guessed. Missing-image records belong
-  only to valid importable notes. Large/lazy ZIP and per-note limits are preserved.
-- `App.jsx`: removed dormant legacy text-only Keep importer and hidden JSON input,
-  leaving one shared implementation. Existing backup formats remain supported.
-- `docs/google-keep-import.md` explains all three choices, missing-image recovery,
-  browser file permissions and reimport behavior. Duplicate checks include images:
-  importing complete notes adds copies with pictures without changing old copies.
-- Added unit tests and a shared browser helper exercising actual ZIP, folder and
-  multi-file pickers, adding pictures after JSON, saved bytes and rendered images.
-- Versions, changelog, Docker smoke expectations and PROJECT notes are aligned.
+## Checks run
 
-## Verification actually run
+- `npm test`: **36 passed** (before final small identity/Resume-label refinements).
+- Final web and native frontend builds passed with 1.0.21 metadata.
+- Final focused suite (import transport + locales + recovery/web/native browser):
+  **8 passed**. Earlier export/browser suite **4 passed**.
+- New real-browser recovery test: 1,300 small notes plus a >20 MiB note with two
+  original images; exhausts five retries by losing six replies after successful
+  batch commit, then explicitly resumes; loses a large-note commit reply too.
+  Duplicate skipping OFF, no duplicate saves. One oversized image note is reported,
+  later notes import, only failed note is retried; full-library refreshes bounded.
+- API tests cover chunk integrity/incomplete commits, account isolation, staged
+  cleanup, >20 MiB intact note, lost replies, duplicate-cache invalidation, legacy
+  sessions/data and existing sharing behavior.
+- Syntax, version and diff whitespace checks passed. Reporter archive unavailable.
+- No compiled client or physical-device verification for 1.0.21 yet.
 
-- `npm test`: **31 passed** with authorized loopback access. The first restricted
-  attempt had 9 loopback EACCES failures (22 passed); sandbox networking caused them.
-- Final 1.0.20 `npm run build` and `npm run native:build`: passed.
-- `node --test tests/keep-import.test.js tests/i18n.test.js tests/web-features.browser.mjs tests/native.browser.mjs`:
-  **10 passed**, including all picker types, phone/desktop control bounds,
-  missing-image guard/recovery and the synthetic 450 MiB ZIP route with image decode.
-- Desktop import screenshot visually inspected; all picker buttons visible.
-- Compiled Windows x64 and ARM64 clients passed basic transport checks and all
-  three picker workflows with saved/rendered pictures using temporary profiles.
-  ARM64 also passed the synthetic 450 MiB ZIP through the backup entry point.
-- APK versionName **1.0.20**, versionCode **1000020**. Local apksigner verification
-  passed and the public signing certificate matches the 1.0.19 release.
-- All five native CI jobs succeeded, including Mac packaging/startup/architecture
-  checks and Android signing/icon checks. No physical Android or interactive Mac
-  testing was done in this task.
-- Docker smoke passed on AMD64 and ARM64: health/version, proxy, login/SQLite,
-  ownership, archived exports, final frontend hash and llama.cpp executable.
-- Version invariant and `git diff --check` passed.
+## Next steps
 
-## Publication completed and verified
+1. Commit/push source; dispatch all native builds. Docker Desktop is stopped:
+   start it, build/push 1.0.21, smoke both architectures, promote exact image to latest.
+2. Wait for all native jobs, collect actual binaries, check compiled Windows and
+   APK version/signing. Publish public Latest 1.0.21 with seven binaries/checksums.
+3. Update this handoff with actual source hash, run, image digest and final results;
+   commit/push completion docs afterward.
 
-- Native run **40879428436** succeeded for exact source commit f392b7e:
-  https://github.com/nikunjsingh93/react-glass-keep/actions/runs/40879428436
-- Public, non-prerelease **Latest v1.0.20**, targeting that source commit:
-  https://github.com/nikunjsingh93/react-glass-keep/releases/tag/v1.0.20
-- All seven binaries and SHA256SUMS.txt uploaded and verified (eight assets).
-  Local downloads: `artifacts/native/1.0.20`. Never publish collector ZIPs.
-- Docker `nikunjsingh/glass-keep:1.0.20` and `:latest` published for AMD64/ARM64,
-  verified index digest:
-  `sha256:a4243d8608402189a6ecbd68f9c629b95abd4d0e1ef74c0708dca28ea9e59cda`.
-  Docker Desktop was initially stopped and started through its CLI for the build.
-- Issue #37 rechecked **open** for reporter confirmation. No comment or closure
-  sent by us. Owner updates production through Portainer; production was not changed.
+## Constraints
 
-## Limits, recovery and next action
-
-- Selecting JSON alone cannot read unselected neighboring pictures. Use the full
-  ZIP/folder or select JSON and supported images together; images can be added later.
-- Reimporting with pictures preserves old text-only copies. Review before manually
-  deleting anything. Never silently overwrite/delete earlier imports.
-- Preserve standard ZIP 2 GiB / expanded 4 GiB / 50,000-entry limits, bounded
-  metadata/lazy attachments and the existing per-image/per-note upload guards.
-  ZIP64/encrypted/multidisk archives need extracted-folder import. Details in guide.
-- Reporter archive unavailable; tests use synthetic fixtures, not private exports.
-  No promise of arbitrary-size imports or every low-memory device succeeding.
-- Owner/reporter should update Docker/web and any native clients independently;
-  native UI is bundled. Refresh the web app after updating.
-- No assigned implementation, build or publication work remains. Await reporter
-  confirmation; refresh repository/GitHub state before starting another task.
+- 12 MiB per image remains for Takeout; notes >128 MiB encoded are reported and
+  skipped, not partially stored. Requests still globally capped at 20 MiB.
+- Update server AND native clients. Resume state is in the open dialog; a new file
+  selection or reopened app starts a new import. Keep duplicate skipping on for
+  restarts. A reachable server and storage/memory for final dataset remain required.
+- Last published release is 1.0.20. Issue #37 open; no comments/closure sent by us.
+- Owner deploys via Portainer; do not claim publishing updates their running server.
+  Preserve approved signing identity and unrelated Docker containers/data.

@@ -72,11 +72,14 @@ test('Glass Keep ZIP/JSON backup compatibility and Takeout metadata validation a
   const result=parseKeepEntries(entries);assert.deepEqual(result.notes.map(note=>note.title),['Actual note']);assert.equal(result.warnings.length,1);
 });
 
-test('per-note upload budget is checked before accumulating large attachments',async()=>{
+test('per-note preparation guards run before image reads, and a failed note does not stop the rest',async()=>{
   let reads=0;
-  const entries=new Map([['a',{size:12*1024*1024,async read(){reads++;return new Uint8Array(12*1024*1024);}}],['b',{size:12*1024*1024,async read(){reads++;return new Uint8Array(12*1024*1024);}}]]);
-  const notes=[{title:'Big note',images:[{id:'a',name:'a.png',entryName:'a'},{id:'b',name:'b.png',entryName:'b'}]}];
-  await assert.rejects(()=>importNoteBatches(keepNotesWithAttachments(notes,entries),async()=>assert.fail('Oversized note must not be sent')),/API upload limit/);assert.equal(reads,1);
+  const images=Array.from({length:9},(_,id)=>({id:String(id),name:id+'.png',entryName:String(id)}));
+  const entries=new Map(images.map(image=>[image.entryName,{size:12*1024*1024,async read(){reads++;throw Error('Must not read rejected notes');}}]));
+  const notes=[{title:'Big note',images},{title:'After big note',images:[]}];
+  await assert.rejects(()=>importNoteBatches(keepNotesWithAttachments(notes,entries),async()=>assert.fail('Oversized note must not be sent')),/128 MiB/);assert.equal(reads,0);
+  const failures=[],sent=[];await importNoteBatches(keepNotesWithAttachments(notes,entries,{onError:(note,error)=>failures.push({title:note.title,error:error.message})}),async body=>sent.push(...body.notes));
+  assert.deepEqual(sent.map(n=>n.title),['After big note']);assert.equal(failures[0].title,'Big note');assert.match(failures[0].error,/128 MiB/);assert.equal(reads,0);
 });
 
 test('streamed ZIP descriptors/Unicode names work and dishonest expanded lengths are rejected',async()=>{

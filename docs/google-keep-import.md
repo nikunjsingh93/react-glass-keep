@@ -49,18 +49,47 @@ Limits remain to reject malformed or unexpectedly large content:
 - Indexed files: up to 50,000, 4 GiB total declared unpacked content and a 16 MiB
   ZIP directory. Folder imports have the file-count and total-content limits too.
 - Note JSON: up to 2 MiB per file and 64 MiB combined metadata.
-- Supported image attachments: up to 12 MiB each; the full encoded note must fit
-  the existing 19 MiB import payload guard. A ZIP can be large while its individual
-  notes remain small enough to import.
+- Supported image attachments: up to 12 MiB each. From **1.0.21**, a complete note
+  can contain up to **128 MiB of encoded JSON**, including base64 image data.
+  Large notes travel in 256 KiB chunks and are saved atomically as one note.
+  Pictures are not resized, split into other notes or silently discarded.
 - ZIP64, encrypted and multidisk archives are not supported directly. Extract
   them and select the Keep folder instead. Corrupt data, unsafe paths, mismatched
   sizes and failed CRC checks are rejected.
 
-If a note is too large, reduce its attachment sizes before retrying. The error
-reports how many notes were processed before stopping. Successful earlier batches
-remain saved; keep **Skip duplicate notes** enabled when retrying. Closing the
-dialog stops further preparation/batches; a request already accepted by the server
-may finish. Large previews show only the first 100 titles, but import all ready notes.
+## Interruptions and notes needing attention
+
+Update **both the server and your native client** to 1.0.21 or newer to use chunked
+uploads. On web, refresh after updating the container. Import still needs a
+reachable server; it does not upload offline.
+
+Transient network/timeouts and selected proxy errors are retried up to five times
+with backoff. The same operation identifiers are reused, so a lost reply after a
+successful save does not create another copy, even with duplicate skipping off.
+If retries are exhausted, leave the dialog open and use **Resume import** after
+restoring the connection. Confirmed notes are not uploaded again. Selecting new
+files or closing/reopening starts a new import; keep **Skip duplicate notes** on
+when restarting to avoid copies of already saved notes.
+
+A corrupt, unsupported or oversized individual note is listed under **Notes
+needing attention**, and remaining notes continue. Download the import report to
+find affected titles and reasons. Reduce oversized pictures or correct the source
+files before trying again. **Retry failed notes** retries only unconfirmed notes
+from the current selection; choosing corrected files starts a new selection.
+Failed notes are not saved partially. Existing notes and successful earlier batches
+remain intact.
+
+Uploads use bounded, account-scoped temporary rows in the server database. An
+unfinished upload expires one hour after activity; cleanup runs every minute and
+at server startup. A user can reserve up to 128 MiB, with a 512 MiB shared staging
+budget. Committing releases the chunk data. Server storage/memory for the final
+note/image dataset is still required; the limits are not a promise that every
+low-memory device can display arbitrary amounts of imported data.
+
+Closing the dialog stops future preparation/uploads; a server request already
+accepted may finish. Large previews show only the first 100 titles, but process
+all ready notes. The synthetic regression covers 1,300 small notes, a large note
+with two images, interrupted replies and a failed note followed by later notes.
 
 ## Ownership and sharing
 

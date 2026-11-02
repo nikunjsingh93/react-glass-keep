@@ -11,9 +11,10 @@ const cors = require("cors");
 const crypto = require("crypto");
 const { rateLimit } = require("express-rate-limit");
 const { configureProxy } = require('./proxy');
-const { fingerprint, installNoteFeatures } = require('./noteFeatures');
+const { installNoteFeatures } = require('./noteFeatures');
 const { installAI } = require('./ai');
 const { installAccountPreferences } = require('./accountPreferences');
+const { installNoteImport } = require('./noteImport');
 
 const app = express();
 configureProxy(app);
@@ -955,58 +956,9 @@ app.get("/api/notes/export", auth, (req, res) => {
   });
 });
 
-app.post("/api/notes/import", auth, (req, res) => {
-  const payload = req.body || {};
-  const src = Array.isArray(payload.notes)
-    ? payload.notes
-    : Array.isArray(payload)
-      ? payload
-      : [];
-  if (!src.length) return res.status(400).json({ error: "No notes to import." });
-
-  const rows = db.prepare("SELECT id FROM notes").all();
-  const existing = new Set(rows.map((r) => r.id));
-  const hashes = new Set(db.prepare('SELECT * FROM notes WHERE user_id=?').all(req.user.id).map(fingerprint));
-  let imported=0, skipped=0;
-  const sharingWarnings=[];
-
-  const tx = db.transaction((arr) => {
-    for (const n of arr) {
-      if (!n || typeof n !== "object") throw new Error("Invalid imported note");
-      const hash = fingerprint(n);
-      if (payload.deduplicate !== false && hashes.has(hash)) { skipped++; continue; }
-      const id = !n.id || existing.has(String(n.id)) ? crypto.randomUUID() : String(n.id);
-      existing.add(id);
-      insertNote.run({
-        id,
-        user_id: req.user.id,
-        type: n.type === "checklist" ? "checklist" : n.type === "draw" ? "draw" : "text",
-        title: String(n.title || ""),
-        content: n.type === "checklist" ? "" : String(n.content || ""),
-        items_json: JSON.stringify(Array.isArray(n.items) ? n.items : []),
-        tags_json: JSON.stringify(Array.isArray(n.tags) ? n.tags : []),
-        images_json: JSON.stringify(Array.isArray(n.images) ? n.images : []),
-        color: typeof n.color === "string" ? n.color : "default",
-        pinned: n.pinned ? 1 : 0,
-        position: typeof n.position === "number" ? n.position : Date.now(),
-        timestamp: n.timestamp || nowISO(),
-        archived: n.archived ? 1 : 0,
-      });
-      hashes.add(hash); imported++;
-      if (payload.restoreSharing === true && Array.isArray(n.collaborators)) {
-        for (const identity of n.collaborators) {
-          const email=typeof identity === 'string' ? identity : identity?.email;
-          const user=typeof email === 'string' ? getUserByEmail.get(email.trim()) : null;
-          if (user && user.id !== req.user.id) db.prepare('INSERT OR IGNORE INTO note_collaborators(note_id,user_id,added_by,added_at) VALUES(?,?,?,?)').run(id,user.id,req.user.id,nowISO());
-          else if (!user) sharingWarnings.push(String(email || 'Unknown collaborator'));
-        }
-      }
-      broadcastNoteUpdated(id);
-    }
-  });
-  tx(src);
-  res.json({ ok: true, imported, skipped, sharingWarnings });
-});
+installNoteImport(app,{db,auth,insertNote,getUserByEmail,notify:recipients=>{
+  for(const userId of recipients)sendEventToUser(userId,{type:'note_updated'});
+}});
 
 // ---------- Admin ----------
 function adminOnly(req, res, next) {

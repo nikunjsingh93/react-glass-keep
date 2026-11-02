@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.21] - 2026-11-02
+### Fixed
+- Keeps large notes intact with authenticated, account-scoped chunked uploads instead of stopping at the old 19 MiB request guard. Requests stay small; notes up to 128 MiB encoded are committed atomically without splitting, resizing or discarding their pictures.
+- Retries transient network/proxy failures with stable operation identifiers, preventing duplicate saves even when duplicate skipping is off. A paused Google Keep import can resume its unconfirmed notes within the open dialog.
+- Reports individual invalid or oversized notes by title and continues importing the rest. Includes a downloadable failure report and retry-failed action; no partial image-only/text-only note is saved for a failed preparation.
+- Eliminates repeated full-library image hashing, cache rewrites and note refreshes during import. Maintains duplicate fingerprints with invalidation on edits and batches realtime notifications. Existing accounts, notes, sharing and offline edits remain compatible.
+- Applies bounded uploads to Glass Keep backup restores too. Preserves the global 20 MiB request limit and Takeout's 12 MiB per-image limit; unfinished staged uploads expire and are cleaned up automatically.
+### Validation
+- Tests cover 1,300 small notes plus a >20 MiB image-bearing note, lost replies after successful batch/large-note commits, no duplicates with duplicate skipping off, continuation past a failed note, account isolation, expiry and fingerprint invalidation. All supported interface languages include the new progress and recovery messages.
+
 ## [1.0.20] - 2026-10-29
 ### Fixed
 - Makes Google Keep import choices explicit with visible Takeout ZIP, Takeout folder, and JSON-plus-images buttons on web and native clients. Removes the unused legacy text-only importer.

@@ -1,6 +1,6 @@
 # Glass Keep project knowledge
 
-Last reconciled with source: **2026-10-29**, version **1.0.20**. This file records
+Last reconciled with source: **2026-11-02**, version **1.0.21**. This file records
 lasting architecture and decisions. Read [HANDOFF.md](HANDOFF.md) for recent state
 and [../AGENTS.md](../AGENTS.md) for working instructions.
 
@@ -126,6 +126,28 @@ filenames. The dormant App.jsx text-only Keep importer/input was removed; keep o
 shared import implementation. Duplicate detection includes image content, so
 reimporting complete notes creates new image-bearing copies without modifying
 earlier text-only notes. Document this recovery behavior rather than deleting data.
+
+In 1.0.21 `importTransport.js` sends <=512 KiB batches (max 50 notes), or 256 KiB
+binary chunks for complete notes up to 128 MiB encoded. Server `noteImport.js`
+stages authenticated per-account chunks in SQLite and commits one intact note
+atomically. Keep's individual image limit remains 12 MiB. Do not raise the global
+20 MiB parser/native request cap or split/resize/drop images to bypass note limits.
+Staging reserves <=128 MiB per user / 512 MiB globally, expires after an hour and
+cleans up each minute/startup. Stable mutation IDs and upload IDs protect retries,
+including lost commit replies with duplicate skipping off. Keep dialog tracks
+confirmed note IDs for Resume and reports failed individual notes while continuing.
+Restarting/reselecting is a new import; recommend duplicate skipping for restarts.
+
+Do not rewrite offline IndexedDB state for import/chunk acknowledgments or turn a
+non-queueable request's network error into a generic offline mutation error. Preserve
+explicit import operation IDs and cancellation. While importing, defer full-library
+refreshes, and send one realtime notification per affected user/batch after commit.
+`note_import_hashes` caches existing duplicate fingerprints; SQL triggers invalidate
+on relevant content/ownership changes. Backfill missing IDs with a small ID list,
+then read/hash each note separately: better-sqlite3 rejects writes while a SELECT
+iterator is active (an initial `.iterate()` + cache write failed regression tests).
+Do not return to rehashing all stored images on every batch or materializing all
+existing note/image rows just to check duplicates.
 
 ## UI conventions and regression traps
 

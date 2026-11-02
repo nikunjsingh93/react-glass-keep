@@ -2,11 +2,12 @@ import React,{useState,useEffect,useMemo,useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {readKeepFiles,parseKeepEntries,keepNotesWithAttachments,mergeKeepFiles} from './keepImport';
 import {importNoteBatches} from './importBackup';
+import {createImportTransport} from './importTransport';
 import {renderMarkdown} from './markdown';
 import {t} from './i18n';
 import DrawingCanvas from './DrawingCanvas';
 import LanguagePicker from './LanguagePicker';
-import {copyText,serverLink,confirmAction,isNative,serverOrigin} from './platform';
+import {copyText,serverLink,confirmAction,isNative,serverOrigin,saveBlob} from './platform';
 
 function SharedDrawing({content}) {
   let data;try{data=JSON.parse(content);}catch{return <p>{t('Drawing unavailable')}</p>;}
@@ -23,35 +24,49 @@ export function ConnectedServer() {
   </section>;
 }
 export function Dialog({title,onClose,children}) {return createPortal(<div className="fixed inset-0 z-[10002] bg-black/50 p-4 flex items-center justify-center"><section role="dialog" aria-modal="true" aria-label={title} className="settings-surface text-gray-900 dark:text-gray-100 rounded-xl shadow-xl p-5 max-w-xl w-full max-h-[90vh] overflow-auto"><div className="flex justify-between gap-4 mb-4"><h2 className="text-xl font-bold">{title}</h2><button aria-label={t('Close')} onClick={onClose}>×</button></div>{children}</section></div>,document.body);}
-export function KeepImportDialog({api,token,onClose,onImported,initialFiles}) {
+export function KeepImportDialog({api,token,onClose,onImported,initialFiles,onBusyChange=()=>{}}) {
   const [entries,setEntries]=useState(null),[onlyOwned,setOnlyOwned]=useState(true),[restoreSharing,setRestoreSharing]=useState(false),[deduplicate,setDeduplicate]=useState(true),[accountEmail,setAccountEmail]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[report,setReport]=useState(null);
   const [reading,setReading]=useState(false),[processed,setProcessed]=useState(0);
   const [allowMissing,setAllowMissing]=useState(false);
+  const [retry,setRetry]=useState(null);
+  const completed=useRef(new Set()),transportState=useRef({operations:new Map(),uploads:new Map()}),totalsRef=useRef({imported:0,skipped:0});
   const operation=useRef(null),selectedFiles=useRef([]),zipInput=useRef(null),folderInput=useRef(null),filesInput=useRef(null);
   const preview=useMemo(()=>entries?parseKeepEntries(entries,{onlyOwned,accountEmail}):null,[entries,onlyOwned,accountEmail]);
   const missing=preview?.missingAttachments || [];
-  useEffect(()=>()=>operation.current?.abort(),[token]);
+  const locked=busy||processed>0||transportState.current.operations.size>0;
+  useEffect(()=>()=>{operation.current?.abort();onBusyChange(false);},[token]);
   const close=()=>{operation.current?.abort();onClose();};
   const choose=async (files,append=false)=>{
     if(!files?.length)return;
     operation.current?.abort();const controller=new AbortController();operation.current=controller;
     selectedFiles.current=append?mergeKeepFiles(selectedFiles.current,files):Array.from(files);
+    completed.current.clear();transportState.current={operations:new Map(),uploads:new Map()};totalsRef.current={imported:0,skipped:0};setProcessed(0);setRetry(null);
     setError('');setEntries(null);setReport(null);setReading(true);setAllowMissing(false);
     try{const next=await readKeepFiles(selectedFiles.current,{signal:controller.signal});if(operation.current===controller)setEntries(next);}
     catch(e){if(!controller.signal.aborted&&operation.current===controller)setError(e.message);}
     finally{if(operation.current===controller)setReading(false);}
   };
   useEffect(()=>{if(initialFiles)void choose(initialFiles);},[initialFiles]);
-  const run=async()=>{if(busy||reading||!preview?.notes.length||(missing.length&&!allowMissing))return;const controller=new AbortController();operation.current=controller;setBusy(true);setError('');setProcessed(0);try{
-    const totals={imported:0,skipped:preview.skipped,sharingWarnings:[]};
-    await importNoteBatches(keepNotesWithAttachments(preview.notes,entries,{signal:controller.signal}),async body=>{
-      controller.signal.throwIfAborted();
-      const result=await api('/notes/import',{method:'POST',token,body:{...body,deduplicate,restoreSharing}});
-      totals.imported+=result.imported;totals.skipped+=result.skipped;totals.sharingWarnings.push(...(result.sharingWarnings || []));
-      controller.signal.throwIfAborted();setProcessed(count=>count+body.notes.length);
-    });
-    setReport(totals);await onImported();
-  }catch(e){if(!controller.signal.aborted)setError(typeof e.imported==='number'?t('Import stopped after {count} notes. {reason}',{count:e.imported,reason:t(e.cause?.message||e.message)}):e.message);}finally{setBusy(false);}};
+  const run=async()=>{
+    if(busy||reading||!preview?.notes.length||(missing.length&&!allowMissing))return;
+    const controller=new AbortController();operation.current=controller;setBusy(true);onBusyChange(true);setError('');setReport(null);
+    const totals={...totalsRef.current,skipped:totalsRef.current.skipped,sharingWarnings:[],failed:[],complete:false};
+    const failed=(note,error)=>totals.failed.push({title:note.title||t('Untitled'),reason:t(error.message)});
+    const transport=createImportTransport(api,token,{signal:controller.signal,onRetry:(attempt,total)=>setRetry({attempt,total}),deduplicate,restoreSharing,state:transportState.current});
+    const accept=(notes,result)=>{
+      totals.imported+=result.imported;totals.skipped+=result.skipped||0;totals.sharingWarnings.push(...(result.sharingWarnings||[]));
+      for(const note of notes)completed.current.add(note.id);
+      totalsRef.current={imported:totals.imported,skipped:totals.skipped};setProcessed(completed.current.size);setRetry(null);
+    };
+    try{
+      const pending=preview.notes.filter(note=>!completed.current.has(note.id));
+      await importNoteBatches(keepNotesWithAttachments(pending,entries,{signal:controller.signal,onError:failed}),async body=>{
+        const result=await transport.send(body);accept(body.notes,result);
+      },512*1024,{signal:controller.signal,onError:failed,sendLarge:async note=>{const result=await transport.sendLarge(note);accept([note],result);}});
+      totals.complete=true;
+    }catch(e){if(!controller.signal.aborted)setError(t('Import paused after {count} notes. Resume to continue. {reason}',{count:completed.current.size,reason:t(e.cause?.message||e.message)}));}
+    finally{onBusyChange(false);setBusy(false);setRetry(null);if(!controller.signal.aborted)setReport({...totals,skipped:totals.skipped+preview.skipped});await onImported();}
+  };
   return <Dialog title={t('Import Google Keep')} onClose={close}>
     <p>{t('Choose a Takeout ZIP or a folder containing JSON files and attachments.')}</p>
     <p className="text-sm mt-2">{t('Large exports are supported. For low-memory devices, extract the ZIP and choose the Takeout folder.')}</p>
@@ -64,13 +79,14 @@ export function KeepImportDialog({api,token,onClose,onImported,initialFiles}) {
     <input ref={folderInput} aria-label={t('Takeout folder')} className="hidden" type="file" webkitdirectory="" multiple disabled={busy||reading} onChange={e=>{void choose(e.target.files);e.target.value='';}}/>
     <input ref={filesInput} aria-label={t('JSON files and images')} className="hidden" type="file" accept=".json,.png,.jpg,.jpeg,.gif,.webp,application/json,image/png,image/jpeg,image/gif,image/webp" multiple disabled={busy||reading} onChange={e=>{void choose(e.target.files,true);e.target.value='';}}/>
     <p className="text-sm">{t('For pictures, choose the whole folder or ZIP, or select the JSON files and their images together. JSON files alone cannot include nearby images.')}</p>
-    <label className="block my-3">{t('Google Keep account email')}<input value={accountEmail} disabled={busy} onChange={e=>setAccountEmail(e.target.value)} className="border border-[var(--border-light)] rounded p-2 bg-transparent w-full"/></label>
-    <label className="block my-2"><input type="checkbox" checked={onlyOwned} disabled={busy} onChange={e=>setOnlyOwned(e.target.checked)}/> {t('Import only notes I own')}</label>
-    <label className="block my-2"><input type="checkbox" checked={deduplicate} disabled={busy} onChange={e=>setDeduplicate(e.target.checked)}/> {t('Skip duplicate notes')}</label>
-    <label className="block my-2"><input type="checkbox" checked={restoreSharing} disabled={busy} onChange={e=>setRestoreSharing(e.target.checked)}/> {t('Recreate sharing with matching usernames or emails')}</label>
+    <label className="block my-3">{t('Google Keep account email')}<input value={accountEmail} disabled={locked} onChange={e=>setAccountEmail(e.target.value)} className="border border-[var(--border-light)] rounded p-2 bg-transparent w-full"/></label>
+    <label className="block my-2"><input type="checkbox" checked={onlyOwned} disabled={locked} onChange={e=>setOnlyOwned(e.target.checked)}/> {t('Import only notes I own')}</label>
+    <label className="block my-2"><input type="checkbox" checked={deduplicate} disabled={locked} onChange={e=>setDeduplicate(e.target.checked)}/> {t('Skip duplicate notes')}</label>
+    <label className="block my-2"><input type="checkbox" checked={restoreSharing} disabled={locked} onChange={e=>setRestoreSharing(e.target.checked)}/> {t('Recreate sharing with matching usernames or emails')}</label>
     {restoreSharing && <p className="text-sm">{t('This grants edit access to existing accounts whose username exactly matches a sharee email. Unmatched users are reported.')}</p>}
     {reading&&<p role="status" className="mt-3">{t('Reading Google Keep export…')}</p>}
     {busy&&<p role="status" className="mt-3">{t('Importing {done} of {total} notes…',{done:processed,total:preview?.notes.length||0})}</p>}
+    {retry&&<p role="status">{t('Retrying import request ({attempt}/{total})…',retry)}</p>}
     {preview && <div className="my-3"><p>{t('Notes ready')}: {preview.notes.length} · {t('Skipped')}: {preview.skipped}</p><ul className="text-sm max-h-36 overflow-auto">{preview.notes.slice(0,100).map(n=><li key={n.id}>{n.title || t('Untitled')} · {n.images.length} {t('images')}{restoreSharing && n.collaborators.length>0?` · ${n.collaborators.map(c=>c.email).join(', ')}`:''}</li>)}</ul>{preview.notes.length>100&&<p>{t('Showing the first {count} notes.',{count:100})}</p>}{preview.warnings.slice(0,100).map((w,i)=><p key={i} className="text-amber-700">{w}</p>)}{!preview.notes.length&&!preview.skipped&&<p role="alert">{t('No Google Keep notes were found. Choose a Google Keep Takeout ZIP or folder.')}</p>}</div>}
     {!!missing.length&&<div className="settings-card my-3">
       <p role="alert">{t('Missing images: {count}',{count:missing.length})}</p>
@@ -79,8 +95,13 @@ export function KeepImportDialog({api,token,onClose,onImported,initialFiles}) {
       <label className="block mt-2"><input type="checkbox" checked={allowMissing} disabled={busy} onChange={e=>setAllowMissing(e.target.checked)}/> {t('Import anyway without missing images')}</label>
     </div>}
     {report && <p role="status">{t('Imported')}: {report.imported} · {t('Skipped')}: {report.skipped}{report.sharingWarnings.length>0?` · ${t('Unmatched users')}: ${[...new Set(report.sharingWarnings)].join(', ')}`:''}</p>}
+    {!!report?.failed.length&&<div className="settings-card my-3">
+      <p role="alert">{t('Notes needing attention: {count}. Other notes were imported.',{count:report.failed.length})}</p>
+      <ul className="text-sm max-h-32 overflow-auto break-words">{report.failed.slice(0,100).map((note,index)=><li key={index}>{note.title}: {note.reason}</li>)}</ul>
+      <button className="settings-action rounded-lg px-3 py-2 my-2 text-sm" onClick={()=>saveBlob(new Blob([JSON.stringify(report.failed,null,2)],{type:'application/json'}),'glass-keep-import-report.json').catch(e=>setError(e.message))}>{t('Download import report')}</button>
+    </div>}
     {error && <p role="alert" className="text-red-600">{t(error)}</p>}
-    <button className="bg-indigo-600 text-white rounded px-4 py-2 mt-4 disabled:opacity-50" disabled={busy || reading || !preview?.notes.length || !!report || (!!missing.length&&!allowMissing)} onClick={run}>{t(busy?'Importing…':'Import')}</button>
+    <button className="bg-indigo-600 text-white rounded px-4 py-2 mt-4 disabled:opacity-50" disabled={busy || reading || !preview?.notes.length || (report?.complete&&!report.failed.length) || (!!missing.length&&!allowMissing)} onClick={run}>{t(busy?'Importing…':report&&!report.complete?'Resume import':report?.failed.length?'Retry failed notes':processed?'Resume import':'Import')}</button>
   </Dialog>;
 }
 

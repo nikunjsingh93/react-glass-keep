@@ -6,6 +6,7 @@ import { clearLegacyApiCaches } from "./privateCache";
 import DrawingCanvas from "./DrawingCanvas";
 import { createNoteWriter } from "./noteWriter";
 import { importNoteBatches } from "./importBackup";
+import {createImportTransport} from './importTransport';
 import ChecklistEditor from "./ChecklistEditor";
 import { toggleBranch } from "./checklist";
 import { LanguagePicker, KeepImportDialog, DuplicateDialog, NoteActions, PublicNote, ConnectedServer, Dialog } from "./FeaturePanels";
@@ -36,14 +37,16 @@ const setAuth = (obj) => {
   if (obj) localStorage.setItem(AUTH_KEY, JSON.stringify(obj));
   else localStorage.removeItem(AUTH_KEY);
 };
-async function networkApi(path, { method = "GET", body, token, operationId } = {}) {
+async function networkApi(path, { method = "GET", body, token, operationId, signal } = {}) {
   const headers = { "Content-Type": "application/json" };
   if (operationId) headers['X-Operation-Id'] = operationId;
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const controller = new AbortController();
+  const abort=()=>controller.abort(signal.reason);
+  if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
+  const timeoutId = setTimeout(() => controller.abort(), path.startsWith('/notes/import')?120000:30000);
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const res = await appFetch(`${API_BASE}${path}`, {
       method,
@@ -52,13 +55,13 @@ async function networkApi(path, { method = "GET", body, token, operationId } = {
       signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
-
     if (res.status === 204) return null;
     let data = null;
     try {
       data = await res.json();
     } catch (e) {
+      if(controller.signal.aborted)throw new DOMException('Request aborted','AbortError');
+      if(res.ok)throw Object.assign(new Error('Server response was interrupted.'),{isNetworkError:true});
       data = null;
     }
 
@@ -88,6 +91,7 @@ async function networkApi(path, { method = "GET", body, token, operationId } = {
     }
     return data;
   } catch (error) {
+    signal?.throwIfAborted();
     // Handle network errors, timeouts, etc.
     if (error.name === 'AbortError') {
       const err = new Error("Request timeout. Please check your connection.");
@@ -102,7 +106,7 @@ async function networkApi(path, { method = "GET", body, token, operationId } = {
     }
 
     // Handle fetch failures (network errors, CORS, etc.)
-    if (error instanceof TypeError && error.message.includes('fetch')) {
+    if (error instanceof TypeError && /fetch|network|load failed/i.test(error.message)) {
       const err = new Error("Network error. Please check your connection.");
       err.status = 0;
       err.isNetworkError = true;
@@ -111,7 +115,7 @@ async function networkApi(path, { method = "GET", body, token, operationId } = {
 
     // Re-throw other errors
     throw error;
-  }
+  } finally {clearTimeout(timeoutId);signal?.removeEventListener('abort',abort);}
 }
 
 const offlineClient = createOfflineClient({ request: networkApi, session: getAuth });
@@ -2963,6 +2967,7 @@ export default function App() {
   useEffect(() => { const changed=()=>{document.documentElement.lang=getLanguage();setLanguageVersion(getLanguage());}; changed();window.addEventListener("language-changed",changed);return()=>window.removeEventListener("language-changed",changed); }, []);
   const [keepImportOpen,setKeepImportOpen]=useState(false);
   const [keepImportFiles,setKeepImportFiles]=useState(null);
+  const importActive=useRef(false);
   const [duplicatesOpen,setDuplicatesOpen]=useState(false);
   const [autoExportOpen,setAutoExportOpen]=useState(false);
 
@@ -3588,12 +3593,11 @@ export default function App() {
   };
 
   const loadNotes = async () => {
-    if (!token) return;
+    if (!token || importActive.current) return;
     setNotesLoading(true);
 
     try {
       const data = await api("/notes", { token });
-      console.log("Notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
       setNotes(sortNotesByRecency(notesArray));
       persistNotesCache(notesArray);
@@ -3619,7 +3623,7 @@ export default function App() {
 
   // Load archived notes
   const loadArchivedNotes = async () => {
-    if (!token) return;
+    if (!token || importActive.current) return;
     setNotesLoading(true);
 
     console.log("Loading archived notes, checking cache...");
@@ -3641,7 +3645,6 @@ export default function App() {
 
     try {
       const data = await api("/notes/archived", { token });
-      console.log("Archived notes loaded from server:", data);
       const notesArray = Array.isArray(data) ? data : [];
       setNotes(sortNotesByRecency(notesArray));
 
@@ -4361,18 +4364,25 @@ export default function App() {
 
   const importAll = async (fileList) => {
     const file = fileList?.[0];
+    let uploading=false;
     try {
       if (!file) return;
-      const notesArr = await readBackup(file);
+      const identifiers=new Set();
+      const notesArr = (await readBackup(file)).map(note=>{
+        const id=note.id===undefined||note.id===null||identifiers.has(String(note.id))?crypto.randomUUID():String(note.id);
+        identifiers.add(id);return {...note,id};
+      });
       if (!notesArr.length) { alert(t("No notes found in file.")); return; }
       let imported=0,skipped=0;
-      await importNoteBatches(notesArr, async body => {const result=await api("/notes/import", { method: "POST", token, body });imported+=result.imported;skipped+=result.skipped || 0;});
-      await loadNotes();
+      uploading=true;importActive.current=true;
+      const transport=createImportTransport(api,token);
+      const accept=result=>{imported+=result.imported;skipped+=result.skipped||0;};
+      await importNoteBatches(notesArr,async body=>accept(await transport.send(body)),512*1024,{sendLarge:async note=>accept(await transport.sendLarge(note))});
       alert(t('Imported {count} notes. Skipped {skipped} duplicate notes.',{count:imported,skipped}));
     } catch (e) {
       if(e.code==='GOOGLE_KEEP_TAKEOUT'){setKeepImportFiles([file]);setKeepImportOpen(true);return;}
       alert(t(e.message || "Import failed"));
-    }
+    } finally {importActive.current=false;if(uploading)await loadNotes();}
   };
 
   /** -------- Import Markdown files (multiple) -------- */
@@ -6055,7 +6065,7 @@ export default function App() {
       <OfflineStatus client={offlineClient} onSynced={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>
       {!networkOnline && <p role="status" className="text-center bg-amber-100 text-gray-900 p-2">{t("You are offline. Changes are saved on this device and will sync when you reconnect.")}</p>}
       {autoExportOpen && <React.Suspense fallback={null}><AutoExportDialog backup={autoExport} onClose={()=>setAutoExportOpen(false)} onImport={()=>importFileRef.current?.click()}/></React.Suspense>}
-      {keepImportOpen && <KeepImportDialog api={api} token={token} initialFiles={keepImportFiles} onClose={()=>{setKeepImportOpen(false);setKeepImportFiles(null);}} onImported={loadNotes}/>}
+      {keepImportOpen && <KeepImportDialog api={api} token={token} initialFiles={keepImportFiles} onBusyChange={busy=>{importActive.current=busy;}} onClose={()=>{setKeepImportOpen(false);setKeepImportFiles(null);}} onImported={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>}
       {duplicatesOpen && <DuplicateDialog api={api} token={token} onClose={()=>setDuplicatesOpen(false)} onChanged={loadNotes}/>}
       <datalist id="existing-tags">{tagsWithCounts.map(({tag})=><option key={tag} value={tag}/>)}</datalist>
       {/* Tag Sidebar / Drawer */}
