@@ -154,6 +154,8 @@ import start invalidates pending pre-import requests, and importer close refresh
 the current view. Failed/invalid refreshes retain displayed notes and show Retry.
 Only a successful authoritative empty response shows the empty-account message;
 an empty offline cache does not prove the server has no notes. Successful online
+results must not be replaced by an older, incomplete offline cache when a larger
+list is already visible in that same view. Successful online
 results remain usable if IndexedDB caching fails, but offline edit queue writes
 must still persist successfully. Keep cache-failure notices account-scoped and
 clear them after a successful list cache write. Preserve newer/pending local note

@@ -1,60 +1,98 @@
 # Development handoff
 
-## Current task — follow-up import/refresh/draft regressions (#37)
+## Last updated
 
-- Date: **2026-11-08**, America/New_York; agent Codex; branch main.
-- Baseline: `6ef5032cee7b7032028e762664855384e4f210ca`.
-- Versions now **1.0.22**. Changes local/uncommitted; nothing published for 1.0.22 yet.
-- Read AGENTS.md and PROJECT.md; preserve the 1.0.21 bounded chunk import protocol.
+- Date: **2026-11-08**, America/New_York; agent Codex; branch `main`.
+- Baseline: `6ef5032cee7b7032028e762664855384e4f210ca`; all versions **1.0.22**.
+- Main fix: `976a5facf795cde1c45d63736cc58b99d444e559`.
+- Final app source: `515b74e5828c2cbb390b910699fbb326f75f2575` (partial-cache guard).
+- This completion handoff/PROJECT clarification is a documentation-only follow-up.
+  Use Git history for its hash; working tree is checked clean after pushing.
+- Read AGENTS.md and PROJECT.md; source/tests and fresh external state prevail.
 
-## Implemented
+## Completed task — reviewer follow-up in issue #37
 
-- App note refreshes are latest-request/account/view scoped and cancellable;
-  import start invalidates pending reads; closing import refreshes. Errors keep
-  displayed notes and show Retry. Empty offline cache/invalid API data no longer
-  masquerades as an empty account. Removed fresh-list localStorage cache writes.
-- Offline client returns accepted server results even when optional IndexedDB
-  caching fails, preserving pending drafts and durable queued edits. Notices are
-  account-scoped and clear after successful list cache writes; stale replies are
-  rejected and newer local revisions are retained in merges.
-- Dirty checks/autosaves compare raw title text to the raw opening baseline.
-  Untouched imported padded titles no longer trigger a save or close guard.
-  Remote revisions advance only when there is no local draft.
-- Cryptographic UUID helper falls back to getRandomValues on LAN HTTP origins;
-  shared imports, outbox and checklist code no longer require randomUUID.
-  Invalid JSON and preparation failures now have distinct localized warnings.
-- Main header shows bundled version with a GitHub updating.md link. New guide
-  explains Docker/Portainer + separate client updates. New strings translated.
-- Header color-only transition fixes geometry jitter caught by AI layout checks.
+Reporter saw empty notes after import/occasional refreshes, false dirty warnings
+on untouched notes, Invalid JSON when importing on an ARM64-hosted server, and
+requested a visible version/update link.
 
-## Checks so far
+- App refreshes are cancellable and scoped to latest request/account/view. Import
+  start invalidates pending reads; close refreshes the current view. Failed/invalid
+  reads retain visible notes and show Retry. Empty/partial offline caches cannot
+  replace an already visible same-view list or claim the account has no notes.
+- Offline cache writes are best effort after successful server reads/writes; quota
+  failures preserve returned data and durable queued edits. Actual failures show an
+  account-scoped notice, cleared on successful list caching. Stale replies are
+  rejected and newer/pending local revisions retained. Removed fresh-list writes
+  to the redundant localStorage cache; existing invalidation helpers remain.
+- Dirty checks/autosaves compare raw title text with the raw opening baseline.
+  Padded imported titles no longer trigger a save/close guard simply on opening.
+  Remote revisions advance only with no local draft; real conflicts preserve drafts.
+- `uuid.js` uses randomUUID where available and cryptographic getRandomValues on
+  LAN HTTP. Shared imports, checklist editing and outbox/transport IDs use it.
+  JSON syntax errors are distinct from localized preparation/attachment warnings.
+- Main header shows bundled version below logo, linked to docs/updating.md on
+  GitHub. Guide explains Portainer and separate native client updates. New text
+  translated in all locales. Header transitions animate colors rather than geometry,
+  preserving responsive search/AI alignment and safe-area behavior.
 
-- `npm test`: **39 passed**.
-- Web/native builds passed with final 1.0.22 metadata (latest CSS change built too).
-- Existing recovery/web/native browser suite: **3 passed**; initial new browser
-  test failed due to JSON module import syntax, then fixture DNS route.fetch;
-  both test-only problems fixed.
-- Actual insecure-HTTP browser test now passes import/close with a delayed empty
-  reply, storage quota, failed/malformed reads, version visibility at 320px,
-  untouched padded-title notes, and preservation of a real conflicting draft.
-- New unit tests pass UUID fallback, preparation error classification, cache quota,
-  durable pending drafts, out-of-order reads and previous-account replies.
-- AI layout check initially caught animated header geometry during resizing; CSS
-  override applied. Final AI + HTTP browser suite: **2 passed**, including all languages/themes and 320/390/768/1280px web/native layouts.
-- No physical-device or newly packaged client verification yet. Actual reporter
-  archive unavailable; do not claim all possible malformed metadata is fixed.
+## Checks actually run
 
-## Next steps
+- `npm test`: **39 passed** (before final small same-view partial-cache refinement).
+- Final web and native builds passed with 1.0.22 metadata. Version check passed.
+- New real insecure-HTTP browser fixture passes: randomUUID genuinely unavailable,
+  valid Keep ZIP import, importer close around a delayed empty reply, cache quota,
+  connection/failed/malformed refreshes, version visibility at 320px, untouched padded
+  titles with no patch, and real conflicting drafts kept open. Reran after final
+  same-view partial-cache guard; passed.
+- Unit coverage passes UUID fallback/uniqueness, syntax versus preparation errors,
+  quota failures with durable pending drafts, request ordering and account isolation.
+- Existing 1,300-note recovery/web/native browser suite: **3 passed**. Final
+  AI/header + HTTP browser suite: **2 passed**; AI layouts cover five languages,
+  light/dark themes, web/native and 320/390/768/1280px.
+- Initial new fixture hit test-only JSON module import and DNS route.fetch errors;
+  corrected. Host resolver maps the browser only; fixture API calls use loopback.
+- AI layout check caught animated glass-card header geometry; fixed with color-only
+  header transition. Phone version screenshot inspected.
+- Compiled Windows x64 and ARM64 both pass with randomUUID disabled, untouched
+  padded title, main version link, all pickers and >20 MiB intact-note/image checks.
+  ARM64 also passes 450 MiB Takeout. An initial 5-second big-image render wait timed
+  out after byte preservation passed; 20-second render wait passed, no source fix.
+- APK versionName **1.0.22**, versionCode **1000022**, signature verified locally;
+  public signing certificate matches previous releases. CI signing/icons pass.
+- Both Mac jobs pass origin/architecture/signature/DMG/startup checks. No physical
+  Android or interactive Mac verification in this task; private reporter ZIP absent.
+- Final Docker smoke passes AMD64/ARM64 including version/proxy/SQLite/ownership,
+  archived export, exact final frontend hash and bundled llama executable.
+- Diff whitespace and syntax checks passed.
 
-1. Finish final AI/header browser check; inspect diff and commit/push source.
-2. Dispatch all native builds; build/push Docker 1.0.22, smoke both architectures,
-   promote verified image to latest. Collect and verify actual client binaries.
-3. Publish public Latest 1.0.22 with seven binaries + checksums. Update this handoff
-   with actual commit/run/digest/checks and commit completion docs afterward.
+## Publication completed and verified
 
-## Context
+- Final native workflow **42520883231** succeeded for source 515b74e:
+  https://github.com/nikunjsingh93/react-glass-keep/actions/runs/42520883231
+- Initial own run 42520519642 was superseded/cancelled when the final partial-cache
+  safeguard was added. None of its binaries were published.
+- Public, non-prerelease **Latest v1.0.22**, eight verified assets (seven binaries
+  and SHA256SUMS.txt), targeting final source 515b74e:
+  https://github.com/nikunjsingh93/react-glass-keep/releases/tag/v1.0.22
+- Local downloads: artifacts/native/1.0.22. Do not publish collector ZIPs/test data.
+- Docker `nikunjsingh/glass-keep:1.0.22` and `:latest`, both architectures; verified
+  FINAL index digest:
+  `sha256:10839423d8edf1a96335cc3baf7703464dae13dbdaeb38b1e39475babd4a4683`.
+- Base images changed, requiring runtime rebuild. An intermediate Docker build for
+  976a5fa was superseded by final 515b74e BEFORE smoke/promotion. Do not use the
+  intermediate digest 8e0053f1... as the released image.
+- Issue #37 rechecked **open** for reporter confirmation. No comment/closure sent.
+- Owner deploys through Portainer; production was not inspected or updated.
 
-- Fresh GitHub check confirms reporter's comment in issue #37, still open; Latest
-  remains 1.0.21. No issue comment or closure sent by us.
-- Owner deploys through Portainer. Do not claim their running server was updated.
-  Preserve existing data, signing identity and unrelated containers.
+## Limits and next action
+
+- HTTP compatibility was reproduced independently of CPU type. The actual reporter
+  ZIP was unavailable; genuinely malformed files may still need correction and now
+  show distinct errors rather than falsely labeling every preparation failure JSON.
+- Keep 12 MiB/image, 128 MiB/encoded note, bounded chunks, staging quotas/expiry,
+  idempotent resume and all prior ownership/offline safeguards. No model changes.
+- Version below logo is bundled interface/client version; server/client updates
+  remain separate. Refresh browser after server update; native clients need install.
+- No assigned implementation/build/publication work remains. Await reporter
+  confirmation; refresh repo/GitHub state before another task.
