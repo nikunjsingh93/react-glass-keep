@@ -27,6 +27,7 @@ test('LAN HTTP imports, close/refresh races, cache quota and untouched padded ti
     if(route.request().method()!=='GET')return route.continue();requests++;
     if(hold){hold=false;const response=await api('/notes');held=true;await new Promise(resolve=>releaseOld=resolve);await route.fulfill({status:200,json:response}).catch(()=>{});return;}
     if(mode==='error')return route.fulfill({status:503,json:{error:'Temporary fixture outage'}});
+    if(mode==='network')return route.abort('failed');
     if(mode==='invalid')return route.fulfill({status:200,json:{unexpected:'not an array'}});
     await route.continue();
   });
@@ -39,6 +40,7 @@ test('LAN HTTP imports, close/refresh races, cache quota and untouched padded ti
   await page.locator('.note-card').filter({hasText:'Useful linux programs'}).click();await page.waitForTimeout(900);await page.getByRole('button',{name:'Close',exact:true}).click();await expect(page.locator('.modal-scrim')).toHaveCount(0);assert.equal(writes,0,'Opening an untouched padded title must not save or conflict');
   await page.evaluate(()=>{window.originalCachePut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(){throw new DOMException('Fixture storage quota','QuotaExceededError');};});
   await api('/notes','POST',{title:'Fresh despite quota',content:'Must stay visible'});await page.evaluate(()=>window.dispatchEvent(new Event('online')));await expect(page.locator('.note-card')).toHaveCount(3);await expect(page.getByText('Offline cache is unavailable. Keep the app connected to access your notes.',{exact:true})).toBeVisible();
+  mode='network';const priorRequests=requests;await page.evaluate(()=>window.dispatchEvent(new Event('online')));await expect.poll(()=>requests).toBeGreaterThan(priorRequests);await expect(page.locator('.note-card')).toHaveCount(3);
   mode='error';await page.evaluate(()=>window.dispatchEvent(new Event('online')));await expect(page.getByRole('alert')).toContainText('Could not refresh notes.');await expect(page.locator('.note-card')).toHaveCount(3);
   mode='invalid';await page.getByRole('button',{name:'Retry',exact:true}).click();await expect(page.getByRole('alert')).toContainText('invalid notes response');await expect(page.locator('.note-card')).toHaveCount(3);
   mode='normal';await page.evaluate(()=>{IDBObjectStore.prototype.put=window.originalCachePut;});await page.getByRole('button',{name:'Retry',exact:true}).click();await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.locator('.note-card')).toHaveCount(3);

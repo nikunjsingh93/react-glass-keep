@@ -3617,6 +3617,7 @@ export default function App() {
     const request=notesRequest.current;
     request.controller?.abort();const controller=new AbortController();request.controller=controller;
     const id=++request.id;
+    const sameView=request.view===archived;
     if(request.view!==archived){request.view=archived;setNotes([]);setNotesLoaded(false);}
     const current=()=>id===notesRequest.current.id && sessionTokenRef.current===token && !controller.signal.aborted && !importActive.current && archived===(tagFilterRef.current==='ARCHIVED');
     setNotesLoading(true);setNotesError('');
@@ -3624,6 +3625,7 @@ export default function App() {
       const data=await api(archived?'/notes/archived':'/notes',{token,signal:controller.signal});
       if(!current())return;
       if(!Array.isArray(data))throw new Error('The server returned an invalid notes response.');
+      if(data.fromOfflineCache&&sameView&&notesRef.current.length){setNotesLoaded(true);return;}
       if(data.fromOfflineCache&&!data.length)throw new Error('No cached notes are available. Reconnect to refresh.');
       setNotes(previous=>{
         const latest=new Map(previous.map(note=>[String(note.id),note]));
