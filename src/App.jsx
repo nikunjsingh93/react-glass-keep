@@ -1,3 +1,4 @@
+import {uuid} from './uuid.js';
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { askAI } from "./ai";
@@ -7,6 +8,7 @@ import DrawingCanvas from "./DrawingCanvas";
 import { createNoteWriter } from "./noteWriter";
 import { importNoteBatches } from "./importBackup";
 import {createImportTransport} from './importTransport';
+import {version as appVersion} from '../package.json';
 import ChecklistEditor from "./ChecklistEditor";
 import { toggleBranch } from "./checklist";
 import { LanguagePicker, KeepImportDialog, DuplicateDialog, NoteActions, PublicNote, ConnectedServer, Dialog } from "./FeaturePanels";
@@ -2117,7 +2119,7 @@ function NotesUI({
   // color popover
   colorBtnRef, showColorPop, setShowColorPop,
   // loading state
-  notesLoading,
+  notesLoading,notesError,cacheWarning,onRefreshNotes,
   tagSuggestions,
   // multi-select
   multiMode,
@@ -2246,6 +2248,8 @@ function NotesUI({
             </button>
           )}
 
+          <div className="flex flex-col items-start">
+          <div className="flex items-center gap-2 sm:gap-3">
           {/* App logo */}
           <img
             src="/favicon-32x32.png"
@@ -2256,6 +2260,9 @@ function NotesUI({
           />
 
           <h1 className="hidden sm:block text-2xl sm:text-3xl font-bold">{t("Glass Keep")}</h1>
+          </div>
+          <a className="text-[10px] leading-3 mt-1 opacity-70 hover:opacity-100 hover:underline" href="https://github.com/nikunjsingh93/react-glass-keep/blob/main/docs/updating.md" target="_blank" rel="noreferrer" aria-label={t('App version: {version}. Open update instructions.',{version:appVersion})} title={t('App version: {version}. Open update instructions.',{version:appVersion})} onClick={event=>{if(isNative){event.preventDefault();void openExternal(event.currentTarget.href);}}}>v{appVersion}</a>
+          </div>
           {activeTagFilter && (
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-600/10 text-indigo-700 dark:text-indigo-300 border border-indigo-600/20">
               {tagLabel === "All Images" || tagLabel === "Archived Notes" ? tagLabel : `Tag: ${tagLabel}`}
@@ -2824,6 +2831,8 @@ function NotesUI({
             <p className="text-center text-gray-500 dark:text-gray-400 mt-10">{t("No notes yet. Add one to get started!")}</p>
           )
         }
+        {notesError&&<div role="alert" className="settings-card my-4 text-sm"><p>{t('Could not refresh notes. Your current notes are still available.')}</p><p>{t(notesError)}</p><button className="settings-action rounded-lg px-3 py-2 mt-2" onClick={onRefreshNotes}>{t('Retry')}</button></div>}
+        {cacheWarning&&<p role="status" className="text-center text-sm my-3">{t('Offline cache is unavailable. Keep the app connected to access your notes.')}</p>}
       </main >
     </div >
   );
@@ -2987,6 +2996,17 @@ export default function App() {
 
   // Notes & search
   const [notes, setNotes] = useState([]);
+  const [notesError,setNotesError]=useState(''),[notesLoaded,setNotesLoaded]=useState(false),[cacheWarning,setCacheWarning]=useState(false);
+  const notesRequest=useRef({id:0,controller:null,view:null});
+  useEffect(()=>{
+    notesRequest.current.id++;notesRequest.current.controller?.abort();notesRequest.current.view=null;
+    setNotes([]);setNotesLoaded(false);setNotesError('');setCacheWarning(false);
+    const warning=event=>{if(String(event.detail?.userId)===String(currentUser?.id))setCacheWarning(true);};
+    const ready=event=>{if(String(event.detail?.userId)===String(currentUser?.id))setCacheWarning(false);};
+    window.addEventListener('offline-cache-warning',warning);
+    window.addEventListener('offline-cache-ready',ready);
+    return()=>{notesRequest.current.id++;notesRequest.current.controller?.abort();window.removeEventListener('offline-cache-warning',warning);window.removeEventListener('offline-cache-ready',ready);};
+  },[token]);
   const notesRef = useRef(notes);
   notesRef.current = notes;
   const modalRevisionRef = useRef(null);
@@ -3592,81 +3612,33 @@ export default function App() {
     }
   };
 
-  const loadNotes = async () => {
-    if (!token || importActive.current) return;
-    setNotesLoading(true);
-
+  const refreshNotes = async (archived=false) => {
+    if (!token || sessionTokenRef.current!==token || importActive.current || archived!==(tagFilterRef.current==='ARCHIVED')) return;
+    const request=notesRequest.current;
+    request.controller?.abort();const controller=new AbortController();request.controller=controller;
+    const id=++request.id;
+    if(request.view!==archived){request.view=archived;setNotes([]);setNotesLoaded(false);}
+    const current=()=>id===notesRequest.current.id && sessionTokenRef.current===token && !controller.signal.aborted && !importActive.current && archived===(tagFilterRef.current==='ARCHIVED');
+    setNotesLoading(true);setNotesError('');
     try {
-      const data = await api("/notes", { token });
-      const notesArray = Array.isArray(data) ? data : [];
-      setNotes(sortNotesByRecency(notesArray));
-      persistNotesCache(notesArray);
-    } catch (error) {
-      console.error("Error loading notes from server:", error);
-      // Try to load from cache as fallback
-      try {
-        const cachedData = localStorage.getItem(NOTES_CACHE_KEY);
-        if (cachedData) {
-          const cachedNotes = JSON.parse(cachedData);
-          setNotes(sortNotesByRecency(cachedNotes));
-        } else {
-          setNotes([]);
-        }
-      } catch (cacheError) {
-        console.error("Error loading from cache:", cacheError);
-        setNotes([]);
-      }
-    } finally {
-      setNotesLoading(false);
-    }
+      const data=await api(archived?'/notes/archived':'/notes',{token,signal:controller.signal});
+      if(!current())return;
+      if(!Array.isArray(data))throw new Error('The server returned an invalid notes response.');
+      if(data.fromOfflineCache&&!data.length)throw new Error('No cached notes are available. Reconnect to refresh.');
+      setNotes(previous=>{
+        const latest=new Map(previous.map(note=>[String(note.id),note]));
+        return sortNotesByRecency(data.map(note=>{
+          const local=latest.get(String(note.id));
+          return local && local.revision>note.revision?local:note;
+        }));
+      });
+      setNotesLoaded(true);
+    } catch(error) {
+      if(current())setNotesError(error.message || 'Could not refresh notes. Your current notes are still available.');
+    } finally {if(current())setNotesLoading(false);}
   };
-
-  // Load archived notes
-  const loadArchivedNotes = async () => {
-    if (!token || importActive.current) return;
-    setNotesLoading(true);
-
-    console.log("Loading archived notes, checking cache...");
-    // First, try to load from cache immediately for better UX
-    let hasCachedData = false;
-    try {
-      const cachedData = localStorage.getItem(ARCHIVED_NOTES_CACHE_KEY);
-      if (cachedData) {
-        const cachedNotes = JSON.parse(cachedData);
-        console.log("Found cached archived notes:", cachedNotes.length);
-        setNotes(sortNotesByRecency(cachedNotes));
-        hasCachedData = true;
-      } else {
-        console.log("No cached archived notes found");
-      }
-    } catch (cacheError) {
-      console.error("Error loading archived notes from cache:", cacheError);
-    }
-
-    try {
-      const data = await api("/notes/archived", { token });
-      const notesArray = Array.isArray(data) ? data : [];
-      setNotes(sortNotesByRecency(notesArray));
-
-      // Cache the data
-      try {
-        localStorage.setItem(ARCHIVED_NOTES_CACHE_KEY, JSON.stringify(notesArray));
-        localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
-        console.log("Cached", notesArray.length, "archived notes");
-      } catch (error) {
-        console.error("Error caching archived notes:", error);
-      }
-    } catch (error) {
-      console.error("Error loading archived notes from server:", error);
-      // If we don't have cached data, set empty array
-      if (!hasCachedData) {
-        console.log("No cached data and server error, setting empty array");
-        setNotes([]);
-      }
-    } finally {
-      setNotesLoading(false);
-    }
-  };
+  const loadNotes=()=>refreshNotes(false);
+  const loadArchivedNotes=()=>refreshNotes(true);
   useEffect(() => {
     if (!token) return;
 
@@ -3695,9 +3667,6 @@ export default function App() {
   // This will be added after signOut is defined below
 
   useEffect(() => {
-    if (token) {
-      loadNotes().catch(() => { });
-    }
     if (!token) return;
 
     let es;
@@ -4369,7 +4338,7 @@ export default function App() {
       if (!file) return;
       const identifiers=new Set();
       const notesArr = (await readBackup(file)).map(note=>{
-        const id=note.id===undefined||note.id===null||identifiers.has(String(note.id))?crypto.randomUUID():String(note.id);
+        const id=note.id===undefined||note.id===null||identifiers.has(String(note.id))?uuid():String(note.id);
         identifiers.add(id);return {...note,id};
       });
       if (!notesArr.length) { alert(t("No notes found in file.")); return; }
@@ -4746,7 +4715,7 @@ export default function App() {
     if (!initialModalStateRef.current || !activeId) return false;
     const initial = initialModalStateRef.current;
     const current = {
-      title: mTitle.trim(),
+      title: mTitle,
       content: mBody,
       tags: mTagList,
       images: mImages,
@@ -4765,7 +4734,7 @@ export default function App() {
   const saveTextDraft = useCallback(async (metadataOnly = false) => {
     const initial = initialModalStateRef.current;
     if (!initial || !activeId) return;
-    const current = { title: mTitle.trim(), content: mBody, tags: mTagList, images: mImages, color: mColor };
+    const current = { title: mTitle, content: mBody, tags: mTagList, images: mImages, color: mColor };
     const fields = metadataOnly ? ["tags", "images", "color"] : Object.keys(current);
     const patch = Object.fromEntries(fields.filter(key => JSON.stringify(current[key]) !== JSON.stringify(initial[key])).map(key => [key, current[key]]));
     if (!Object.keys(patch).length) return;
@@ -4812,9 +4781,10 @@ export default function App() {
 
     // If server changed and user hasn't edited locally, update initial state to server state
     // This prevents overwriting server changes when user closes without editing
-    if (serverChanged && !hasNoteBeenModified()) {
-      initialModalStateRef.current = serverState;
+    if (!hasNoteBeenModified() && n.revision>=modalRevisionRef.current) {
       modalRevisionRef.current = n.revision;
+      if(!serverChanged)return;
+      initialModalStateRef.current = serverState;
       // Update local modal state to match server (user hasn't edited, so safe to update)
       setMTitle(serverState.title);
       setMBody(serverState.content);
@@ -5095,7 +5065,7 @@ export default function App() {
   const pinned = filtered.filter((n) => n.pinned);
   const others = filtered.filter((n) => !n.pinned);
   const filteredEmptyWithSearch = filtered.length === 0 && notes.length > 0 && !!(search || (tagFilter && tagFilter !== 'ARCHIVED'));
-  const allEmpty = notes.length === 0;
+  const allEmpty = notesLoaded && !notesError && notes.length === 0;
 
   /** -------- Modal link handler: open links in new tab (no auto-enter edit) -------- */
   const onModalBodyClick = (e) => {
@@ -6065,7 +6035,7 @@ export default function App() {
       <OfflineStatus client={offlineClient} onSynced={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>
       {!networkOnline && <p role="status" className="text-center bg-amber-100 text-gray-900 p-2">{t("You are offline. Changes are saved on this device and will sync when you reconnect.")}</p>}
       {autoExportOpen && <React.Suspense fallback={null}><AutoExportDialog backup={autoExport} onClose={()=>setAutoExportOpen(false)} onImport={()=>importFileRef.current?.click()}/></React.Suspense>}
-      {keepImportOpen && <KeepImportDialog api={api} token={token} initialFiles={keepImportFiles} onBusyChange={busy=>{importActive.current=busy;}} onClose={()=>{setKeepImportOpen(false);setKeepImportFiles(null);}} onImported={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>}
+      {keepImportOpen && <KeepImportDialog api={api} token={token} initialFiles={keepImportFiles} onBusyChange={busy=>{importActive.current=busy;if(busy){notesRequest.current.id++;notesRequest.current.controller?.abort();setNotesLoading(false);}}} onClose={()=>{importActive.current=false;setKeepImportOpen(false);setKeepImportFiles(null);void (tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes());}} onImported={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}/>}
       {duplicatesOpen && <DuplicateDialog api={api} token={token} onClose={()=>setDuplicatesOpen(false)} onChanged={loadNotes}/>}
       <datalist id="existing-tags">{tagsWithCounts.map(({tag})=><option key={tag} value={tag}/>)}</datalist>
       {/* Tag Sidebar / Drawer */}
@@ -6200,6 +6170,9 @@ export default function App() {
         setShowColorPop={setShowColorPop}
         // loading
         notesLoading={notesLoading}
+        notesError={notesError}
+        cacheWarning={cacheWarning}
+        onRefreshNotes={()=>tagFilterRef.current==='ARCHIVED'?loadArchivedNotes():loadNotes()}
         tagSuggestions={tagsWithCounts.map(({tag})=>tag)}
         // multi-select
         multiMode={multiMode}

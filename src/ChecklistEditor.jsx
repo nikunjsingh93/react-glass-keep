@@ -1,3 +1,4 @@
+import {uuid} from './uuid.js';
 import React, {useState} from 'react';
 import {depthOf,moveBranch,indentBranch,toggleBranch,removeBranch,treeOrder} from './checklist';
 import {t} from './i18n';
@@ -7,7 +8,7 @@ export default function ChecklistEditor({items,onChange,readOnly=false,storageKe
   const commit=next=>onChange(treeOrder(next));
   const [input,setInput]=useState('');
   const [hideDone,setHideDone]=useState(()=>localStorage.getItem(storageKey)==='true');
-  const add=(parentId=null)=>commit([...items,{id:crypto.randomUUID(),text:parentId?'':input.trim(),done:false,parentId}]);
+  const add=(parentId=null)=>commit([...items,{id:uuid(),text:parentId?'':input.trim(),done:false,parentId}]);
   return <div className="space-y-3">
     {!readOnly && <form className="flex gap-2" onSubmit={e=>{e.preventDefault();if(input.trim()){add();setInput('');}}}>
       <input aria-label={t('New checklist item')} placeholder={t('List item…')} value={input} onChange={e=>setInput(e.target.value)} className="flex-1 min-w-0 rounded border p-2 bg-transparent"/>

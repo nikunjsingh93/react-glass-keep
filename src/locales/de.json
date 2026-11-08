@@ -375,5 +375,14 @@
   "Import chunk already exists with different data.": "Der Import-Datenblock existiert bereits mit anderen Daten.",
   "Import upload is incomplete.": "Der Import-Upload ist unvollständig.",
   "Invalid imported note": "Ungültige importierte Notiz",
-  "Server response was interrupted.": "Die Serverantwort wurde unterbrochen."
+  "Server response was interrupted.": "Die Serverantwort wurde unterbrochen.",
+  "App version: {version}. Open update instructions.": "App-Version: {version}. Update-Anleitung öffnen.",
+  "Could not refresh notes. Your current notes are still available.": "Notizen konnten nicht aktualisiert werden. Ihre bisherigen Notizen sind weiterhin verfügbar.",
+  "Retry": "Erneut versuchen",
+  "Offline cache is unavailable. Keep the app connected to access your notes.": "Der Offline-Cache ist nicht verfügbar. Bleiben Sie verbunden, um auf Ihre Notizen zuzugreifen.",
+  "The server returned an invalid notes response.": "Der Server hat eine ungültige Notizantwort zurückgegeben.",
+  "No cached notes are available. Reconnect to refresh.": "Keine zwischengespeicherten Notizen verfügbar. Stellen Sie die Verbindung wieder her.",
+  "Invalid JSON: {file}": "Ungültiges JSON: {file}",
+  "Unsupported attachment: {file}": "Nicht unterstützter Anhang: {file}",
+  "Could not prepare note: {file}. {reason}": "Notiz konnte nicht vorbereitet werden: {file}. {reason}"
 }

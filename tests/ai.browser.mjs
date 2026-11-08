@@ -17,7 +17,8 @@ async function checkCompactAI(page, native, busy) {
         await page.setViewportSize({width,height:844});await page.mouse.move(0,840);
         const input=await page.locator('.app-header input[type="text"]').boundingBox();
         const button=page.locator('.ai-ask-button'),bounds=await button.boundingBox();
-        assert.ok(Math.abs(bounds.y+bounds.height/2-input.y-input.height/2)<1,'Ask AI must stay beside search at every size');
+        if(Math.abs(bounds.y+bounds.height/2-input.y-input.height/2)>=1)await page.screenshot({path:'artifacts/header-alignment-regression.png',animations:'disabled'});
+        assert.ok(Math.abs(bounds.y+bounds.height/2-input.y-input.height/2)<1,'Ask AI must stay beside search at every size: '+JSON.stringify({native,language,dark,width,input,bounds}));
         assert.equal(bounds.height,32,'Ask AI must use the compact button height');
         assert.ok(bounds.x>=input.x+input.width&&bounds.x+bounds.width<=width,'Search and AI must not overlap or overflow');
         assert.ok(input.width>=64,'The search field must remain usable');

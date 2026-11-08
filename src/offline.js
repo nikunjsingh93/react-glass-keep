@@ -1,3 +1,4 @@
+import {uuid} from './uuid.js';
 import {storageKey} from './platform.js';
 const DB_NAME=storageKey('glass-keep-offline-v1');
 let opened;
@@ -24,6 +25,7 @@ function operationKind(path,method) {
 
 export function createOfflineClient({request,session,isOnline=()=>navigator.onLine}) {
   const syncing=new Map();
+  const reads=new Map();
   async function flush() {
     const auth=session();if(!auth?.user?.id || !isOnline())return;
     const userId=auth.user.id;if(syncing.has(userId))return syncing.get(userId);
@@ -60,7 +62,7 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
     const auth=session(),method=options.method || 'GET',kind=operationKind(path,method);
     if(!auth?.user?.id || !kind)throw offlineError();
     const result=await accountState(auth.user.id,s=>{
-      const body={...(options.body || {})};const noteId=kind==='create'?String(body.id || crypto.randomUUID()):path.split('/')[2];
+      const body={...(options.body || {})};const noteId=kind==='create'?String(body.id || uuid()):path.split('/')[2];
       const previous=s.notes.find(n=>String(n.id)===noteId);let local;
       if(kind==='create') {body.id=noteId;local={...body,id:noteId,user_id:auth.user.id,revision:1,archived:false,items:body.items || [],tags:body.tags || [],images:body.images || [],type:body.type || 'text',pinned:!!body.pinned,timestamp:body.timestamp || new Date().toISOString(),pending:true};s.notes.push(local);}
       else if(kind==='reorder') {const now=Date.now();for(const [key,pinned] of [['pinnedIds',true],['otherIds',false]])(body[key] || []).forEach((id,index)=>{s.notes=s.notes.map(n=>n.id===id?{...n,pinned,position:now-index}:n);});}
@@ -78,14 +80,20 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
   async function cached(path,options) {
     const auth=session();if(!auth?.user?.id)throw offlineError();
     const state=await accountState(auth.user.id);
-    if(path==='/notes')return state.notes.filter(n=>!n.archived);
-    if(path==='/notes/archived')return state.notes.filter(n=>n.archived);
+    if(['/notes','/notes/archived'].includes(path)){
+      const notes=state.notes.filter(n=>!!n.archived===path.endsWith('/archived'));
+      Object.defineProperty(notes,'fromOfflineCache',{value:true});return notes;
+    }
     if(/^\/notes\/[^/]+$/.test(path)){const found=state.notes.find(n=>n.id===path.split('/')[2]);if(found)return found;}
     throw offlineError();
   }
   async function api(path,options={}) {
-    const auth=session(),method=options.method || 'GET',kind=operationKind(path,method),operationId=options.operationId || (kind?crypto.randomUUID():undefined);
+    const auth=session(),method=options.method || 'GET',kind=operationKind(path,method),operationId=options.operationId || (kind?uuid():undefined);
     const isAccountRequest=auth?.token && options.token===auth.token;
+    const listRequest=isAccountRequest&&method==='GET'&&['/notes','/notes/archived'].includes(path);
+    const readKey=listRequest?`${auth.user.id}:${path}`:null;
+    const readId=listRequest?(reads.get(readKey)||0)+1:null;
+    if(listRequest)reads.set(readKey,readId);
     if(isAccountRequest && kind) {
       const state=await accountState(auth.user.id);
       if(!isOnline() || state.ops.length){const result=await queue(path,options,operationId);if(isOnline())void flush();return result;}
@@ -93,22 +101,42 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
     if(isAccountRequest && !isOnline())return method==='GET'?cached(path,options):queue(path,options,operationId);
     try {
       const result=await request(path,{...options,operationId});
+      options.signal?.throwIfAborted();
+      if(isAccountRequest&&(session()?.token!==auth.token||(listRequest&&reads.get(readKey)!==readId)))throw new DOMException('Stale account request','AbortError');
+      if(listRequest&&!Array.isArray(result))throw new Error('The server returned an invalid notes response.');
       if(isAccountRequest && path.startsWith('/notes') && (kind || (result?.id&&result.revision) || (method==='GET'&&['/notes','/notes/archived'].includes(path)&&Array.isArray(result)))) {
-        return await accountState(auth.user.id,s=>{
+        let merged=result;
+        try{const saved=await accountState(auth.user.id,s=>{
           const pending=new Set(s.ops.map(o=>o.noteId));
           if(method==='GET' && ['/notes','/notes/archived'].includes(path) && Array.isArray(result)) {
             const archived=path.endsWith('/archived');
-            s.notes=[...s.notes.filter(n=>n.archived!==archived || pending.has(n.id)),...result.filter(n=>!pending.has(n.id))];
-            return s.notes.filter(n=>!!n.archived===archived);
+            const latest=new Map(s.notes.map(note=>[String(note.id),note]));
+            s.notes=[...s.notes.filter(n=>!!n.archived!==archived || pending.has(n.id)),...result.filter(n=>!pending.has(n.id)).map(note=>{
+              const local=latest.get(String(note.id));return local&&local.revision>note.revision?local:note;
+            })];
+            merged=s.notes.filter(n=>!!n.archived===archived);return merged;
           }
           if(result?.id && result.revision && !pending.has(result.id)){s.notes=s.notes.filter(n=>n.id!==result.id);s.notes.push(result);}
           if(kind==='delete')s.notes=s.notes.filter(n=>n.id!==path.split('/')[2]);
           if(kind==='archive')s.notes=s.notes.map(n=>n.id===path.split('/')[2]?{...n,archived:!!options.body.archived,revision:n.revision+1}:n);
           return result;
         });
+          if(listRequest&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('offline-cache-ready',{detail:{userId:auth.user.id}}));
+          return saved;
+        }catch{
+          // A successful server read/write must not become an empty screen or a
+          // failed save just because the optional local cache is full. Queueing
+          // offline edits still requires a successful durable transaction.
+          if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('offline-cache-warning',{detail:{userId:auth.user.id}}));
+          return merged;
+        }
       }
       return result;
-    }catch(error){if(isAccountRequest && networkFailure(error)){if(method==='GET')return cached(path,options);if(kind)return queue(path,options,operationId);}throw error;}
+    }catch(error){
+      options.signal?.throwIfAborted();
+      if(isAccountRequest&&(session()?.token!==auth.token||(listRequest&&reads.get(readKey)!==readId)))throw new DOMException('Stale account request','AbortError');
+      if(isAccountRequest && networkFailure(error)){if(method==='GET')return cached(path,options);if(kind)return queue(path,options,operationId);}throw error;
+    }
   }
   async function resolveConflict(noteId,choice) {
     const auth=session();if(!isOnline())throw offlineError();
@@ -120,8 +148,8 @@ export function createOfflineClient({request,session,isOnline=()=>navigator.onLi
       s.ops=s.ops.filter(o=>o.noteId!==noteId);delete s.conflicts[noteId];s.notes=s.notes.filter(n=>n.id!==noteId);
       if(choice==='server'){if(latest)s.notes.push(latest);return;}
       if(deletion && !latest)return;
-      const method=deletion?'DELETE':latest?'PATCH':'POST',id=crypto.randomUUID();
-      const body=deletion?{revision:latest.revision}:{...local,revision:latest?.revision,id:latest?.id || crypto.randomUUID()};
+      const method=deletion?'DELETE':latest?'PATCH':'POST',id=uuid();
+      const body=deletion?{revision:latest.revision}:{...local,revision:latest?.revision,id:latest?.id || uuid()};
       const target=latest?.id || body.id;
       if(!deletion)s.notes.push({...body,pending:true,revision:latest?latest.revision+1:1});
       s.ops.push({id,noteId:target,path:latest?`/notes/${target}`:'/notes',method,body,localNote:local,localRevision:deletion?null:latest?latest.revision+1:1});

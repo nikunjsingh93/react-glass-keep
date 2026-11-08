@@ -1,3 +1,4 @@
+import {uuid} from './uuid.js';
 import {openZipArchive,importPath,ZIP_LIMITS} from './zipArchive.js';
 const MAX_JSON=2*1024*1024, MAX_METADATA=64*1024*1024, MAX_ATTACHMENT=12*1024*1024;
 const imageTypes={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp'};
@@ -42,14 +43,14 @@ export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
   for(const name of entries.keys()){const base=name.split('/').pop();if(!byName.has(base))byName.set(base,[]);byName.get(base).push(name);}
   for(const [name,bytes] of entries) {
     if(!/\.json$/i.test(name)||!(bytes instanceof Uint8Array))continue;
-    let obj;try{obj=JSON.parse(new TextDecoder().decode(bytes));}catch{warnings.push(`Invalid JSON: ${name}`);continue;}
+    let obj;try{obj=JSON.parse(new TextDecoder().decode(bytes));}catch{warnings.push({message:'Invalid JSON: {file}',values:{file:name}});continue;}
     if(!obj||Array.isArray(obj)||typeof obj!=='object'||typeof obj.title!=='string'||!['textContent','listContent','createdTimestampUsec','userEditedTimestampUsec','isArchived','sharees'].some(key=>key in obj))continue;
     try {
     if(obj.isTrashed){skipped++;continue;}
     const sharees=Array.isArray(obj.sharees)?obj.sharees:[];
     const owner=sharees.find(s=>s.isOwner===true);
     if(onlyOwned && owner && String(owner.email || '').toLowerCase()!==accountEmail.toLowerCase()){skipped++;continue;}
-    const items=(obj.listContent || []).map(i=>({id:String(i.id || i.serverId || crypto.randomUUID()),text:String(i.text || ''),done:!!i.isChecked,parentId:i.parentId || i.parentServerId || i.superListItemId || null}));
+    const items=(obj.listContent || []).map(i=>({id:String(i.id || i.serverId || uuid()),text:String(i.text || ''),done:!!i.isChecked,parentId:i.parentId || i.parentServerId || i.superListItemId || null}));
     const ids=new Set(items.map(i=>i.id));let previousRoot=null;
     items.forEach((item,index)=>{
       if(item.parentId && !ids.has(String(item.parentId)))item.parentId=null;
@@ -69,16 +70,16 @@ export function parseKeepEntries(entries,{onlyOwned=true,accountEmail=''}={}) {
         else if(!matches.length&&candidates.length===1)entryName=candidates[0];
       }
       const data=entries.get(entryName);
-      if(!imageTypes[filePath.split('.').pop()?.toLowerCase()]){warnings.push(`Unsupported attachment: ${filePath}`);continue;}
+      if(!imageTypes[filePath.split('.').pop()?.toLowerCase()]){warnings.push({message:'Unsupported attachment: {file}',values:{file:filePath}});continue;}
       if(!data){missingImages.push({noteName:name,filePath});continue;}
-      images.push({id:crypto.randomUUID(),name:filePath.split('/').pop(),src:data instanceof Uint8Array?dataURL(data,filePath):null,...(data instanceof Uint8Array?{}:{entryName})});
+      images.push({id:uuid(),name:filePath.split('/').pop(),src:data instanceof Uint8Array?dataURL(data,filePath):null,...(data instanceof Uint8Array?{}:{entryName})});
     }
     const ms=Number(obj.userEditedTimestampUsec || obj.createdTimestampUsec || 0)/1000 || Date.now();
-    notes.push({id:crypto.randomUUID(),type:items.length?'checklist':'text',title:String(obj.title || ''),content:items.length?'':String(obj.textContent || ''),items,
+    notes.push({id:uuid(),type:items.length?'checklist':'text',title:String(obj.title || ''),content:items.length?'':String(obj.textContent || ''),items,
       tags:(obj.labels || []).map(l=>l.name).filter(Boolean),images,color:colorMap[obj.color] || 'default',pinned:!!obj.isPinned,archived:!!obj.isArchived,
       timestamp:new Date(ms).toISOString(),position:ms,collaborators:sharees.filter(s=>!s.isOwner && s.email && (!s.type || s.type==='USER')).map(s=>({email:s.email}))});
     missingAttachments.push(...missingImages);
-    } catch { warnings.push(`Invalid JSON: ${name}`); }
+    } catch(error) { warnings.push({message:'Could not prepare note: {file}. {reason}',values:{file:name,reason:error.message}}); }
   }
   return {notes,warnings,missingAttachments,skipped};
 }

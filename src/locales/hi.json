@@ -375,5 +375,14 @@
   "Import chunk already exists with different data.": "यह आयात भाग अन्य डेटा के साथ पहले से मौजूद है।",
   "Import upload is incomplete.": "आयात अपलोड अधूरा है।",
   "Invalid imported note": "आयात किया गया नोट अमान्य है",
-  "Server response was interrupted.": "सर्वर का उत्तर बीच में रुक गया।"
+  "Server response was interrupted.": "सर्वर का उत्तर बीच में रुक गया।",
+  "App version: {version}. Open update instructions.": "ऐप संस्करण: {version}। अपडेट के निर्देश खोलें।",
+  "Could not refresh notes. Your current notes are still available.": "नोट ताज़ा नहीं हो सके। आपके मौजूदा नोट अभी भी उपलब्ध हैं।",
+  "Retry": "फिर कोशिश करें",
+  "Offline cache is unavailable. Keep the app connected to access your notes.": "ऑफ़लाइन कैश उपलब्ध नहीं है। नोट देखने के लिए ऐप को कनेक्टेड रखें।",
+  "The server returned an invalid notes response.": "सर्वर ने नोट के लिए अमान्य उत्तर दिया।",
+  "No cached notes are available. Reconnect to refresh.": "कोई कैश किए गए नोट उपलब्ध नहीं हैं। ताज़ा करने के लिए फिर कनेक्ट करें।",
+  "Invalid JSON: {file}": "अमान्य JSON: {file}",
+  "Unsupported attachment: {file}": "असमर्थित अटैचमेंट: {file}",
+  "Could not prepare note: {file}. {reason}": "नोट तैयार नहीं हो सका: {file}। {reason}"
 }

@@ -375,5 +375,14 @@
   "Import chunk already exists with different data.": "Ce bloc existe déjà avec des données différentes.",
   "Import upload is incomplete.": "L’envoi d’importation est incomplet.",
   "Invalid imported note": "Note importée non valide",
-  "Server response was interrupted.": "La réponse du serveur a été interrompue."
+  "Server response was interrupted.": "La réponse du serveur a été interrompue.",
+  "App version: {version}. Open update instructions.": "Version de l’application : {version}. Ouvrir les instructions de mise à jour.",
+  "Could not refresh notes. Your current notes are still available.": "Impossible d’actualiser les notes. Vos notes actuelles restent disponibles.",
+  "Retry": "Réessayer",
+  "Offline cache is unavailable. Keep the app connected to access your notes.": "Le cache hors ligne est indisponible. Gardez l’application connectée pour accéder à vos notes.",
+  "The server returned an invalid notes response.": "Le serveur a renvoyé une réponse de notes non valide.",
+  "No cached notes are available. Reconnect to refresh.": "Aucune note en cache n’est disponible. Reconnectez-vous pour actualiser.",
+  "Invalid JSON: {file}": "JSON non valide : {file}",
+  "Unsupported attachment: {file}": "Pièce jointe non prise en charge : {file}",
+  "Could not prepare note: {file}. {reason}": "Impossible de préparer la note : {file}. {reason}"
 }

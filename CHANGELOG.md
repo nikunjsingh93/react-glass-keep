@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.22] - 2026-11-08
+### Fixed
+- Keeps visible notes when refreshes fail or browser caching runs out of space. Ignores stale replies across imports, view changes and account changes, and refreshes after closing the importer. Failed or invalid responses show a retry action instead of claiming the account has no notes.
+- Treats successful server reads/writes separately from optional offline-cache writes, while preserving durable pending edits. Reports actual cache failures and clears the notice after caching recovers.
+- Opens imported notes with padded titles without silently trimming/saving them or reporting false unsaved drafts. Updates the editor revision after remote changes only when the user has no local draft; genuine conflicts still preserve drafts.
+- Imports Google Keep notes on ordinary LAN HTTP origins using cryptographically random UUIDs when the secure-context-only randomUUID API is unavailable. Separates JSON syntax errors from note preparation errors so valid JSON is not mislabeled.
+### Added
+- Visible app version below the main-screen logo, linked to GitHub update instructions for Docker/Portainer and native clients. Keeps header/search geometry stable during responsive resizing and translates the new guidance in every supported language.
+### Validation
+- Includes real insecure-HTTP browser import, delayed empty replies around import/close, cache-quota failures, failed/malformed refreshes, untouched padded-title notes, real draft conflicts, account isolation and mobile version-link coverage.
+
 ## [1.0.21] - 2026-11-02
 ### Fixed
 - Keeps large notes intact with authenticated, account-scoped chunked uploads instead of stopping at the old 19 MiB request guard. Requests stay small; notes up to 128 MiB encoded are committed atomically without splitting, resizing or discarding their pictures.

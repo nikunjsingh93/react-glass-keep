@@ -1,6 +1,6 @@
 # Glass Keep project knowledge
 
-Last reconciled with source: **2026-11-02**, version **1.0.21**. This file records
+Last reconciled with source: **2026-11-08**, version **1.0.22**. This file records
 lasting architecture and decisions. Read [HANDOFF.md](HANDOFF.md) for recent state
 and [../AGENTS.md](../AGENTS.md) for working instructions.
 
@@ -148,6 +148,32 @@ then read/hash each note separately: better-sqlite3 rejects writes while a SELEC
 iterator is active (an initial `.iterate()` + cache write failed regression tests).
 Do not return to rehashing all stored images on every batch or materializing all
 existing note/image rows just to check duplicates.
+
+In 1.0.22 note list refreshes are cancellable and scoped to request/account/view;
+import start invalidates pending pre-import requests, and importer close refreshes
+the current view. Failed/invalid refreshes retain displayed notes and show Retry.
+Only a successful authoritative empty response shows the empty-account message;
+an empty offline cache does not prove the server has no notes. Successful online
+results remain usable if IndexedDB caching fails, but offline edit queue writes
+must still persist successfully. Keep cache-failure notices account-scoped and
+clear them after a successful list cache write. Preserve newer/pending local note
+revisions when merging cache or list refreshes. Never restore catch handlers that
+replace the current list with [] after localStorage/IndexedDB/quota failures.
+
+`uuid.js` uses crypto.randomUUID when available and crypto.getRandomValues for a
+UUID v4 fallback on LAN HTTP. The secure-context-only API caused valid Takeout
+notes to be mislabeled Invalid JSON on HTTP origins, independent of CPU type.
+Keep the fallback throughout imports, outbox mutation IDs and checklist editing;
+do not fall back to Math.random for mutation/upload identifiers. JSON syntax and
+note preparation errors are distinct translated warnings.
+
+Editor dirty checks compare untouched title text exactly (including imported
+whitespace). Do not trim only the current title against an untrimmed baseline,
+which previously triggered autosaves/conflicts on opening notes. Adopt refreshed
+revisions only while no local draft exists; preserve actual draft conflict guards.
+The main header version is the bundled interface/client version, linked to
+docs/updating.md. Header transitions should animate colors, not geometry: global
+glass-card transition:all caused transient search/AI misalignment during resizing.
 
 ## UI conventions and regression traps
 

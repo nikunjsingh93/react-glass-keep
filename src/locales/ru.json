@@ -375,5 +375,14 @@
   "Import chunk already exists with different data.": "Блок импорта уже существует с другими данными.",
   "Import upload is incomplete.": "Загрузка импорта не завершена.",
   "Invalid imported note": "Некорректная импортируемая заметка",
-  "Server response was interrupted.": "Ответ сервера был прерван."
+  "Server response was interrupted.": "Ответ сервера был прерван.",
+  "App version: {version}. Open update instructions.": "Версия приложения: {version}. Открыть инструкцию по обновлению.",
+  "Could not refresh notes. Your current notes are still available.": "Не удалось обновить заметки. Текущие заметки по-прежнему доступны.",
+  "Retry": "Повторить",
+  "Offline cache is unavailable. Keep the app connected to access your notes.": "Офлайн-кеш недоступен. Сохраняйте подключение приложения для доступа к заметкам.",
+  "The server returned an invalid notes response.": "Сервер вернул некорректный ответ со списком заметок.",
+  "No cached notes are available. Reconnect to refresh.": "Кешированных заметок нет. Подключитесь для обновления.",
+  "Invalid JSON: {file}": "Некорректный JSON: {file}",
+  "Unsupported attachment: {file}": "Неподдерживаемое вложение: {file}",
+  "Could not prepare note: {file}. {reason}": "Не удалось подготовить заметку: {file}. {reason}"
 }
